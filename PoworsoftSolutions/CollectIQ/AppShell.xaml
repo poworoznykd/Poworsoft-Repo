@@ -3,12 +3,13 @@
     x:Class="CollectIQ.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:CollectIQ"
+    xmlns:views="clr-namespace:CollectIQ.Views"
     Title="CollectIQ">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
-
+    <TabBar>
+        <ShellContent
+        Title="Add Card"
+        ContentTemplate="{DataTemplate views:AddCardPage}"
+        Route="AddCardPage" />
+    </TabBar>
 </Shell>

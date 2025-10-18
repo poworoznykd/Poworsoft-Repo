@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+  <!-- Match the MAUI splash background color so the status bar isn't white -->
+  <style name="Maui.SplashTheme" parent="@style/Theme.SplashScreen">
+    <item name="windowSplashScreenBackground">@color/maui_splash_color</item>
+    <item name="android:statusBarColor">@color/maui_splash_color</item>
+    <item name="android:windowLightStatusBar">false</item>
+  </style>
+</resources>

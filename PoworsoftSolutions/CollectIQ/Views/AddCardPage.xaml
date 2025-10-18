@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.AddCardPage"
+             Title="Add / Edit Card">
+
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="10">
+
+            <Image x:Name="PreviewImage"
+             HeightRequest="220"
+             Aspect="AspectFill" />
+
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Take Photo" Clicked="OnTakePhoto"/>
+                <Button Text="Pick Photo" Clicked="OnPickPhoto"/>
+            </HorizontalStackLayout>
+
+            <Entry x:Name="EbayQueryEntry"
+             Placeholder="Describe the card to search on eBay (e.g., 2019 Prizm #248 Ja Morant)" />
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Find on eBay" Clicked="OnFindEbay"/>
+                <Button Text="Use eBay Image" Clicked="OnUseEbayImage"/>
+            </HorizontalStackLayout>
+            <Label x:Name="EbayResultLabel"
+             LineBreakMode="WordWrap"
+             TextColor="Gray" />
+
+            <Entry x:Name="PlayerEntry"  Placeholder="Player" />
+            <Entry x:Name="YearEntry"    Placeholder="Year (e.g., 2019)" />
+            <Entry x:Name="SetEntry"     Placeholder="Set (e.g., Prizm)" />
+            <Entry x:Name="NumberEntry"  Placeholder="# (e.g., 248)" />
+            <Entry x:Name="TeamEntry"    Placeholder="Team" />
+            <Entry x:Name="GradeCoEntry" Placeholder="Grader (PSA/SGC/BGS/RAW)" />
+            <Entry x:Name="GradeEntry"   Placeholder="Grade (10, 9.5, 9, AUTH)" />
+            <Entry x:Name="PriceEntry"   Placeholder="Purchase Price" Keyboard="Numeric" />
+
+            <HorizontalStackLayout Spacing="12" Margin="0,6,0,0">
+                <Button Text="Save" Clicked="OnSave"/>
+                <Button Text="Delete" TextColor="Red" Clicked="OnDelete"/>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

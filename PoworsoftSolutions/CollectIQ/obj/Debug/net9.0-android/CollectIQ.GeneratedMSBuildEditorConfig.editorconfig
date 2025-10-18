@@ -1,4 +1,8 @@
 is_global = true
+build_property.EnableAotAnalyzer = 
+build_property.EnableSingleFileAnalyzer = true
+build_property.EnableTrimAnalyzer = false
+build_property.IncludeAllContentForSelfExtract = 
 build_property.TargetFramework = net9.0-android
 build_property.TargetPlatformMinVersion = 
 build_property.UsingMicrosoftNETSdkWeb = 
@@ -8,8 +12,50 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = CollectIQ
-build_property.ProjectDir = C:\src\CollectIQ\PoworsoftSolutions\CollectIQ\
+build_property.ProjectDir = C:\src\Poworsoft-Repo\PoworsoftSolutions\CollectIQ\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.EffectiveAnalysisLevelStyle = 9.0
 build_property.EnableCodeStyleSeverity = 
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/App.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.App.xaml
+build_metadata.AdditionalFiles.TargetPath = App.xaml
+build_metadata.AdditionalFiles.RelativePath = App.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/AppShell.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.AppShell.xaml
+build_metadata.AdditionalFiles.TargetPath = AppShell.xaml
+build_metadata.AdditionalFiles.RelativePath = AppShell.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/MainPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.MainPage.xaml
+build_metadata.AdditionalFiles.TargetPath = MainPage.xaml
+build_metadata.AdditionalFiles.RelativePath = MainPage.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Resources/Styles/Colors.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Resources.Styles.Colors.xaml
+build_metadata.AdditionalFiles.TargetPath = Resources\Styles\Colors.xaml
+build_metadata.AdditionalFiles.RelativePath = Resources\Styles\Colors.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Resources/Styles/Styles.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Resources.Styles.Styles.xaml
+build_metadata.AdditionalFiles.TargetPath = Resources\Styles\Styles.xaml
+build_metadata.AdditionalFiles.RelativePath = Resources\Styles\Styles.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/AddCardPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.AddCardPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\AddCardPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\AddCardPage.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/LandingPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.LandingPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\LandingPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\LandingPage.xaml

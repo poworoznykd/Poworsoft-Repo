@@ -1,15 +1,16 @@
-﻿namespace CollectIQ
+﻿using Microsoft.Maui.Controls;
+
+namespace CollectIQ
 {
     public partial class App : Application
     {
         public App()
         {
             InitializeComponent();
-        }
 
-        protected override Window CreateWindow(IActivationState? activationState)
-        {
-            return new Window(new AppShell());
+            // Force the app to start on LandingPage (no Shell yet)
+            MainPage = new CollectIQ.Views.LandingPage();
+            // If you prefer a nav bar later: MainPage = new NavigationPage(new CollectIQ.Views.LandingPage());
         }
     }
 }
