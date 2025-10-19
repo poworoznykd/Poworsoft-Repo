@@ -6,6 +6,7 @@
              BackgroundColor="Transparent">
 
     <Grid>
+        <!-- Gradient background -->
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Color="#2B0B98" Offset="0.0" />
@@ -14,65 +15,84 @@
             </LinearGradientBrush>
         </Grid.Background>
 
-        <ScrollView>
-            <VerticalStackLayout Padding="30,40,30,40" Spacing="14"
-                                 VerticalOptions="Center" HorizontalOptions="Center">
+        <!-- Layout centered vertically -->
+        <VerticalStackLayout Padding="30,50,30,40"
+                             Spacing="18"
+                             VerticalOptions="Center"
+                             HorizontalOptions="Center">
 
-                <Image Source="collectiq_logo.png"
-                       HeightRequest="100"
-                       WidthRequest="100"
-                       HorizontalOptions="Center"/>
+            <!-- Title -->
+            <Label Text="Create Account or Sign In"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   TextColor="White"
+                   HorizontalTextAlignment="Center" />
 
-                <Label Text="Create Account or Sign In"
-                       FontSize="22"
-                       TextColor="White"
-                       HorizontalTextAlignment="Center"
-                       Margin="0,10"/>
+            <Label Text="Enter your details below"
+                   FontSize="14"
+                   TextColor="#E0E0E0"
+                   HorizontalTextAlignment="Center"
+                   Margin="0,0,0,20" />
 
-                <Entry x:Name="EmailEntry"
-                       Placeholder="Email"
-                       PlaceholderColor="#A0A0A0"
-                       TextColor="White"
-                       Keyboard="Email"
-                       HeightRequest="44"
-                       BackgroundColor="#1E1E1E"/>
+            <!-- Email -->
+            <Entry x:Name="EmailEntry"
+                   Placeholder="Email"
+                   PlaceholderColor="#B0B0B0"
+                   TextColor="White"
+                   Keyboard="Email"
+                   HeightRequest="44"
+                   BackgroundColor="#1E1E1E"
+                   Margin="0,0,0,8" />
 
-                <Entry x:Name="PasswordEntry"
-                       Placeholder="Password"
-                       PlaceholderColor="#A0A0A0"
-                       TextColor="White"
-                       IsPassword="True"
-                       HeightRequest="44"
-                       BackgroundColor="#1E1E1E"
-                       TextChanged="OnPasswordChanged"/>
+            <!-- Password -->
+            <Entry x:Name="PasswordEntry"
+                   Placeholder="Password"
+                   PlaceholderColor="#B0B0B0"
+                   TextColor="White"
+                   IsPassword="True"
+                   HeightRequest="44"
+                   BackgroundColor="#1E1E1E"
+                   TextChanged="OnPasswordChanged"
+                   Margin="0,0,0,12" />
 
-                <GraphicsView x:Name="StrengthMeterView"
-                              HeightRequest="50"
-                              WidthRequest="200"
-                              HorizontalOptions="Center"/>
+            <!-- Password Strength Meter -->
+            <GraphicsView x:Name="StrengthMeterView"
+                          HeightRequest="55"
+                          WidthRequest="130"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"
+                          Margin="0,20,0,8" />
 
-                <Entry x:Name="ConfirmPasswordEntry"
-                       Placeholder="Confirm Password"
-                       PlaceholderColor="#A0A0A0"
-                       TextColor="White"
-                       IsPassword="True"
-                       HeightRequest="44"
-                       BackgroundColor="#1E1E1E"/>
+            <!-- Confirm Password -->
+            <Entry x:Name="ConfirmPasswordEntry"
+                   Placeholder="Confirm Password"
+                   PlaceholderColor="#B0B0B0"
+                   TextColor="White"
+                   IsPassword="True"
+                   HeightRequest="44"
+                   BackgroundColor="#1E1E1E"
+                   Margin="0,20,0,25" />
 
-                <Button Text="Register"
-                        Clicked="OnRegister"
-                        BackgroundColor="#7C3AED"
-                        TextColor="White"
-                        HeightRequest="50"
-                        CornerRadius="14"/>
+            <!-- Register -->
+            <Button x:Name="RegisterButton"
+                    Text="Register"
+                    Clicked="OnRegister"
+                    HeightRequest="50"
+                    CornerRadius="14"
+                    BackgroundColor="#7C3AED"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    Margin="0,0,0,12" />
 
-                <Button Text="Login"
-                        Clicked="OnLogin"
-                        BackgroundColor="#4895EF"
-                        TextColor="White"
-                        HeightRequest="50"
-                        CornerRadius="14"/>
-            </VerticalStackLayout>
-        </ScrollView>
+            <!-- Login -->
+            <Button x:Name="LoginButton"
+                    Text="Login"
+                    Clicked="OnLogin"
+                    HeightRequest="50"
+                    CornerRadius="14"
+                    BackgroundColor="#4895EF"
+                    TextColor="White"
+                    FontAttributes="Bold" />
+        </VerticalStackLayout>
     </Grid>
 </ContentPage>
