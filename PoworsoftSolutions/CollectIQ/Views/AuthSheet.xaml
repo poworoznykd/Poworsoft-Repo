@@ -1,85 +1,101 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.AuthSheet"
-             Shell.PresentationMode="ModalAnimated"
-             BackgroundColor="#AA000000">
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="Transparent">
 
-    <Grid RowDefinitions="*,Auto" Padding="0">
+    <!-- Gradient background -->
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <LinearGradientBrush.GradientStops>
+                    <GradientStop Color="#2B0B98" Offset="0.0" />
+                    <GradientStop Color="#512BD4" Offset="0.5" />
+                    <GradientStop Color="#7C3AED" Offset="1.0" />
+                </LinearGradientBrush.GradientStops>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-        <!-- Dimmed backdrop closes sheet on tap -->
-        <Grid.GestureRecognizers>
-            <TapGestureRecognizer Tapped="OnBackdropTapped"/>
-        </Grid.GestureRecognizers>
+        <!-- Centered content -->
+        <ScrollView>
+            <VerticalStackLayout Padding="30,80,30,30" Spacing="18" VerticalOptions="Center">
+                <!-- Logo -->
+                <Image Source="collectiq_logo.png"
+                       HeightRequest="100"
+                       WidthRequest="100"
+                       HorizontalOptions="Center" />
 
-        <Grid Grid.Row="1"
-          BackgroundColor="#F6F7FB"
-          Padding="20"
-          HorizontalOptions="Fill"
-          VerticalOptions="End">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+                <!-- Title -->
+                <Label Text="Welcome to CollectIQ"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       TextColor="White"
+                       HorizontalTextAlignment="Center" />
 
-            <!-- Drag handle -->
-            <BoxView HeightRequest="4" WidthRequest="56" CornerRadius="2"
-               Color="#C0C4D6" HorizontalOptions="Center" Margin="0,6,0,12"/>
+                <Label Text="Sign in or create a new account"
+                       FontSize="16"
+                       TextColor="#E0E0E0"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,0,0,20" />
 
-            <!-- Tabs -->
-            <Grid Grid.Row="0" ColumnDefinitions="*,*">
-                <Button x:Name="SignInTab"
-                Text="Sign In"
-                Clicked="OnSignInTab"
-                BackgroundColor="#E8EAF6"
-                TextColor="#2B0B98"
-                CornerRadius="10" Margin="0,0,6,0"/>
-                <Button x:Name="RegisterTab"
-                Grid.Column="1"
-                Text="Create Account"
-                Clicked="OnRegisterTab"
-                BackgroundColor="Transparent"
-                TextColor="#6B7280"
-                CornerRadius="10" Margin="6,0,0,0"/>
-            </Grid>
+                <!-- Email -->
+                <Entry x:Name="EmailEntry"
+                       Placeholder="Email"
+                       PlaceholderColor="#B0B0B0"
+                       TextColor="White"
+                       Keyboard="Email"
+                       HeightRequest="48"
+                       BackgroundColor="#1E1E1E"
+                       Margin="0,0,0,5" />
 
-            <!-- Sign In panel -->
-            <VerticalStackLayout x:Name="SignInPanel" Grid.Row="1" Spacing="12" Margin="0,14,0,0">
-                <Entry x:Name="SignInEmail" Placeholder="Email" Keyboard="Email" />
-                <Entry x:Name="SignInPassword" Placeholder="Password" IsPassword="True" />
-                <Button Text="Sign In"
-                Clicked="OnSignInPassword"
-                BackgroundColor="#2B0B98" TextColor="White" CornerRadius="12" HeightRequest="48"/>
-                <Button Text="Send me a Magic Link"
-                Clicked="OnSignInMagic"
-                BackgroundColor="#512BD4" TextColor="White" CornerRadius="12" HeightRequest="48"/>
-                <Button Text="Continue with Google"
-                Clicked="OnGoogle"
-                BackgroundColor="#FFFFFF" TextColor="#111827" CornerRadius="12" HeightRequest="48"/>
+                <!-- Password -->
+                <Entry x:Name="PasswordEntry"
+                       Placeholder="Password"
+                       PlaceholderColor="#B0B0B0"
+                       TextColor="White"
+                       IsPassword="True"
+                       HeightRequest="48"
+                       BackgroundColor="#1E1E1E"
+                       Margin="0,0,0,5"
+                       TextChanged="OnPasswordChanged" />
 
-                <Label Text="No account yet? Create one above."
-               FontSize="12" TextColor="#6B7280" HorizontalTextAlignment="Center"/>
+                <!-- Confirm Password -->
+                <Entry x:Name="ConfirmPasswordEntry"
+                       Placeholder="Confirm Password"
+                       PlaceholderColor="#B0B0B0"
+                       TextColor="White"
+                       IsPassword="True"
+                       HeightRequest="48"
+                       BackgroundColor="#1E1E1E"
+                       Margin="0,0,0,20" />
+
+                <!-- Password strength gauge -->
+                <Grid HeightRequest="100" VerticalOptions="Center" HorizontalOptions="Center">
+                    <GraphicsView x:Name="StrengthMeterView" HeightRequest="100" WidthRequest="200" />
+                </Grid>
+
+                <!-- Register -->
+                <Button x:Name="RegisterButton"
+                        Text="Register"
+                        Clicked="OnRegister"
+                        HeightRequest="52"
+                        CornerRadius="14"
+                        BackgroundColor="#7C3AED"
+                        TextColor="White"
+                        FontAttributes="Bold" />
+
+                <!-- Login -->
+                <Button x:Name="LoginButton"
+                        Text="Login"
+                        Clicked="OnLogin"
+                        HeightRequest="52"
+                        CornerRadius="14"
+                        BackgroundColor="#4895EF"
+                        TextColor="White"
+                        FontAttributes="Bold" />
+
             </VerticalStackLayout>
-
-            <!-- Register panel -->
-            <VerticalStackLayout x:Name="RegisterPanel" Grid.Row="2" Spacing="12" IsVisible="False" Margin="0,14,0,0">
-                <Entry x:Name="RegEmail" Placeholder="Email" Keyboard="Email" />
-                <Entry x:Name="RegPassword" Placeholder="Password (min 8 chars)" IsPassword="True" />
-                <Entry x:Name="RegPassword2" Placeholder="Confirm Password" IsPassword="True" />
-                <Button Text="Create Account"
-                Clicked="OnRegister"
-                BackgroundColor="#2B0B98" TextColor="White" CornerRadius="12" HeightRequest="48"/>
-                <Label Text="By creating an account you agree to our Terms."
-               FontSize="12" TextColor="#6B7280" HorizontalTextAlignment="Center"/>
-            </VerticalStackLayout>
-
-            <!-- Guest mode -->
-            <Button Grid.Row="3" Text="Continue as Guest"
-              Clicked="OnContinueGuest"
-              BackgroundColor="Transparent" TextColor="#2B0B98"
-              HeightRequest="44" />
-        </Grid>
+        </ScrollView>
     </Grid>
 </ContentPage>

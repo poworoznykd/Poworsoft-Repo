@@ -1,180 +1,154 @@
+//
+//  FILE            : AuthSheet.xaml.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-10-21
+//  DESCRIPTION     :
+//      Provides login and registration logic with password
+//      strength feedback and local database integration.
+//
 using CollectIQ.Interfaces;
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Storage;
-using Org.Apache.Http.Authentication;
-using System;
-using System.Threading.Tasks;
+using Microsoft.Maui.Graphics;
 
 namespace CollectIQ.Views
 {
-    /// <summary>
-    /// Authentication modal with Sign In and Create Account support.
-    /// </summary>
     public partial class AuthSheet : ContentPage
     {
-        private readonly IAuthService _auth;
-        private const string GuestIdKey = "guest_id";
+        private readonly IAuthService _authService;
+        private readonly PasswordStrengthMeter _meter;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AuthSheet"/> class.
+        /// Initializes AuthSheet with dependency-injected authentication service.
         /// </summary>
-        /// <param name="authService">An injected authentication service.</param>
         public AuthSheet(IAuthService authService)
         {
             InitializeComponent();
-            _auth = authService;
-            DisplayAlert("Auth Service", _auth.GetType().Name, "OK");
+            _authService = authService;
+            _meter = new PasswordStrengthMeter();
+            StrengthMeterView.Drawable = _meter;
         }
 
         /// <summary>
-        /// Handles backdrop taps to close the modal sheet.
+        /// Updates the password strength meter as the user types.
         /// </summary>
-        /// <param name="sender">The sender.</param>
-        /// <param name="e">The event arguments.</param>
-        private async void OnBackdropTapped(object sender, EventArgs e)
+        private void OnPasswordChanged(object sender, TextChangedEventArgs e)
         {
-            await Navigation.PopModalAsync();
+            _meter.UpdateStrength(e.NewTextValue ?? string.Empty);
+            StrengthMeterView.Invalidate();
         }
 
         /// <summary>
-        /// Switches UI to Sign In mode.
-        /// </summary>
-        private void OnSignInTab(object sender, EventArgs e)
-        {
-            SignInTab.BackgroundColor = Color.FromArgb("#E8EAF6");
-            SignInTab.TextColor = Color.FromArgb("#2B0B98");
-            RegisterTab.BackgroundColor = Colors.Transparent;
-            RegisterTab.TextColor = Color.FromArgb("#6B7280");
-
-            SignInPanel.IsVisible = true;
-            RegisterPanel.IsVisible = false;
-        }
-
-        /// <summary>
-        /// Switches UI to Registration mode.
-        /// </summary>
-        private void OnRegisterTab(object sender, EventArgs e)
-        {
-            RegisterTab.BackgroundColor = Color.FromArgb("#E8EAF6");
-            RegisterTab.TextColor = Color.FromArgb("#2B0B98");
-            SignInTab.BackgroundColor = Colors.Transparent;
-            SignInTab.TextColor = Color.FromArgb("#6B7280");
-
-            SignInPanel.IsVisible = false;
-            RegisterPanel.IsVisible = true;
-        }
-
-        /// <summary>
-        /// Attempts email+password sign in.
-        /// </summary>
-        private async void OnSignInPassword(object sender, EventArgs e)
-        {
-            var email = SignInEmail.Text?.Trim();
-            var pw = SignInPassword.Text;
-
-            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(pw))
-            {
-                await DisplayAlert("Missing info", "Please enter email and password.", "OK");
-                return;
-            }
-
-            var ok = await _auth.LoginWithPasswordAsync(email, pw);
-            await HandlePostAuthAsync(ok);
-        }
-
-        /// <summary>
-        /// Sends magic link to the provided email.
-        /// </summary>
-        private async void OnSignInMagic(object sender, EventArgs e)
-        {
-            var email = SignInEmail.Text?.Trim();
-            if (string.IsNullOrEmpty(email))
-            {
-                await DisplayAlert("Missing email", "Enter your email to receive a magic link.", "OK");
-                return;
-            }
-
-            var ok = await _auth.SendMagicLinkAsync(email);
-            if (ok)
-                await DisplayAlert("Check your inbox", "We sent you a sign-in link.", "OK");
-            else
-                await DisplayAlert("Error", "Could not send magic link. Try again.", "OK");
-        }
-
-        /// <summary>
-        /// Attempts registration using email and password.
+        /// Handles the registration workflow.
+        /// Ensures password confirmation and feedback to user.
         /// </summary>
         private async void OnRegister(object sender, EventArgs e)
         {
-            var email = RegEmail.Text?.Trim();
-            var pw1 = RegPassword.Text;
-            var pw2 = RegPassword2.Text;
+            string email = EmailEntry.Text?.Trim() ?? string.Empty;
+            string password = PasswordEntry.Text ?? string.Empty;
+            string confirm = ConfirmPasswordEntry.Text ?? string.Empty;
 
-            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(pw1) || string.IsNullOrEmpty(pw2))
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                await DisplayAlert("Missing info", "Please complete all fields.", "OK");
-                return;
-            }
-            if (pw1.Length < 8)
-            {
-                await DisplayAlert("Weak password", "Password must be at least 8 characters.", "OK");
-                return;
-            }
-            if (pw1 != pw2)
-            {
-                await DisplayAlert("Password mismatch", "Passwords do not match.", "OK");
+                await DisplayAlert("Missing Info", "Please enter both email and password.", "OK");
                 return;
             }
 
-            var ok = await _auth.RegisterAsync(email, pw1);
-            await HandlePostAuthAsync(ok);
+            if (password != confirm)
+            {
+                await DisplayAlert("Password Mismatch", "Passwords do not match.", "OK");
+                return;
+            }
+
+            bool success = await _authService.RegisterAsync(email, password);
+            if (success)
+            {
+                await DisplayAlert("Registration Successful", "Account created successfully.", "OK");
+                Application.Current!.MainPage = new AppShell();
+            }
+            else
+            {
+                await DisplayAlert("Error", "Registration failed. Please try again.", "OK");
+            }
         }
 
         /// <summary>
-        /// Signs in with Google provider.
+        /// Handles the login process.
         /// </summary>
-        private async void OnGoogle(object sender, EventArgs e)
+        private async void OnLogin(object sender, EventArgs e)
         {
-            var ok = await _auth.LoginWithGoogleAsync();
-            await HandlePostAuthAsync(ok);
-        }
+            string email = EmailEntry.Text?.Trim() ?? string.Empty;
+            string password = PasswordEntry.Text ?? string.Empty;
 
-        /// <summary>
-        /// Continues into the app without an account (guest mode).
-        /// </summary>
-        private async void OnContinueGuest(object sender, EventArgs e)
-        {
-            var existing = await SecureStorage.GetAsync(GuestIdKey);
-            if (string.IsNullOrEmpty(existing))
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                var id = System.Guid.NewGuid().ToString("N");
-                await SecureStorage.SetAsync(GuestIdKey, id);
-            }
-
-            await Navigation.PopModalAsync();
-            Application.Current.MainPage = new AppShell();
-        }
-
-        /// <summary>
-        /// Finalizes auth (link guest data, then navigate).
-        /// </summary>
-        /// <param name="ok">True if auth succeeded; otherwise, false.</param>
-        private async Task HandlePostAuthAsync(bool ok)
-        {
-            if (!ok)
-            {
-                await DisplayAlert("Auth failed", "Please check your credentials and try again.", "OK");
+                await DisplayAlert("Missing Info", "Please enter your email and password.", "OK");
                 return;
             }
 
-            var guest = await SecureStorage.GetAsync(GuestIdKey);
-            if (!string.IsNullOrEmpty(guest))
+            bool success = await _authService.LoginWithPasswordAsync(email, password);
+            if (success)
             {
-                await _auth.LinkGuestDataAsync(guest);
+                await DisplayAlert("Welcome Back", "Login successful.", "OK");
+                Application.Current!.MainPage = new AppShell();
+            }
+            else
+            {
+                await DisplayAlert("Login Failed", "Invalid email or password.", "OK");
+            }
+        }
+
+        /// <summary>
+        /// Drawable class for password strength speedometer visualization.
+        /// </summary>
+        private class PasswordStrengthMeter : IDrawable
+        {
+            private double _strength;
+
+            public void UpdateStrength(string password)
+            {
+                _strength = Evaluate(password);
             }
 
-            await Navigation.PopModalAsync();
-            Application.Current.MainPage = new AppShell();
+            private static double Evaluate(string pwd)
+            {
+                if (string.IsNullOrWhiteSpace(pwd)) return 0;
+                double score = 0;
+                if (pwd.Length >= 6) score += 0.25;
+                if (pwd.Any(char.IsUpper)) score += 0.25;
+                if (pwd.Any(char.IsDigit)) score += 0.25;
+                if (pwd.Any(ch => !char.IsLetterOrDigit(ch))) score += 0.25;
+                return Math.Min(score, 1.0);
+            }
+
+            public void Draw(ICanvas canvas, RectF dirtyRect)
+            {
+                float width = dirtyRect.Width;
+                float height = dirtyRect.Height;
+                float radius = (float)(Math.Min(width, height) / 2.0 - 10);
+                float centerX = width / 2;
+                float centerY = height;
+
+                canvas.StrokeSize = 10;
+                canvas.StrokeLineCap = LineCap.Round;
+
+                // background arc
+                canvas.StrokeColor = Colors.DarkGray;
+                canvas.DrawArc(centerX - radius, centerY - radius, radius * 2, radius * 2, 180, 180, false, false);
+
+                // strength color
+                Color strengthColor = _strength switch
+                {
+                    < 0.3 => Colors.Red,
+                    < 0.6 => Colors.Orange,
+                    < 0.8 => Colors.Yellow,
+                    _ => Colors.LimeGreen
+                };
+
+                canvas.StrokeColor = strengthColor;
+                float sweep = (float)(_strength * 180);
+                canvas.DrawArc(centerX - radius, centerY - radius, radius * 2, radius * 2, 180, sweep, false, false);
+            }
         }
     }
 }

@@ -8,7 +8,7 @@ namespace CollectIQ.Services
     /// <summary>
     /// Supabase-backed implementation of IAuthService (stubbed for UI/dev).
     /// </summary>
-    public sealed class SupabaseAuthService : IAuthService
+    public sealed class SupabaseAuthService //: IAuthService
     {
         private readonly IDatabase _db;
         private const string TokenKey = "auth_token";

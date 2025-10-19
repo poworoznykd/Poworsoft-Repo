@@ -1,176 +1,159 @@
-﻿using System;
+﻿//
+//  FILE            : SqliteDatabase.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-10-20
+//  DESCRIPTION     :
+//      Implements IDatabase for SQLite-based persistence.
+//      Handles all CRUD operations for authentication, users,
+//      collections, and cards following SET coding standards.
+//
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using SQLite;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
-using SQLite;
 
 namespace CollectIQ.Services
 {
     /// <summary>
-    /// SQLite-net implementation of the IDatabase interface.
+    /// Provides SQLite-based persistent storage for CollectIQ.
     /// </summary>
     public sealed class SqliteDatabase : IDatabase
     {
-        private const string DbFileName = "collectiq.db3";
-        private SQLiteAsyncConnection? _conn;
+        private SQLiteAsyncConnection? _connection;
+        private const string DatabaseFilename = "collectiq.db3";
 
         /// <summary>
-        /// Creates the SQLite connection, tables, and indices if not present.
+        /// Ensures database connection and creates required tables.
         /// </summary>
         public async Task InitializeAsync()
         {
-            if (_conn != null) return;
+            if (_connection != null)
+                return;
 
-            var dbPath = Path.Combine(FileSystem.AppDataDirectory, DbFileName);
-            _conn = new SQLiteAsyncConnection(
-                dbPath,
-                SQLiteOpenFlags.Create | SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.SharedCache
-            );
+            string dbPath = Path.Combine(FileSystem.AppDataDirectory, DatabaseFilename);
+            _connection = new SQLiteAsyncConnection(dbPath);
 
-            await _conn.CreateTableAsync<UserProfile>();
-            await _conn.CreateTableAsync<Collection>();
-            await _conn.CreateTableAsync<CollectionShare>();
-            await _conn.CreateTableAsync<Card>();
-            await _conn.CreateTableAsync<CardImage>();
-            await _conn.CreateTableAsync<PriceSnapshot>();
+            await _connection.CreateTableAsync<UserProfile>();
+            await _connection.CreateTableAsync<Collection>();
+            await _connection.CreateTableAsync<Card>();
+            await _connection.CreateTableAsync<CollectionShare>();
+            await _connection.CreateTableAsync<CardImage>();
+            await _connection.CreateTableAsync<PriceSnapshot>();
+            await _connection.CreateTableAsync<PasswordRecord>();
         }
 
         /// <summary>
-        /// Generic upsert (insert or update) for any entity.
+        /// Gets the current SQLite connection.
         /// </summary>
+        private SQLiteAsyncConnection Conn
+        {
+            get
+            {
+                if (_connection == null)
+                    throw new InvalidOperationException("Database not initialized.");
+                return _connection;
+            }
+        }
+
+        // -----------------------------
+        // Generic CRUD
+        // -----------------------------
         public async Task UpsertAsync<T>(T entity) where T : BaseEntity, new()
         {
-            EnsureReady();
-            entity.UpdatedUtc = DateTime.UtcNow;
-
-            var existing = await _conn!.FindAsync<T>(entity.Id);
-            if (existing == null)
-            {
-                entity.CreatedUtc = DateTime.UtcNow;
-                await _conn.InsertAsync(entity);
-            }
-            else
-            {
-                await _conn.UpdateAsync(entity);
-            }
+            await Conn.InsertOrReplaceAsync(entity);
         }
 
-        /// <summary>
-        /// Soft-deletes an entity by id (sets IsDeleted=true).
-        /// </summary>
         public async Task DeleteAsync<T>(string id) where T : BaseEntity, new()
         {
-            EnsureReady();
-            var item = await _conn!.FindAsync<T>(id);
-            if (item != null)
-            {
-                item.IsDeleted = true;
-                item.UpdatedUtc = DateTime.UtcNow;
-                await _conn.UpdateAsync(item);
-            }
+            await Conn.DeleteAsync<T>(id);
         }
 
+        // -----------------------------
+        // Authentication / User Profile
+        // -----------------------------
         public async Task UpsertUserProfileAsync(UserProfile profile)
         {
-            EnsureReady();
-            profile.UpdatedUtc = DateTime.UtcNow;
-
-            var existing = await GetUserProfileAsync();
-            if (existing != null)
-            {
-                profile.Id = existing.Id;
-                await _conn!.UpdateAsync(profile);
-            }
-            else
-            {
-                profile.CreatedUtc = DateTime.UtcNow;
-                await _conn!.InsertAsync(profile);
-            }
+            await Conn.InsertOrReplaceAsync(profile);
         }
 
         public async Task<UserProfile?> GetUserProfileAsync()
         {
-            EnsureReady();
-            return await _conn!.Table<UserProfile>()
-                               .OrderByDescending(u => u.UpdatedUtc)
-                               .FirstOrDefaultAsync();
+            return await Conn.Table<UserProfile>().FirstOrDefaultAsync();
         }
 
+        public async Task<UserProfile?> GetUserProfileByEmailAsync(string email)
+        {
+            return await Conn.Table<UserProfile>().Where(u => u.Email == email).FirstOrDefaultAsync();
+        }
+
+        public async Task StorePasswordHashAsync(string email, string passwordHash)
+        {
+            var record = new PasswordRecord { Email = email, PasswordHash = passwordHash };
+            await Conn.InsertOrReplaceAsync(record);
+        }
+
+        public async Task<string?> GetPasswordHashAsync(string email)
+        {
+            var record = await Conn.Table<PasswordRecord>().Where(p => p.Email == email).FirstOrDefaultAsync();
+            return record?.PasswordHash;
+        }
+
+        // -----------------------------
+        // Collections and Cards
+        // -----------------------------
         public async Task CreateCollectionAsync(Collection collection)
         {
-            EnsureReady();
-            collection.CreatedUtc = DateTime.UtcNow;
-            collection.UpdatedUtc = DateTime.UtcNow;
-            await _conn!.InsertAsync(collection);
+            await Conn.InsertAsync(collection);
         }
 
         public async Task<IReadOnlyList<Collection>> GetCollectionsAsync(string ownerUserId)
         {
-            EnsureReady();
-            var list = await _conn!.Table<Collection>()
-                                   .Where(c => !c.IsDeleted && c.OwnerUserId == ownerUserId)
-                                   .OrderBy(c => c.Name)
-                                   .ToListAsync();
-            return list;
+            return await Conn.Table<Collection>().Where(c => c.OwnerUserId == ownerUserId).ToListAsync();
         }
 
         public async Task AddCardAsync(Card card)
         {
-            EnsureReady();
-            card.CreatedUtc = DateTime.UtcNow;
-            card.UpdatedUtc = DateTime.UtcNow;
-            await _conn!.InsertAsync(card);
+            await Conn.InsertAsync(card);
         }
 
         public async Task<IReadOnlyList<Card>> GetCardsByCollectionAsync(string collectionId)
         {
-            EnsureReady();
-            var list = await _conn!.Table<Card>()
-                                   .Where(x => !x.IsDeleted && x.CollectionId == collectionId)
-                                   .OrderByDescending(x => x.CreatedUtc)
-                                   .ToListAsync();
-            return list;
+            return await Conn.Table<Card>().Where(c => c.CollectionId == collectionId).ToListAsync();
         }
 
         public async Task AddPriceSnapshotAsync(PriceSnapshot snapshot)
         {
-            EnsureReady();
-            snapshot.CreatedUtc = DateTime.UtcNow;
-            snapshot.UpdatedUtc = DateTime.UtcNow;
-            await _conn!.InsertAsync(snapshot);
+            await Conn.InsertAsync(snapshot);
         }
 
         public async Task AddCardImageAsync(CardImage image)
         {
-            EnsureReady();
-            image.CreatedUtc = DateTime.UtcNow;
-            image.UpdatedUtc = DateTime.UtcNow;
-            await _conn!.InsertAsync(image);
+            await Conn.InsertAsync(image);
         }
 
         public async Task AddShareAsync(CollectionShare share)
         {
-            EnsureReady();
-            share.CreatedUtc = DateTime.UtcNow;
-            share.UpdatedUtc = DateTime.UtcNow;
-            await _conn!.InsertAsync(share);
+            await Conn.InsertAsync(share);
         }
 
         public async Task<IReadOnlyList<CollectionShare>> GetSharesAsync(string collectionId)
         {
-            EnsureReady();
-            var list = await _conn!.Table<CollectionShare>()
-                                   .Where(s => !s.IsDeleted && s.CollectionId == collectionId)
-                                   .ToListAsync();
-            return list;
+            return await Conn.Table<CollectionShare>().Where(s => s.CollectionId == collectionId).ToListAsync();
         }
+    }
 
-        private void EnsureReady()
-        {
-            if (_conn == null)
-                throw new InvalidOperationException("Database not initialized. Call InitializeAsync() at app startup.");
-        }
+    /// <summary>
+    /// Internal table used for storing email/password hash pairs.
+    /// </summary>
+    public sealed class PasswordRecord
+    {
+        [PrimaryKey, Indexed]
+        public string Email { get; set; } = string.Empty;
+
+        public string PasswordHash { get; set; } = string.Empty;
     }
 }

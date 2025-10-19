@@ -1,44 +1,65 @@
-using System;
-using CollectIQ.Helpers;
+//
+//  FILE            : LandingPage.xaml.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-10-21
+//  DESCRIPTION     :
+//      Provides the entry UI for users, offering guest mode access or
+//      navigation to authentication (sign-in/register) screens.
+//
 using CollectIQ.Interfaces;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
-    /// <summary>
-    /// Landing page with guest entry and Sign In / Register options.
-    /// </summary>
     public partial class LandingPage : ContentPage
     {
+        private readonly IAuthService _authService;
+
         /// <summary>
-        /// Initializes a new instance of the <see cref="LandingPage"/> class.
+        /// Initializes the LandingPage with injected authentication service.
         /// </summary>
-        public LandingPage()
+        public LandingPage(IAuthService authService)
         {
             InitializeComponent();
+            _authService = authService;
         }
 
         /// <summary>
-        /// Enters the app as a guest user (no account).
+        /// Handles the Guest access button.
+        /// Navigates directly to the main AppShell.
         /// </summary>
-        private void OnGuest(object sender, EventArgs e)
+        private async void OnGuest(object sender, EventArgs e)
         {
-            Application.Current.MainPage = new AppShell();
+            try
+            {
+                await DisplayAlert("Guest Mode",
+                    "You are continuing as a guest. Some features may be limited.",
+                    "OK");
+
+                Application.Current!.MainPage = new AppShell();
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Unable to proceed as guest: {ex.Message}", "OK");
+            }
         }
 
         /// <summary>
-        /// Opens the authentication sheet (Sign In / Register).
+        /// Handles the navigation to authentication screen.
+        /// Opens the AuthSheet for sign-in/registration.
         /// </summary>
         private async void OnAuth(object sender, EventArgs e)
         {
-            var auth = ServiceHelper.GetService<IAuthService>();
-            if (auth is null)
+            try
             {
-                await DisplayAlert("Error", "Auth service not available.", "OK");
-                return;
+                // Navigate cleanly to AuthSheet
+                await Navigation.PushAsync(new AuthSheet(_authService));
             }
-
-            await Navigation.PushModalAsync(new AuthSheet(auth));
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error", $"Unable to open Auth page: {ex.Message}", "OK");
+            }
         }
     }
 }
