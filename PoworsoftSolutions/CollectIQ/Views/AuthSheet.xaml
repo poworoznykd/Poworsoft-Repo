@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.AuthSheet"
+             Shell.PresentationMode="ModalAnimated"
+             BackgroundColor="#AA000000">
+
+    <Grid RowDefinitions="*,Auto" Padding="0">
+
+        <!-- Dimmed backdrop closes sheet on tap -->
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnBackdropTapped"/>
+        </Grid.GestureRecognizers>
+
+        <Grid Grid.Row="1"
+          BackgroundColor="#F6F7FB"
+          Padding="20"
+          HorizontalOptions="Fill"
+          VerticalOptions="End">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Drag handle -->
+            <BoxView HeightRequest="4" WidthRequest="56" CornerRadius="2"
+               Color="#C0C4D6" HorizontalOptions="Center" Margin="0,6,0,12"/>
+
+            <!-- Tabs -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,*">
+                <Button x:Name="SignInTab"
+                Text="Sign In"
+                Clicked="OnSignInTab"
+                BackgroundColor="#E8EAF6"
+                TextColor="#2B0B98"
+                CornerRadius="10" Margin="0,0,6,0"/>
+                <Button x:Name="RegisterTab"
+                Grid.Column="1"
+                Text="Create Account"
+                Clicked="OnRegisterTab"
+                BackgroundColor="Transparent"
+                TextColor="#6B7280"
+                CornerRadius="10" Margin="6,0,0,0"/>
+            </Grid>
+
+            <!-- Sign In panel -->
+            <VerticalStackLayout x:Name="SignInPanel" Grid.Row="1" Spacing="12" Margin="0,14,0,0">
+                <Entry x:Name="SignInEmail" Placeholder="Email" Keyboard="Email" />
+                <Entry x:Name="SignInPassword" Placeholder="Password" IsPassword="True" />
+                <Button Text="Sign In"
+                Clicked="OnSignInPassword"
+                BackgroundColor="#2B0B98" TextColor="White" CornerRadius="12" HeightRequest="48"/>
+                <Button Text="Send me a Magic Link"
+                Clicked="OnSignInMagic"
+                BackgroundColor="#512BD4" TextColor="White" CornerRadius="12" HeightRequest="48"/>
+                <Button Text="Continue with Google"
+                Clicked="OnGoogle"
+                BackgroundColor="#FFFFFF" TextColor="#111827" CornerRadius="12" HeightRequest="48"/>
+
+                <Label Text="No account yet? Create one above."
+               FontSize="12" TextColor="#6B7280" HorizontalTextAlignment="Center"/>
+            </VerticalStackLayout>
+
+            <!-- Register panel -->
+            <VerticalStackLayout x:Name="RegisterPanel" Grid.Row="2" Spacing="12" IsVisible="False" Margin="0,14,0,0">
+                <Entry x:Name="RegEmail" Placeholder="Email" Keyboard="Email" />
+                <Entry x:Name="RegPassword" Placeholder="Password (min 8 chars)" IsPassword="True" />
+                <Entry x:Name="RegPassword2" Placeholder="Confirm Password" IsPassword="True" />
+                <Button Text="Create Account"
+                Clicked="OnRegister"
+                BackgroundColor="#2B0B98" TextColor="White" CornerRadius="12" HeightRequest="48"/>
+                <Label Text="By creating an account you agree to our Terms."
+               FontSize="12" TextColor="#6B7280" HorizontalTextAlignment="Center"/>
+            </VerticalStackLayout>
+
+            <!-- Guest mode -->
+            <Button Grid.Row="3" Text="Continue as Guest"
+              Clicked="OnContinueGuest"
+              BackgroundColor="Transparent" TextColor="#2B0B98"
+              HeightRequest="44" />
+        </Grid>
+    </Grid>
+</ContentPage>

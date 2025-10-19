@@ -6,7 +6,6 @@
              BackgroundColor="Transparent">
 
     <Grid>
-        <!-- Gradient background -->
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <LinearGradientBrush.GradientStops>
@@ -17,42 +16,24 @@
             </LinearGradientBrush>
         </Grid.Background>
 
-        <VerticalStackLayout Padding="30" Spacing="22" VerticalOptions="Center" HorizontalOptions="Center">
+        <VerticalStackLayout Padding="30" Spacing="18" VerticalOptions="Center" HorizontalOptions="Center">
+            <Image Source="collectiq_logo.png" HeightRequest="140" WidthRequest="140" Aspect="AspectFit" />
+            <Label Text="CollectIQ" FontSize="38" FontAttributes="Bold" TextColor="White" HorizontalTextAlignment="Center"/>
+            <Label Text="Scan • Track • Predict • Trade" FontSize="18" TextColor="#D9D9D9" HorizontalTextAlignment="Center"/>
 
-            <!-- App Icon -->
-            <Image x:Name="LogoImage"
-             Source="collectiq_logo.png"
-             HeightRequest="140"
-             WidthRequest="140"
-             HorizontalOptions="Center"
-             Aspect="AspectFit"/>
-
-            <!-- Title -->
-            <Label x:Name="TitleLabel"
-             Text="CollectIQ"
-             FontSize="38"
-             FontAttributes="Bold"
-             TextColor="White"
-             HorizontalTextAlignment="Center"/>
-
-            <!-- Subtitle -->
-            <Label x:Name="SubtitleLabel"
-             Text="Scan • Track • Predict • Trade"
-             FontSize="18"
-             TextColor="#D9D9D9"
-             HorizontalTextAlignment="Center"/>
-
-            <!-- CTA Button -->
+            <!-- Primary: Guest -->
             <Button x:Name="EnterButton"
-              Text="Get Started"
-              Clicked="OnEnter"
-              HeightRequest="52"
-              WidthRequest="230"
-              CornerRadius="14"
-              FontSize="16"
-              BackgroundColor="#00B4D8"
-              TextColor="White"
-              Margin="0,30,0,0"/>
+              Text="Get Started (Guest)"
+              Clicked="OnGuest"
+              HeightRequest="52" WidthRequest="260"
+              CornerRadius="14" BackgroundColor="#2B0B98" TextColor="White" />
+
+            <!-- Secondary: Auth -->
+            <Button x:Name="AuthButton"
+              Text="Sign In / Register"
+              Clicked="OnAuth"
+              HeightRequest="52" WidthRequest="260"
+              CornerRadius="14" BackgroundColor="#512BD4" TextColor="White" />
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

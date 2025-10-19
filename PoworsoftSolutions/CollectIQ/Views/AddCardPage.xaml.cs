@@ -8,12 +8,10 @@
 //      gallery picking, eBay-assisted search, and saving an attached image
 //      locally for the card record.
 //
-
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
 using Microsoft.Maui.Media;
 using System;
-using System.Formats.Tar;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -36,10 +34,6 @@ namespace CollectIQ.Views
         /// <summary>
         /// Initializes a new instance of the <see cref="AddCardPage"/> class.
         /// </summary>
-        /// <param name="database">Database service instance.</param>
-        /// <param name="ebayService">Marketplace/eBay service instance.</param>
-        /// <param name="imageStorage">Image storage service.</param>
-        /// <param name="existing">Optional existing card (Edit mode when provided).</param>
         public AddCardPage(
             IDatabase database,
             IEbayService ebayService,
@@ -57,18 +51,18 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Applies the current card values to input fields and preview image.
+        /// Binds current card values to UI controls.
         /// </summary>
         private void Bind()
         {
             PlayerEntry.Text = _card.Player;
-            YearEntry.Text = _card.Year;
+            YearEntry.Text = _card.Year.ToString();
             SetEntry.Text = _card.Set;
             NumberEntry.Text = _card.Number;
             TeamEntry.Text = _card.Team;
             GradeCoEntry.Text = _card.GradeCompany;
-            GradeEntry.Text = _card.Grade;
-            PriceEntry.Text = _card.PurchasePrice == 0m ? string.Empty : _card.PurchasePrice.ToString();
+            GradeEntry.Text = _card.Grade?.ToString() ?? string.Empty;
+            PriceEntry.Text = _card.PurchasePrice?.ToString() ?? string.Empty;
 
             if (!string.IsNullOrWhiteSpace(_card.PhotoPath))
             {
@@ -77,10 +71,8 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Captures a photo with the device camera and saves it locally.
+        /// Captures a photo using the device camera.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnTakePhoto(object sender, EventArgs e)
         {
             try
@@ -91,9 +83,7 @@ namespace CollectIQ.Views
                 });
 
                 if (photo == null)
-                {
                     return;
-                }
 
                 using Stream stream = await photo.OpenReadAsync();
                 string path = await _imageStorage.SaveAsync(stream, ".jpg");
@@ -108,19 +98,15 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Picks a photo from the device gallery and saves it locally.
+        /// Allows the user to pick a photo from the gallery.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnPickPhoto(object sender, EventArgs e)
         {
             try
             {
                 FileResult? photo = await MediaPicker.PickPhotoAsync();
                 if (photo == null)
-                {
                     return;
-                }
 
                 using Stream stream = await photo.OpenReadAsync();
                 string path = await _imageStorage.SaveAsync(stream, ".jpg");
@@ -135,10 +121,8 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Finds the best match on eBay for the entered description and previews the image.
+        /// Searches eBay for listings matching the query entered by the user.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnFindEbay(object sender, EventArgs e)
         {
             string query = EbayQueryEntry.Text?.Trim() ?? string.Empty;
@@ -178,10 +162,8 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Downloads the candidate eBay image (if any) and stores it locally as the card photo.
+        /// Uses the image from the last found eBay listing as the card image.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnUseEbayImage(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_candidateEbayImageUrl))
@@ -211,22 +193,24 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Saves the current card (insert or update) to the database and returns to the previous page.
+        /// Saves or updates the current card to the database.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnSave(object sender, EventArgs e)
         {
             _card.Player = PlayerEntry.Text?.Trim() ?? string.Empty;
-            _card.Year = YearEntry.Text?.Trim() ?? string.Empty;
             _card.Set = SetEntry.Text?.Trim() ?? string.Empty;
             _card.Number = NumberEntry.Text?.Trim() ?? string.Empty;
             _card.Team = TeamEntry.Text?.Trim() ?? string.Empty;
             _card.GradeCompany = GradeCoEntry.Text?.Trim() ?? string.Empty;
-            _card.Grade = GradeEntry.Text?.Trim() ?? string.Empty;
 
-            _ = decimal.TryParse(PriceEntry.Text, out decimal price);
-            _card.PurchasePrice = price;
+            if (int.TryParse(YearEntry.Text, out int year))
+                _card.Year = year;
+
+            if (double.TryParse(GradeEntry.Text, out double grade))
+                _card.Grade = grade;
+
+            if (decimal.TryParse(PriceEntry.Text, out decimal price))
+                _card.PurchasePrice = price;
 
             await _database.UpsertAsync(_card);
             await DisplayAlert("Saved", "Card saved.", "OK");
@@ -234,13 +218,11 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Deletes the current card (if persisted) and returns to the previous page.
+        /// Deletes the current card and returns to the previous page.
         /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event args.</param>
         private async void OnDelete(object sender, EventArgs e)
         {
-            if (_card.Id == 0)
+            if (string.IsNullOrWhiteSpace(_card.Id))
             {
                 await Navigation.PopAsync();
                 return;
@@ -248,11 +230,9 @@ namespace CollectIQ.Views
 
             bool confirm = await DisplayAlert("Delete", "Remove this card?", "Yes", "No");
             if (!confirm)
-            {
                 return;
-            }
 
-            await _database.DeleteAsync(_card);
+            await _database.DeleteAsync<Card>(_card.Id);
             await Navigation.PopAsync();
         }
     }

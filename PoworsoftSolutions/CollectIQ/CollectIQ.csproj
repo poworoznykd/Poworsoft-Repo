@@ -47,20 +47,23 @@
 	  <MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
 	</ItemGroup>
 
-
-
 	<ItemGroup>
+	  <PackageReference Include="CommunityToolkit.Maui" Version="12.2.0" />
 	  <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
 	  <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
 	  <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 	  <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+	  <PackageReference Include="Supabase" Version="1.1.1" />
 	  <!-- Remove this line for now: 
 	  <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" /> -->
 	</ItemGroup>
 
 	<ItemGroup>
 	  <MauiXaml Update="Views\AddCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\AuthSheet.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\LandingPage.xaml">

@@ -1,44 +1,34 @@
-﻿/*
- *  FILE            : Card.cs
- *  PROJECT         : CollectIQ (Mobile)
- *  PROGRAMMER      : <your name>
- *  FIRST VERSION   : 2025-10-18
- *  DESCRIPTION     :
- *    Data model representing a single sports card in the user's inventory.
- *    Fields cover common identity attributes (player, set, year, number),
- *    optional grading info, pricing, and timestamps for auditing.
- */
+﻿using SQLite;
 
 namespace CollectIQ.Models
 {
-    /*
-     *  NAME          : Card
-     *  PURPOSE       :
-     *    Represents a sports card item persisted in the local SQLite database.
-     *    Instances of this class are stored using sqlite-net-pcl.
-     */
-    public class Card
+    /// <summary>
+    /// Represents a single collectible card within a collection.
+    /// </summary>
+    public sealed class Card : BaseEntity
     {
-        [SQLite.PrimaryKey, SQLite.AutoIncrement]
-        public int Id { get; set; }
+        [Indexed] public string CollectionId { get; set; } = string.Empty;
 
-        // Identity
-        public string Player { get; set; } = string.Empty;
-        public string Year { get; set; } = string.Empty;
+        [Indexed] public string Name { get; set; } = string.Empty;
+
+        [Indexed] public string Player { get; set; } = string.Empty;
+
+        [Indexed] public string Team { get; set; } = string.Empty;
+
+        public int Year { get; set; }
+
         public string Set { get; set; } = string.Empty;
-        public string Number { get; set; } = string.Empty;  // e.g., "#307"
 
-        // Optional details
-        public string Team { get; set; } = string.Empty;
-        public string GradeCompany { get; set; } = string.Empty;  // PSA/BGS/SGC/RAW
-        public string Grade { get; set; } = string.Empty;         // e.g., 10, 9.5, AUTH
-        public decimal PurchasePrice { get; set; } = 0m;
+        public string Number { get; set; } = string.Empty;
 
-        // Optional media (future use: photo path)
-        public string? PhotoPath { get; set; }
+        public string GradeCompany { get; set; } = "Raw";
 
-        // Audit
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public double? Grade { get; set; }
+
+        public decimal? PurchasePrice { get; set; }  // ✅ currency-safe
+
+        public decimal? EstimatedValue { get; set; }  // ✅ currency-safe
+
+        public string PhotoPath { get; set; } = string.Empty;
     }
 }
