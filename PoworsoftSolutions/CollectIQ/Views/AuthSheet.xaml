@@ -5,96 +5,73 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="Transparent">
 
-    <!-- Gradient background -->
     <Grid>
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <LinearGradientBrush.GradientStops>
-                    <GradientStop Color="#2B0B98" Offset="0.0" />
-                    <GradientStop Color="#512BD4" Offset="0.5" />
-                    <GradientStop Color="#7C3AED" Offset="1.0" />
-                </LinearGradientBrush.GradientStops>
+                <GradientStop Color="#2B0B98" Offset="0.0" />
+                <GradientStop Color="#512BD4" Offset="0.5" />
+                <GradientStop Color="#7C3AED" Offset="1.0" />
             </LinearGradientBrush>
         </Grid.Background>
 
-        <!-- Centered content -->
         <ScrollView>
-            <VerticalStackLayout Padding="30,80,30,30" Spacing="18" VerticalOptions="Center">
-                <!-- Logo -->
+            <VerticalStackLayout Padding="30,40,30,40" Spacing="14"
+                                 VerticalOptions="Center" HorizontalOptions="Center">
+
                 <Image Source="collectiq_logo.png"
                        HeightRequest="100"
                        WidthRequest="100"
-                       HorizontalOptions="Center" />
+                       HorizontalOptions="Center"/>
 
-                <!-- Title -->
-                <Label Text="Welcome to CollectIQ"
-                       FontSize="28"
-                       FontAttributes="Bold"
+                <Label Text="Create Account or Sign In"
+                       FontSize="22"
                        TextColor="White"
-                       HorizontalTextAlignment="Center" />
-
-                <Label Text="Sign in or create a new account"
-                       FontSize="16"
-                       TextColor="#E0E0E0"
                        HorizontalTextAlignment="Center"
-                       Margin="0,0,0,20" />
+                       Margin="0,10"/>
 
-                <!-- Email -->
                 <Entry x:Name="EmailEntry"
                        Placeholder="Email"
-                       PlaceholderColor="#B0B0B0"
+                       PlaceholderColor="#A0A0A0"
                        TextColor="White"
                        Keyboard="Email"
-                       HeightRequest="48"
-                       BackgroundColor="#1E1E1E"
-                       Margin="0,0,0,5" />
+                       HeightRequest="44"
+                       BackgroundColor="#1E1E1E"/>
 
-                <!-- Password -->
                 <Entry x:Name="PasswordEntry"
                        Placeholder="Password"
-                       PlaceholderColor="#B0B0B0"
+                       PlaceholderColor="#A0A0A0"
                        TextColor="White"
                        IsPassword="True"
-                       HeightRequest="48"
+                       HeightRequest="44"
                        BackgroundColor="#1E1E1E"
-                       Margin="0,0,0,5"
-                       TextChanged="OnPasswordChanged" />
+                       TextChanged="OnPasswordChanged"/>
 
-                <!-- Confirm Password -->
+                <GraphicsView x:Name="StrengthMeterView"
+                              HeightRequest="50"
+                              WidthRequest="200"
+                              HorizontalOptions="Center"/>
+
                 <Entry x:Name="ConfirmPasswordEntry"
                        Placeholder="Confirm Password"
-                       PlaceholderColor="#B0B0B0"
+                       PlaceholderColor="#A0A0A0"
                        TextColor="White"
                        IsPassword="True"
-                       HeightRequest="48"
-                       BackgroundColor="#1E1E1E"
-                       Margin="0,0,0,20" />
+                       HeightRequest="44"
+                       BackgroundColor="#1E1E1E"/>
 
-                <!-- Password strength gauge -->
-                <Grid HeightRequest="100" VerticalOptions="Center" HorizontalOptions="Center">
-                    <GraphicsView x:Name="StrengthMeterView" HeightRequest="100" WidthRequest="200" />
-                </Grid>
-
-                <!-- Register -->
-                <Button x:Name="RegisterButton"
-                        Text="Register"
+                <Button Text="Register"
                         Clicked="OnRegister"
-                        HeightRequest="52"
-                        CornerRadius="14"
                         BackgroundColor="#7C3AED"
                         TextColor="White"
-                        FontAttributes="Bold" />
+                        HeightRequest="50"
+                        CornerRadius="14"/>
 
-                <!-- Login -->
-                <Button x:Name="LoginButton"
-                        Text="Login"
+                <Button Text="Login"
                         Clicked="OnLogin"
-                        HeightRequest="52"
-                        CornerRadius="14"
                         BackgroundColor="#4895EF"
                         TextColor="White"
-                        FontAttributes="Bold" />
-
+                        HeightRequest="50"
+                        CornerRadius="14"/>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

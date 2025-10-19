@@ -1,10 +1,11 @@
 ﻿//
 //  FILE            : MauiProgram.cs
-//  PROJECT         : CollectIQ
+//  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2025-10-21
+//  FIRST VERSION   : 2025-10-19
 //  DESCRIPTION     :
-//      Configures CollectIQ services and pages for dependency injection.
+//      Configures the MAUI app, dependency injection container,
+//      and application-level services.
 //
 using CollectIQ.Interfaces;
 using CollectIQ.Services;
@@ -29,19 +30,14 @@ namespace CollectIQ
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+            builder.Services.AddSingleton<IDatabase, SqliteDatabase>();
+            builder.Services.AddSingleton<IAuthService, LocalAuthService>();
+            builder.Services.AddTransient<AuthSheet>();
+            builder.Services.AddTransient<LandingPage>();
+
 #if DEBUG
             builder.Logging.AddDebug();
 #endif
-
-            // Register services
-            builder.Services.AddSingleton<IDatabase, SqliteDatabase>();
-            builder.Services.AddSingleton<IAuthService, LocalAuthService>();
-
-            // Register views
-            builder.Services.AddTransient<LandingPage>();
-            builder.Services.AddTransient<AuthSheet>();
-            builder.Services.AddTransient<AppShell>();
-
             return builder.Build();
         }
     }
