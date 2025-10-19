@@ -3,36 +3,56 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.LandingPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="#0B0B0D">
+             BackgroundColor="Transparent">
 
-    <VerticalStackLayout Spacing="20" Padding="32"
-                       VerticalOptions="Center" HorizontalOptions="Center">
+    <Grid>
+        <!-- Gradient background -->
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <LinearGradientBrush.GradientStops>
+                    <GradientStop Color="#2B0B98" Offset="0.0" />
+                    <GradientStop Color="#512BD4" Offset="0.5" />
+                    <GradientStop Color="#7C3AED" Offset="1.0" />
+                </LinearGradientBrush.GradientStops>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-        <!-- Logo (shows if present; if not, other elements still prove UI) -->
-        <Image x:Name="LogoImage"
-           Source="collectiq_logo.png"
-           HeightRequest="140" WidthRequest="140"
-           Aspect="AspectFit" />
+        <VerticalStackLayout Padding="30" Spacing="22" VerticalOptions="Center" HorizontalOptions="Center">
 
-        <Label x:Name="TitleLabel"
-           Text="CollectIQ"
-           FontSize="34"
-           FontAttributes="Bold"
-           TextColor="White"
-           HorizontalTextAlignment="Center" />
+            <!-- App Icon -->
+            <Image x:Name="LogoImage"
+             Source="collectiq_logo.png"
+             HeightRequest="140"
+             WidthRequest="140"
+             HorizontalOptions="Center"
+             Aspect="AspectFit"/>
 
-        <Label x:Name="SubtitleLabel"
-           Text="Scan • Track • Predict • Trade"
-           FontSize="18"
-           TextColor="#DDDDDD"
-           HorizontalTextAlignment="Center" />
+            <!-- Title -->
+            <Label x:Name="TitleLabel"
+             Text="CollectIQ"
+             FontSize="38"
+             FontAttributes="Bold"
+             TextColor="White"
+             HorizontalTextAlignment="Center"/>
 
-        <Button x:Name="EnterButton"
-            Text="Get Started"
-            Clicked="OnEnter"
-            HeightRequest="52" WidthRequest="220"
-            CornerRadius="12"
-            BackgroundColor="#2B0B98"
-            TextColor="White" />
-    </VerticalStackLayout>
+            <!-- Subtitle -->
+            <Label x:Name="SubtitleLabel"
+             Text="Scan • Track • Predict • Trade"
+             FontSize="18"
+             TextColor="#D9D9D9"
+             HorizontalTextAlignment="Center"/>
+
+            <!-- CTA Button -->
+            <Button x:Name="EnterButton"
+              Text="Get Started"
+              Clicked="OnEnter"
+              HeightRequest="52"
+              WidthRequest="230"
+              CornerRadius="14"
+              FontSize="16"
+              BackgroundColor="#00B4D8"
+              TextColor="White"
+              Margin="0,30,0,0"/>
+        </VerticalStackLayout>
+    </Grid>
 </ContentPage>

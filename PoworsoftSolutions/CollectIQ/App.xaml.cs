@@ -8,9 +8,8 @@ namespace CollectIQ
         {
             InitializeComponent();
 
-            // Force the app to start on LandingPage (no Shell yet)
+            InitializeComponent();
             MainPage = new CollectIQ.Views.LandingPage();
-            // If you prefer a nav bar later: MainPage = new NavigationPage(new CollectIQ.Views.LandingPage());
         }
     }
 }
