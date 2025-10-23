@@ -2,12 +2,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
     <!-- Brand -->
-    <Color x:Key="Primary">#512BD4</Color>
-    <Color x:Key="PrimaryDark">#2B0B98</Color>
-    <Color x:Key="Secondary">#4CC9F0</Color>
-    <Color x:Key="Magenta">#C850F2</Color>
-    <Color x:Key="MidnightBlue">#1E2A78</Color>
-    <Color x:Key="OffBlack">#0B0B0D</Color>
+    <Color x:Key="Primary">#054d68</Color>
+    <Color x:Key="PrimaryDark">#011219</Color>
+    <Color x:Key="Secondary">#0ab8f9</Color>
+    <Color x:Key="Magenta">#011219</Color>
+    <Color x:Key="MidnightBlue">#0acaf9</Color>
+    <Color x:Key="OffBlack">#011219</Color>
     <Color x:Key="PrimaryDarkText">#E6E6E6</Color>
 
     <!-- Neutrals -->

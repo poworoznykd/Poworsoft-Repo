@@ -35,6 +35,7 @@ namespace CollectIQ
             builder.Services.AddTransient<AuthSheet>();
             builder.Services.AddTransient<LandingPage>();
 
+
 #if DEBUG
             builder.Logging.AddDebug();
 #endif

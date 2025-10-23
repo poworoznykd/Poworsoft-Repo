@@ -9,31 +9,35 @@
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <LinearGradientBrush.GradientStops>
-                    <GradientStop Color="#2B0B98" Offset="0.0" />
-                    <GradientStop Color="#512BD4" Offset="0.5" />
-                    <GradientStop Color="#7C3AED" Offset="1.0" />
+                    <GradientStop Color="#011219" Offset="0.5" />
+                    <GradientStop Color="#054d68" Offset="0.85" />
+                    <GradientStop Color="#0ab8f9" Offset="1.0" />
                 </LinearGradientBrush.GradientStops>
             </LinearGradientBrush>
         </Grid.Background>
 
         <VerticalStackLayout Padding="30" Spacing="18" VerticalOptions="Center" HorizontalOptions="Center">
-            <Image Source="collectiq_logo.png" HeightRequest="140" WidthRequest="140" Aspect="AspectFit" />
+            <Image Source="collectiq_logo.png" HeightRequest="140" WidthRequest="140" Aspect="AspectFit"/>
             <Label Text="CollectIQ" FontSize="38" FontAttributes="Bold" TextColor="White" HorizontalTextAlignment="Center"/>
             <Label Text="Scan • Track • Predict • Trade" FontSize="18" TextColor="#D9D9D9" HorizontalTextAlignment="Center"/>
 
             <!-- Primary: Guest -->
             <Button x:Name="EnterButton"
+                       BorderWidth="2"
+                BorderColor="AliceBlue"
               Text="Get Started (Guest)"
               Clicked="OnGuest"
               HeightRequest="52" WidthRequest="260"
-              CornerRadius="14" BackgroundColor="#2B0B98" TextColor="White" />
+              CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White" />
 
             <!-- Secondary: Auth -->
             <Button x:Name="AuthButton"
+                    BorderWidth="2"
+                    BorderColor="AliceBlue"
               Text="Sign In / Register"
               Clicked="OnAuth"
               HeightRequest="52" WidthRequest="260"
-              CornerRadius="14" BackgroundColor="#512BD4" TextColor="White" />
+              CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White" />
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

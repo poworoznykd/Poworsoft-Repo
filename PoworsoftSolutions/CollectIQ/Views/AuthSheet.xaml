@@ -9,9 +9,9 @@
         <!-- Gradient background -->
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#2B0B98" Offset="0.0" />
-                <GradientStop Color="#512BD4" Offset="0.5" />
-                <GradientStop Color="#7C3AED" Offset="1.0" />
+                <GradientStop Color="#011219" Offset="0.5" />
+                <GradientStop Color="#054d68" Offset="0.85" />
+                <GradientStop Color="#0ab8f9" Offset="1.0" />
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -75,22 +75,26 @@
 
             <!-- Register -->
             <Button x:Name="RegisterButton"
+                       BorderWidth="2"
+                    BorderColor="AliceBlue"
                     Text="Register"
                     Clicked="OnRegister"
                     HeightRequest="50"
                     CornerRadius="14"
-                    BackgroundColor="#7C3AED"
+                    BackgroundColor="#0ab8f9"
                     TextColor="White"
                     FontAttributes="Bold"
                     Margin="0,0,0,12" />
 
             <!-- Login -->
             <Button x:Name="LoginButton"
+                       BorderWidth="2"
+   BorderColor="AliceBlue"
                     Text="Login"
                     Clicked="OnLogin"
                     HeightRequest="50"
                     CornerRadius="14"
-                    BackgroundColor="#4895EF"
+                    BackgroundColor="#0ab8f9"
                     TextColor="White"
                     FontAttributes="Bold" />
         </VerticalStackLayout>
