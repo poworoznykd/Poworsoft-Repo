@@ -52,6 +52,7 @@
         </Setter>
     </Style>
 
+
     <Style TargetType="CheckBox">
         <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
         <Setter Property="MinimumHeightRequest" Value="44"/>
@@ -132,6 +133,14 @@
                     </VisualState>
                 </VisualStateGroup>
             </VisualStateGroupList>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00C6FF"
+            Radius="22"
+            Opacity="0.85"
+            Offset="0,6" />
+            </Setter.Value>
         </Setter>
     </Style>
 
@@ -416,5 +425,88 @@
         <Setter Property="UnselectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray950}}" />
         <Setter Property="SelectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}" />
     </Style>
+
+    <!--<Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="TextColor" Value="#F8FFFF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1AFFFFFF" Offset="0.0" />
+                    <GradientStop Color="#0020A0DD" Offset="0.4" />
+                    <GradientStop Color="#0040FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00FFC3" />
+        <Setter Property="BorderWidth" Value="1.5" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00FFC3" Radius="20" Opacity="0.85" Offset="0,5" />
+            </Setter.Value>
+        </Setter>
+    </Style>-->
+
+    <Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="TextColor" Value="#BFFFFF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#003366" Offset="0.0" />
+                    <GradientStop Color="#001020" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00C6FF"
+                    Radius="22"
+                    Opacity="0.85"
+                    Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--<Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="{StaticResource MidnightBlue}" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="BorderWidth" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}" />
+                            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="PointerOver" />
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="{StaticResource NeonGreenGradient}"
+                 Offset="0,2"
+                 Radius="8" />
+            </Setter.Value>
+        </Setter>
+    </Style>-->
+    
+
 
 </ResourceDictionary>

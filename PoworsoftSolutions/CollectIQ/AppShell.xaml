@@ -1,26 +1,34 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Shell
-    x:Class="CollectIQ.AppShell"
+     x:Class="CollectIQ.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:views="clr-namespace:CollectIQ.Views"
     Shell.NavBarHasShadow="False"
-    Shell.BackgroundColor="#0B0B0D"
-    Shell.TitleColor="#00B4FF"
-    Shell.ForegroundColor="#00B4FF"
-    Shell.TabBarBackgroundColor="#0B0B0D"
-    Shell.TabBarForegroundColor="#00B4FF"
-    Shell.TabBarUnselectedColor="#757575">
+    Shell.BackgroundColor="{StaticResource OffBlack}"
+    Shell.TitleColor="{StaticResource Secondary}"
+    Shell.TabBarBackgroundColor="{StaticResource PrimaryDark}"
+    Shell.TabBarForegroundColor="{StaticResource NeonGreen}"
+    Shell.TabBarUnselectedColor="{StaticResource Gray600}">
 
-    <!-- Remove navigation bar globally -->
+    <!-- Hide navigation bar globally -->
     <Shell.Resources>
         <Style TargetType="NavigationPage">
             <Setter Property="Shell.NavBarIsVisible" Value="False" />
         </Style>
     </Shell.Resources>
 
-    <!-- Define your main route (Landing Page for now) -->
+    <!-- Landing Page -->
     <ShellContent
         Title="CollectIQ"
         ContentTemplate="{DataTemplate views:LandingPage}" />
+
+    <!-- Main App Tabs -->
+    <TabBar>
+        <ShellContent
+            Title="Dashboard"
+            Icon="dashboard.png"
+            ContentTemplate="{DataTemplate views:DashboardPage}" />
+    </TabBar>
+
 </Shell>

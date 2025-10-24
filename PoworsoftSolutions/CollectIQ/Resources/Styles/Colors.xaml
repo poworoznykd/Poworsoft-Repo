@@ -25,4 +25,14 @@
     <Color x:Key="Gray950">#121212</Color>
 
     <Color x:Key="SecondaryDarkText">#CCCCCC</Color>
+
+    <!-- ⚡ Neon Green Accents -->
+    <Color x:Key="NeonGreen">#39FF14</Color>
+    <Color x:Key="ElectricLime">#00FF9C</Color>
+
+    <!-- Neon Gradient -->
+    <LinearGradientBrush x:Key="NeonGreenGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource NeonGreen}" Offset="0.0" />
+        <GradientStop Color="{StaticResource ElectricLime}" Offset="1.0" />
+    </LinearGradientBrush>
 </ResourceDictionary>
