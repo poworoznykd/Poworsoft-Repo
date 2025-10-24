@@ -1,4 +1,6 @@
-﻿namespace CollectIQ
+﻿using CollectIQ.Views;
+
+namespace CollectIQ
 {
     public partial class AppShell : Shell
     {
@@ -6,7 +8,9 @@
         {
             InitializeComponent();
             Shell.SetBackgroundColor(this, Color.FromArgb("#0B0B0D")); // deep black
-            Shell.SetTabBarTitleColor(this, Color.FromArgb("#00B4FF"));      // neon blue text
+            Shell.SetTabBarTitleColor(this, Color.FromArgb("#00B4FF"));      // neon blue
+            Routing.RegisterRoute(nameof(DashboardPage), typeof(DashboardPage));
+            Routing.RegisterRoute(nameof(AuthSheet), typeof(AuthSheet));
 
         }
     }

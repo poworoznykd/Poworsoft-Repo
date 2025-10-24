@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.DashboardPage"
+              BackgroundColor="{StaticResource PrimaryDark}"
+             Title="DashboardPage">
+    <ScrollView>
+        <VerticalStackLayout Padding="20,40,20,20" Spacing="20">
+
+            <!-- HEADER -->
+            <VerticalStackLayout>
+                <Label Text="Hello, Collector"
+                       FontSize="22"
+                       TextColor="{StaticResource SecondaryDarkText}"
+                       FontAttributes="Bold"/>
+                <Label Text="Your Collection Value"
+                       FontSize="16"
+                       TextColor="{StaticResource SecondaryDarkText}" />
+                <Label Text="$54,320"
+                       FontSize="36"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource Secondary}" />
+            </VerticalStackLayout>
+
+            <!-- CARD SUMMARY -->
+            <Frame BackgroundColor="{StaticResource Primary}"
+                   CornerRadius="20"
+                   Padding="20"
+                   HasShadow="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Label Text="Top Card"
+                           Grid.Row="0"
+                           FontSize="14"
+                           TextColor="{StaticResource SecondaryDarkText}" />
+
+                    <Label Text="2020 Panini Prizm"
+                           Grid.Row="1"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="{StaticResource White}" />
+
+                    <Label Text="PSA 10 • Zion Williamson"
+                           Grid.Row="2"
+                           FontSize="14"
+                           TextColor="{StaticResource SecondaryDarkText}" />
+
+                    <Image Source="card_placeholder.png"
+                           Grid.Column="1"
+                           Grid.RowSpan="3"
+                           WidthRequest="100"
+                           HeightRequest="140"
+                           Aspect="AspectFill"
+                           Margin="10,0,0,0" />
+                </Grid>
+            </Frame>
+
+            <!-- CARD INFO LIST -->
+            <VerticalStackLayout>
+                <Label Text="Recent Activity"
+                       FontSize="18"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource Secondary}" />
+
+                <Frame BackgroundColor="{StaticResource OffBlack}"
+                       CornerRadius="16"
+                       Padding="10">
+                    <VerticalStackLayout Spacing="12">
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Sold: 2021 Optic Justin Herbert"
+                                   TextColor="{StaticResource SecondaryDarkText}" />
+                            <Label Text="+$425"
+                                   TextColor="{StaticResource Secondary}"
+                                   FontAttributes="Bold" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Purchased: 2019 Luka Doncic RC"
+                                   TextColor="{StaticResource SecondaryDarkText}" />
+                            <Label Text="-$315"
+                                   TextColor="Red"
+                                   FontAttributes="Bold" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Sold: 2020 Burrow Silver Prizm"
+                                   TextColor="{StaticResource SecondaryDarkText}" />
+                            <Label Text="+$210"
+                                   TextColor="{StaticResource Secondary}"
+                                   FontAttributes="Bold" />
+                        </Grid>
+
+                    </VerticalStackLayout>
+                </Frame>
+            </VerticalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

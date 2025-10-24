@@ -60,6 +60,12 @@ build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.AuthSheet.
 build_metadata.AdditionalFiles.TargetPath = Views\AuthSheet.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\AuthSheet.xaml
 
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/DashboardPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.DashboardPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\DashboardPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\DashboardPage.xaml
+
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/LandingPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.LandingPage.xaml

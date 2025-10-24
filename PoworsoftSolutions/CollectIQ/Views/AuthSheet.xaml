@@ -89,7 +89,7 @@
             <!-- Login -->
             <Button x:Name="LoginButton"
                        BorderWidth="2"
-   BorderColor="AliceBlue"
+                    BorderColor="AliceBlue"
                     Text="Login"
                     Clicked="OnLogin"
                     HeightRequest="50"
