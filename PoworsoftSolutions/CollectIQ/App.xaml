@@ -2,14 +2,33 @@
 <Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.App">
+
     <Application.Resources>
         <ResourceDictionary>
+
+            <!-- ============================================================
+                 GLOBAL SHELL STYLING (Dark Neon Theme)
+                 ============================================================ -->
+            <Style TargetType="Shell">
+                <Setter Property="Shell.NavBarHasShadow" Value="False" />
+                <Setter Property="Shell.BackgroundColor" Value="#0B0B0D" />
+                <Setter Property="Shell.TitleColor" Value="#00B4FF" />
+                <Setter Property="Shell.ForegroundColor" Value="#00B4FF" />
+                <Setter Property="Shell.TabBarBackgroundColor" Value="#0B0B0D" />
+                <Setter Property="Shell.TabBarForegroundColor" Value="#00B4FF" />
+                <Setter Property="Shell.TabBarUnselectedColor" Value="#757575" />
+            </Style>
+
+            <!-- ============================================================
+                 MERGED STYLE DICTIONARIES
+                 ============================================================ -->
             <ResourceDictionary.MergedDictionaries>
                 <!-- MUST exist for Primary/PrimaryDark/Secondary/etc -->
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <!-- MUST exist for Headline/SubHeadline and control styles -->
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>
