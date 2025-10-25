@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.CollectionPage"
+             Title="My Collection"
+             BackgroundColor="{StaticResource OffBlack}">
+
+    <VerticalStackLayout Padding="20" Spacing="18">
+
+        <Label Text="My Card Collection"
+               FontSize="28"
+               FontAttributes="Bold"
+               TextColor="{StaticResource Secondary}"
+               HorizontalOptions="Center" />
+
+        <Label Text="Your saved cards will appear here once added."
+               FontSize="16"
+               TextColor="{StaticResource SecondaryDarkText}"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center"
+               Margin="0,10,0,20"/>
+
+        <Frame BackgroundColor="{StaticResource PrimaryDark}"
+               CornerRadius="12"
+               Padding="16"
+               HasShadow="True"
+               HeightRequest="200"
+               VerticalOptions="Center">
+            <Label Text="No cards added yet."
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   TextColor="{StaticResource SecondaryDarkText}" />
+        </Frame>
+
+        <Button Text="Add New Card"
+                Style="{StaticResource AccentButton_AuroraBlue}"
+                Margin="0,20,0,0" />
+
+    </VerticalStackLayout>
+</ContentPage>

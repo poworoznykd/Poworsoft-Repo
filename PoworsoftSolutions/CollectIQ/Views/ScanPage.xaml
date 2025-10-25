@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.ScanPage"
+             Title="Scan Card"
+             BackgroundColor="{StaticResource OffBlack}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="20">
+
+            <!-- Header -->
+            <Label Text="Scan or Upload Your Card"
+                   FontSize="26"
+                   FontAttributes="Bold"
+                   TextColor="{StaticResource Secondary}"
+                   HorizontalOptions="Center"/>
+
+            <Frame BackgroundColor="{StaticResource PrimaryDark}"
+                   CornerRadius="12"
+                   Padding="16"
+                   HasShadow="True">
+                <VerticalStackLayout Spacing="12">
+                    <Button Text="📷 Take Photo"
+                            Style="{StaticResource AccentButton_AuroraBlue}"
+                            Command="{Binding CapturePhotoCommand}" />
+                    <Button Text="🖼️ Choose From Gallery"
+                            Style="{StaticResource AccentButton_AuroraBlue}"
+                            Command="{Binding PickPhotoCommand}" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Manual Search Section -->
+            <Frame CornerRadius="14"
+                   BackgroundColor="{StaticResource PrimaryDark}"
+                   Padding="20">
+                <Label Text="Or search manually"
+                       TextColor="{StaticResource SecondaryDarkText}" />
+                <Entry x:Name="ManualEntry"
+                       Placeholder="e.g. 2020 Justin Herbert RC"
+                       BackgroundColor="Transparent"
+                       TextColor="{StaticResource White}"
+                       PlaceholderColor="{StaticResource Gray500}"
+                       Margin="0,8,0,0" />
+                <Button Text="Search eBay"
+                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Command="{Binding ManualSearchCommand}" />
+            </Frame>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

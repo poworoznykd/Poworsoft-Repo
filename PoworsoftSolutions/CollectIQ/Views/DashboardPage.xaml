@@ -6,89 +6,93 @@
              BackgroundColor="{StaticResource OffBlack}">
 
     <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="18">
+        <VerticalStackLayout Padding="20" Spacing="20">
 
-            <!-- Header -->
-            <Label Text="Welcome to CollectIQ"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   TextColor="{StaticResource Secondary}"
-                   HorizontalOptions="Center" />
+            <!-- HEADER -->
+            <VerticalStackLayout Spacing="4" Margin="0,10,0,20">
+                <Label Text="CollectIQ"
+                       FontSize="34"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       TextColor="{StaticResource Secondary}" />
+                <Label Text="Your Digital Card Vault"
+                       FontSize="16"
+                       HorizontalOptions="Center"
+                       TextColor="{StaticResource SecondaryDarkText}" />
+            </VerticalStackLayout>
 
-            <Label Text="Your Sports Card Analytics Hub"
-                   FontSize="16"
-                   TextColor="{StaticResource SecondaryDarkText}"
-                   HorizontalOptions="Center" />
-
-            <!-- Summary Cards -->
-            <Grid ColumnDefinitions="*,*" RowSpacing="16" ColumnSpacing="16" Margin="0,20,0,0">
-                <!-- Collection Value -->
-                <Frame CornerRadius="14" Padding="18"
-                       BackgroundColor="{StaticResource PrimaryDark}"
-                       HasShadow="True">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="Total Collection Value"
-                               TextColor="{StaticResource SecondaryDarkText}"
-                               FontSize="13" />
-                        <Label Text="$24,350"
-                               FontSize="22"
-                               FontAttributes="Bold"
-                               TextColor="{StaticResource Secondary}" />
+            <!-- CARD STATS -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <Frame CornerRadius="16" BackgroundColor="{StaticResource PrimaryDark}" Padding="18" HasShadow="True">
+                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                        <Label Text="Cards Owned" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
+                        <Label Text="342" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource Secondary}" />
                     </VerticalStackLayout>
                 </Frame>
 
-                <!-- Cards Owned -->
-                <Frame Grid.Column="1" CornerRadius="14" Padding="18"
-                       BackgroundColor="{StaticResource PrimaryDark}"
-                       HasShadow="True">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="Total Cards"
-                               TextColor="{StaticResource SecondaryDarkText}"
-                               FontSize="13" />
-                        <Label Text="342"
-                               FontSize="22"
-                               FontAttributes="Bold"
-                               TextColor="{StaticResource Secondary}" />
+                <Frame CornerRadius="16" BackgroundColor="{StaticResource PrimaryDark}" Padding="18" HasShadow="True" Grid.Column="1">
+                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                        <Label Text="Est. Collection Value" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
+                        <Label Text="$24,350" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource Secondary}" />
                     </VerticalStackLayout>
                 </Frame>
             </Grid>
 
-            <!-- Market Section -->
-            <Label Text="Market Insights"
-                   FontSize="18"
+            <!-- ACTION CENTER -->
+            <Label Text="Action Center"
+                   FontSize="20"
                    FontAttributes="Bold"
                    TextColor="{StaticResource Secondary}"
-                   Margin="0,20,0,6" />
+                   Margin="0,25,0,6" />
 
-            <Frame CornerRadius="14"
-                   Padding="18"
-                   BackgroundColor="{StaticResource PrimaryDark}">
-                <VerticalStackLayout>
-                    <Label Text="Recent eBay Sales"
+            <Grid RowDefinitions="Auto,Auto"
+                  ColumnDefinitions="*,*"
+                  ColumnSpacing="16"
+                  RowSpacing="16">
+
+                <!-- Scan Card -->
+                <Button Text="Scan Card"
+                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        FontAttributes="Bold"
+                        HeightRequest="60"
+                        Command="{Binding ScanCardCommand}"
+                        Grid.Row="0" Grid.Column="0" />
+
+                <!-- eBay Compare -->
+                <Button Text="Compare on eBay"
+                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        FontAttributes="Bold"
+                        HeightRequest="60"
+                        Command="{Binding EbayCompareCommand}"
+                        Grid.Row="0" Grid.Column="1" />
+
+                <!-- My Collection -->
+                <Button Text="My Collection"
+                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        FontAttributes="Bold"
+                        HeightRequest="60"
+                        Command="{Binding ViewCollectionCommand}"
+                        Grid.Row="1" Grid.Column="0"
+                        Grid.ColumnSpan="2" />
+            </Grid>
+
+            <!-- FUTURE MODULE PLACEHOLDER -->
+            <Frame Margin="0,30,0,0"
+                   CornerRadius="20"
+                   BackgroundColor="{StaticResource PrimaryDark}"
+                   HasShadow="True"
+                   Padding="24">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Coming Soon"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="{StaticResource Secondary}" />
+                    <Label Text="AI Vision will let you identify, grade, and authenticate cards instantly from a scan."
+                           TextColor="{StaticResource SecondaryDarkText}"
                            FontSize="14"
-                           TextColor="{StaticResource SecondaryDarkText}" />
-                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource Gray600}" Margin="0,8,0,8"/>
-                    <Label Text="• 2020 Justin Herbert RC – Sold $280" TextColor="{StaticResource White}" />
-                    <Label Text="• 2019 Zion Williamson Prizm – Sold $220" TextColor="{StaticResource White}" />
-                    <Label Text="• 2021 Trevor Lawrence Auto – Sold $460" TextColor="{StaticResource White}" />
+                           LineBreakMode="WordWrap" />
                 </VerticalStackLayout>
             </Frame>
-
-            <!-- Buttons -->
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="16" Margin="0,24,0,0">
-                <Button Text="Add Card"
-                        Style="{StaticResource AccentButton}"
-                        FontAttributes="Bold"
-                        CornerRadius="8"
-                        Command="{Binding AddCardCommand}" />
-
-                <Button Text="View Inventory"
-                        Style="{StaticResource AccentButton}"
-                        FontAttributes="Bold"
-                        CornerRadius="8"
-                        Command="{Binding ViewInventoryCommand}"/>
-         
-            </Grid>
 
         </VerticalStackLayout>
     </ScrollView>

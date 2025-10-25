@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.EbaySearchPage"
+             Title="eBay Search"
+             BackgroundColor="{StaticResource OffBlack}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="18">
+
+            <Label Text="eBay Card Search"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   TextColor="{StaticResource Secondary}"
+                   HorizontalOptions="Center" />
+
+            <Label Text="Search for sports cards on eBay and compare live market values."
+                   FontSize="16"
+                   TextColor="{StaticResource SecondaryDarkText}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   Margin="0,10,0,20"/>
+
+            <!-- Search Box -->
+            <Entry x:Name="EbayQueryEntry"
+                   Placeholder="Enter player or card name..."
+                   TextColor="{StaticResource White}"
+                   PlaceholderColor="{StaticResource Gray500}"
+                   BackgroundColor="{StaticResource PrimaryDark}"
+                   HeightRequest="44"
+                   Margin="0,0,0,10"/>
+
+            <Button Text="Search eBay"
+                    Style="{StaticResource AccentButton_AuroraBlue}"
+                    Clicked="OnSearchClicked" />
+
+            <!-- Results -->
+            <Frame BackgroundColor="{StaticResource PrimaryDark}"
+                   CornerRadius="12"
+                   Padding="16"
+                   Margin="0,20,0,0"
+                   HasShadow="True">
+                <Label x:Name="EbayResultLabel"
+                       Text="Results will appear here..."
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       TextColor="{StaticResource SecondaryDarkText}" />
+            </Frame>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

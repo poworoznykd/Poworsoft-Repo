@@ -60,14 +60,32 @@ build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.AuthSheet.
 build_metadata.AdditionalFiles.TargetPath = Views\AuthSheet.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\AuthSheet.xaml
 
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/CollectionPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.CollectionPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\CollectionPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\CollectionPage.xaml
+
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/DashboardPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.DashboardPage.xaml
 build_metadata.AdditionalFiles.TargetPath = Views\DashboardPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\DashboardPage.xaml
 
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/EbaySearchPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.EbaySearchPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\EbaySearchPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\EbaySearchPage.xaml
+
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/LandingPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.LandingPage.xaml
 build_metadata.AdditionalFiles.TargetPath = Views\LandingPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\LandingPage.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/ScanPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.ScanPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\ScanPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\ScanPage.xaml

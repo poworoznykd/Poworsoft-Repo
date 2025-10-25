@@ -7,17 +7,26 @@ namespace CollectIQ.Views
         public DashboardPage()
         {
             InitializeComponent();
+
             BindingContext = this;
         }
 
-        public Command AddCardCommand => new Command(async () =>
+        // Navigate to the ScanPage
+        public Command ScanCardCommand => new(async () =>
         {
-            await DisplayAlert("Coming Soon", "Card addition feature in development.", "OK");
+            await Shell.Current.GoToAsync(nameof(ScanPage));
         });
 
-        public Command ViewInventoryCommand => new Command(async () =>
+        // Navigate to the eBay Search Page (comparison)
+        public Command EbayCompareCommand => new(async () =>
         {
-            await DisplayAlert("Inventory", "View your collection stats soon.", "OK");
+            await Shell.Current.GoToAsync(nameof(EbaySearchPage));
+        });
+
+        // Navigate to My Collection
+        public Command ViewCollectionCommand => new(async () =>
+        {
+            await Shell.Current.GoToAsync(nameof(CollectionPage));
         });
     }
 }
