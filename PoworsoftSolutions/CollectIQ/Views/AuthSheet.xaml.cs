@@ -87,6 +87,8 @@ namespace CollectIQ.Views
         {
             try
             {
+                EmailEntry.Text = "ella@live.com";
+                PasswordEntry.Text = "1234";
                 string email = EmailEntry?.Text?.Trim() ?? "";
                 string password = PasswordEntry?.Text ?? "";
 
