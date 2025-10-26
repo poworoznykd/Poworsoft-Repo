@@ -1,83 +1,53 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!--
-* FILE: ScanPage.xaml
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-25
-* DESCRIPTION:
-*     Provides camera capture interface for scanning sports cards.
-*     Displays a vertical card-shaped overlay and live preview.
--->
-
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+           xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI"
              x:Class="CollectIQ.Views.ScanPage"
              Title="Scan Card"
-             BackgroundColor="#0B0E11">
+             BackgroundColor="#05080D">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="24">
+    <Grid RowDefinitions="*,Auto,Auto" Padding="10">
 
-            <!-- Header -->
-            <Label Text="Scan Your Card"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   TextColor="#6CD4FF"
-                   HorizontalOptions="Center" />
+        <!-- CAMERA PREVIEW -->
+        <Frame Grid.Row="0"
+               CornerRadius="18"
+               BorderColor="#00C6FF"
+               BackgroundColor="#0A0E13"
+               Padding="4"
+               HasShadow="True">
+            <zxing:CameraBarcodeReaderView 
+                x:Name="CameraView"
+                BarcodesDetected="OnBarcodesDetected"
+                HorizontalOptions="FillAndExpand"
+                VerticalOptions="FillAndExpand" />
 
-            <!-- Camera Frame (portrait ratio) -->
-            <Frame CornerRadius="18"
-                   HeightRequest="380"
-                   WidthRequest="260"
-                   BackgroundColor="#14181C"
-                   BorderColor="#00B4D8"
-                   HasShadow="True"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center">
+        </Frame>
 
-                <Grid>
-                    <!-- Card Preview Image -->
-                    <Image x:Name="PreviewImage"
-                           Aspect="AspectFill"
-                           HorizontalOptions="Fill"
-                           VerticalOptions="Fill" />
+        <!-- STATUS TEXT -->
+        <Label x:Name="StatusLabel"
+               Grid.Row="1"
+               Text="Align your card within the frame"
+               FontSize="16"
+               HorizontalOptions="Center"
+               TextColor="#A8EFFF"
+               Margin="0,15,0,10" />
 
-                    <!-- Neon overlay frame -->
-                    <Frame BackgroundColor="#2200B4D8"
-                           CornerRadius="18"
-                           HasShadow="False"
-                           BorderColor="#00B4D8"
-                           Padding="0"
-                           IsEnabled="False"
-                           InputTransparent="True"
-                           HorizontalOptions="Fill"
-                           VerticalOptions="Fill"
-                           Margin="4"/>
-                </Grid>
-            </Frame>
+        <!-- CAPTURE BUTTON -->
+        <Button x:Name="CaptureButton"
+                Grid.Row="2"
+                Text="Simulate Scan"
+                WidthRequest="220"
+                HeightRequest="60"
+                FontSize="18"
+                FontAttributes="Bold"
+                BackgroundColor="#001020"
+                TextColor="#BFFFFF"
+                CornerRadius="18"
+                Clicked="OnCaptureClicked">
+            <Button.Shadow>
+                <Shadow Brush="#00C6FF" Radius="18" Opacity="0.9" Offset="0,6" />
+            </Button.Shadow>
+        </Button>
 
-            <!-- Controls -->
-            <StackLayout Spacing="12"
-                         HorizontalOptions="Center"
-                         VerticalOptions="End">
-                <Button Text="📸  Scan Card"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
-                        WidthRequest="240"
-                        HeightRequest="54"
-                        FontAttributes="Bold"
-                        Command="{Binding ScanCommand}" />
-
-                <Label x:Name="ResultLabel"
-                       Text=""
-                       FontSize="16"
-                       TextColor="#B0C4DE"
-                       HorizontalOptions="Center"
-                       HorizontalTextAlignment="Center"
-                       LineBreakMode="TailTruncation"
-                       MaxLines="2" />
-            </StackLayout>
-
-        </VerticalStackLayout>
-    </ScrollView>
+    </Grid>
 </ContentPage>

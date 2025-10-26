@@ -1,98 +1,72 @@
 ﻿/*
 * FILE: ScanPage.xaml.cs
-* PROJECT: CollectIQ (Mobile Application)
+* PROJECT: CollectIQ
 * PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-25
+* UPDATED VERSION: 2025-10-28
 * DESCRIPTION:
-*     Handles camera capture, invokes recognition, and
-*     navigates to eBay search results after saving card data.
+*     Controls the ZXing camera preview and mock card recognition.
 */
 
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.ApplicationModel;
-using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Core;
-using CollectIQ.Models;
+using ZXing.Net.Maui;
+using ZXing.Net.Maui.Controls;
 using CollectIQ.Services;
+using CollectIQ.Models;
+using System;
 
 namespace CollectIQ.Views
 {
     public partial class ScanPage : ContentPage
     {
-        private readonly CardRecognitionService _recognitionService = new();
-        private readonly SqliteDatabase _database = new();
-        private readonly EbayService _ebayService = new(new HttpClient());
-
-        public Command ScanCommand { get; }
+        private readonly SqliteDatabase _database = new SqliteDatabase();
 
         public ScanPage()
         {
             InitializeComponent();
-            ScanCommand = new Command(async () => await CaptureAndRecognizeAsync());
-            BindingContext = this;
         }
 
-        /// <summary>
-        /// Captures a photo, recognizes the card, saves locally, and navigates to eBay search.
-        /// </summary>
-        private async Task CaptureAndRecognizeAsync()
+        private void OnBarcodesDetected(object sender, BarcodeDetectionEventArgs e)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                if (e.Results?.Any() == true)
+                {
+                    var result = e.Results.First().Value;
+                    await DisplayAlert("Scanned", $"Detected: {result}", "OK");
+                }
+            });
+        }
+        private async void OnCaptureClicked(object sender, EventArgs e)
         {
             try
             {
-                var photo = await MediaPicker.CapturePhotoAsync();
-                if (photo == null)
-                    return;
+                StatusLabel.Text = "Processing card...";
 
-                string filePath = Path.Combine(FileSystem.CacheDirectory, $"{Guid.NewGuid()}.jpg");
-                await using (var src = await photo.OpenReadAsync())
-                await using (var dst = File.OpenWrite(filePath))
-                    await src.CopyToAsync(dst);
-
-                PreviewImage.Source = ImageSource.FromFile(filePath);
-
-                var recognizedCard = await _recognitionService.RecognizeCardAsync(filePath);
-                if (recognizedCard == null)
-                {
-                    await DisplayAlert("Recognition Failed", "Could not identify this card.", "OK");
-                    return;
-                }
-
-                recognizedCard.Id = Guid.NewGuid().ToString();
-                recognizedCard.PhotoPath = filePath;
-
-                ResultLabel.Text = $"{recognizedCard.Year} {recognizedCard.Player} – {recognizedCard.Set}";
-
-                await _database.InitializeAsync();
-                await _database.AddCardAsync(recognizedCard);
-
-                await _database.AddCardImageAsync(new CardImage
+                // Simulated recognized card
+                var card = new Card
                 {
                     Id = Guid.NewGuid().ToString(),
-                    CardId = recognizedCard.Id,
-                    Path = filePath,
-                    Kind = "front"
-                });
+                    Player = "Patrick Mahomes",
+                    Team = "Kansas City Chiefs",
+                    Year = 2017,
+                    Set = "Panini Prizm",
+                    Number = "PM-RC",
+                    Name = "Patrick Mahomes Rookie Card",
+                    GradeCompany = "Raw",
+                    PhotoPath = string.Empty
+                };
 
-                await Toast.Make("✅ Card saved to collection.", ToastDuration.Short).Show();
+                await _database.AddCardAsync(card);
 
-                // Navigate to eBay results with player name
-                await Shell.Current.GoToAsync(nameof(EbaySearchPage),
-                    new Dictionary<string, object> { { "initialQuery", recognizedCard.Player } });
-            }
-            catch (FeatureNotSupportedException)
-            {
-                await DisplayAlert("Unsupported", "Camera not supported on this device.", "OK");
-            }
-            catch (PermissionException)
-            {
-                await DisplayAlert("Permission Denied", "Camera permission is required.", "OK");
+                StatusLabel.Text = $"Added: {card.Name}";
+                await DisplayAlert("Success",
+                    $"Saved {card.Name} to your collection.",
+                    "OK");
+
+                await Navigation.PushAsync(new EbaySearchPage());
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
+                await DisplayAlert("Error", ex.Message, "OK");
             }
         }
     }

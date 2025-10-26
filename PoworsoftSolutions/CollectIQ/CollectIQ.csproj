@@ -55,6 +55,7 @@
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 	  <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 	  <PackageReference Include="Supabase" Version="1.1.1" />
+	  <PackageReference Include="ZXing.Net.Maui" Version="1.0.0" />
 	  <!-- Remove this line for now: 
 	  <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" /> -->
 	</ItemGroup>
