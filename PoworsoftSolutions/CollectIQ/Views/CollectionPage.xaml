@@ -5,11 +5,9 @@
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-25
 * DESCRIPTION:
-*     Displays the user's saved sports card collection using
-*     a scrollable CollectionView bound to local SQLite data.
-*     The layout uses a Grid for fixed header and footer placement
-*     while the CollectionView expands and scrolls independently.
-*     Uses an Aurora Blue gradient for the Add New Card button.
+*     Displays the user's sports card collection with swipe actions,
+*     dynamic scrolling, and a bottom-anchored Add Card button.
+*     Follows SET coding standards and Aurora Blue UI theme.
 -->
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -18,99 +16,118 @@
              Title="My Collection"
              BackgroundColor="#0B0E11">
 
-    <!-- Grid ensures the CollectionView can scroll independently -->
-    <Grid RowDefinitions="Auto,*,Auto"
-          Padding="20"
-          RowSpacing="18">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
 
-        <!-- HEADER SECTION -->
-        <VerticalStackLayout Grid.Row="0" Spacing="8" HorizontalOptions="Center">
+        <!-- HEADER -->
+        <VerticalStackLayout Spacing="6" Grid.Row="0">
             <Label Text="My Card Collection"
                    FontSize="28"
                    FontAttributes="Bold"
                    TextColor="#6CD4FF"
                    HorizontalOptions="Center" />
             <BoxView HeightRequest="2"
-                     WidthRequest="140"
+                     WidthRequest="160"
                      Color="#00B4D8"
                      HorizontalOptions="Center" />
         </VerticalStackLayout>
 
-        <!-- SCROLLABLE CARD COLLECTION -->
+        <!-- SCROLLABLE COLLECTION -->
         <CollectionView x:Name="CardsCollectionView"
                         Grid.Row="1"
-                        ItemsLayout="VerticalList"
-                        VerticalScrollBarVisibility="Always"
+                        Margin="0,12,0,12"
+                        VerticalOptions="FillAndExpand"
                         SelectionMode="None"
-                        Margin="0,10,0,0">
+                        ItemsSource="{Binding Cards}"
+                        ItemsLayout="VerticalList">
 
             <CollectionView.EmptyView>
                 <Label x:Name="EmptyMessage"
                        Text="Your saved cards will appear here once added."
-                       FontSize="16"
                        TextColor="#7C8A93"
-                       HorizontalOptions="Center"
+                       FontSize="16"
                        HorizontalTextAlignment="Center"
-                       VerticalOptions="Center"
-                       Margin="20,10" />
+                       VerticalOptions="CenterAndExpand"
+                       Margin="0,20,0,0" />
             </CollectionView.EmptyView>
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Frame BackgroundColor="#14181C"
-                           CornerRadius="12"
-                           BorderColor="#1A87B9"
-                           Padding="14"
-                           Margin="0,8,0,0"
-                           HasShadow="True">
+                    <SwipeView>
+                        <SwipeView.RightItems>
+                            <SwipeItems Mode="Reveal">
 
-                        <Grid ColumnDefinitions="80,*,Auto"
-                              RowDefinitions="Auto,Auto">
+                                <!-- DELETE -->
+                                <SwipeItem Text="Delete"
+                                           BackgroundColor="#260000"
+                                           IconImageSource="delete_icon_red.png"
+                                           CommandParameter="{Binding .}"
+                                           Invoked="OnDeleteCard" />
 
-                            <!-- CARD IMAGE -->
-                            <Frame Grid.RowSpan="2"
-                                   Grid.Column="0"
-                                   Padding="0"
-                                   CornerRadius="8"
-                                   HasShadow="False"
-                                   BackgroundColor="#0E1115"
-                                   Margin="0,0,10,0">
-                                <Image Source="{Binding PhotoPath}"
-                                       WidthRequest="72"
-                                       HeightRequest="100"
-                                       Aspect="AspectFill" />
-                            </Frame>
+                                <!-- EDIT -->
+                                <SwipeItem Text="Edit"
+                                           BackgroundColor="#002600"
+                                           IconImageSource="edit_icon_green.png"
+                                           CommandParameter="{Binding .}"
+                                           Invoked="OnEditCard" />
+                            </SwipeItems>
+                        </SwipeView.RightItems>
 
-                            <!-- CARD TITLE -->
-                            <Label Grid.Column="1"
-                                   Text="{Binding Name}"
-                                   FontSize="18"
-                                   FontAttributes="Bold"
-                                   TextColor="#B0C4DE"
-                                   LineBreakMode="TailTruncation" />
+                        <!-- CARD FRAME -->
+                        <Frame CornerRadius="12"
+                               BorderColor="#1A87B9"
+                               BackgroundColor="#14181C"
+                               Padding="14"
+                               Margin="0,8,0,0"
+                               HasShadow="True">
 
-                            <!-- YEAR / PLAYER -->
-                            <Label Grid.Row="1"
-                                   Grid.Column="1"
-                                   Text="{Binding Player, StringFormat='Player: {0}'}"
-                                   FontSize="14"
-                                   TextColor="#7C8A93" />
+                            <Grid ColumnDefinitions="80,*,Auto"
+                                  RowDefinitions="Auto,Auto">
 
-                            <!-- ESTIMATED VALUE -->
-                            <Label Grid.Column="2"
-                                   Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
-                                   FontSize="16"
-                                   FontAttributes="Bold"
-                                   TextColor="#00B4D8"
-                                   HorizontalOptions="End"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                    </Frame>
+                                <!-- CARD IMAGE -->
+                                <Frame Grid.RowSpan="2"
+                                       Grid.Column="0"
+                                       Padding="0"
+                                       CornerRadius="8"
+                                       HasShadow="False"
+                                       BackgroundColor="#0E1115"
+                                       Margin="0,0,10,0">
+                                    <Image Source="{Binding PhotoPath}"
+                                           WidthRequest="72"
+                                           HeightRequest="100"
+                                           Aspect="AspectFill" />
+                                </Frame>
+
+                                <!-- CARD NAME -->
+                                <Label Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="#B0C4DE"
+                                       LineBreakMode="TailTruncation" />
+
+                                <!-- PLAYER INFO -->
+                                <Label Grid.Row="1"
+                                       Grid.Column="1"
+                                       Text="{Binding Player, StringFormat='Player: {0}'}"
+                                       FontSize="14"
+                                       TextColor="#7C8A93" />
+
+                                <!-- VALUE -->
+                                <Label Grid.Column="2"
+                                       Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="#00B4D8"
+                                       HorizontalOptions="End"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Frame>
+                    </SwipeView>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- FOOTER BUTTON -->
+        <!-- ADD NEW CARD BUTTON -->
         <Button Grid.Row="2"
                 Text="➕  Add New Card"
                 FontSize="18"
@@ -118,15 +135,15 @@
                 TextColor="White"
                 HeightRequest="54"
                 CornerRadius="14"
-                Margin="0,10,0,0">
-
+                Margin="0,10,0,0"
+                VerticalOptions="End"
+                Clicked="OnAddCardClicked">
             <Button.Background>
                 <LinearGradientBrush EndPoint="1,1">
                     <GradientStop Color="#00B4D8" Offset="0.0" />
                     <GradientStop Color="#0077B6" Offset="1.0" />
                 </LinearGradientBrush>
             </Button.Background>
-
             <Button.Shadow>
                 <Shadow Brush="#00B4D880" Radius="15" Offset="0,4" />
             </Button.Shadow>

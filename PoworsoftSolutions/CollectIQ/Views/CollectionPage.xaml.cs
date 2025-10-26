@@ -1,35 +1,36 @@
-//
-//  FILE            : CollectionPage.xaml.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2025-10-26
-//  DESCRIPTION     :
-//      Displays the user's stored card collection. This page automatically
-//      refreshes data each time it appears and uses SqliteDatabase to
-//      retrieve saved card records.
-//
+﻿/*
+* FILE: CollectionPage.xaml.cs
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-25
+* DESCRIPTION:
+*     Provides logic for displaying, deleting, and editing sports cards
+*     within the user’s collection. Integrates swipe actions, smooth
+*     animations, and SQLite persistence for a premium user experience.
+*/
 
 using System;
-using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using Microsoft.Maui.Controls;
+using CommunityToolkit.Maui.Alerts;
+using CommunityToolkit.Maui.Core;
 using CollectIQ.Models;
 using CollectIQ.Services;
-using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
     public partial class CollectionPage : ContentPage
     {
         private readonly SqliteDatabase _database = new();
+        public ObservableCollection<Card> Cards { get; } = new();
 
         public CollectionPage()
         {
             InitializeComponent();
+            BindingContext = this;
         }
 
-        /// <summary>
-        /// Refreshes the collection list every time the page becomes visible.
-        /// </summary>
         protected override async void OnAppearing()
         {
             base.OnAppearing();
@@ -37,27 +38,72 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Loads all cards from the SQLite database.
+        /// Loads all cards from the SQLite database into the CollectionView.
         /// </summary>
         private async Task LoadCardsAsync()
         {
             try
             {
                 await _database.InitializeAsync();
-                List<Card> cards = await _database.GetAllCardsAsync();
+                Cards.Clear();
 
-                if (cards.Count == 0)
-                {
-                    await DisplayAlert("Collection Empty", "No cards have been added yet.", "OK");
-                }
+                var cards = await _database.GetAllCardsAsync();
+                foreach (var card in cards)
+                    Cards.Add(card);
 
-                // Assumes you have a CollectionView named 'CardsCollectionView' in XAML
-                CardsCollectionView.ItemsSource = cards;
+                EmptyMessage.IsVisible = Cards.Count == 0;
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Error", $"Failed to load cards: {ex.Message}", "OK");
+                await DisplayAlert("Error", $"Failed to load collection: {ex.Message}", "OK");
             }
+        }
+
+        /// <summary>
+        /// Handles deletion of a selected card from the local collection.
+        /// </summary>
+        private async void OnDeleteCard(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
+            {
+                bool confirm = await DisplayAlert("Confirm Delete",
+                    $"Are you sure you want to delete '{card.Name}'?", "Delete", "Cancel");
+
+                if (!confirm) return;
+
+                try
+                {
+                    await _database.DeleteCardAsync(card.Id);
+                    Cards.Remove(card);
+                    EmptyMessage.IsVisible = Cards.Count == 0;
+
+                    await Toast.Make("Card deleted.", ToastDuration.Short).Show();
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Error", $"Failed to delete card: {ex.Message}", "OK");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Placeholder for future edit functionality.
+        /// </summary>
+        private async void OnEditCard(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
+            {
+                await DisplayAlert("Edit Card",
+                    $"Editing for '{card.Name}' coming soon!", "OK");
+            }
+        }
+
+        /// <summary>
+        /// Navigates to the Scan Page to add a new card.
+        /// </summary>
+        private async void OnAddCardClicked(object sender, EventArgs e)
+        {
+            await Shell.Current.GoToAsync(nameof(ScanPage));
         }
     }
 }

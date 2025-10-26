@@ -52,7 +52,7 @@
 
                 <!-- Scan Card -->
                 <Button Text="Scan Card"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Style="{StaticResource AccentButton}"
                         FontAttributes="Bold"
                         HeightRequest="60"
                         Command="{Binding ScanCardCommand}"
@@ -60,7 +60,7 @@
 
                 <!-- eBay Compare -->
                 <Button Text="Compare on eBay"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Style="{StaticResource AccentButton}"
                         FontAttributes="Bold"
                         HeightRequest="60"
                         Command="{Binding EbayCompareCommand}"
@@ -68,7 +68,7 @@
 
                 <!-- My Collection -->
                 <Button Text="My Collection"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Style="{StaticResource AccentButton}"
                         FontAttributes="Bold"
                         HeightRequest="60"
                         Command="{Binding ViewCollectionCommand}"

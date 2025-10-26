@@ -27,6 +27,10 @@ namespace CollectIQ.Services
     {
         private SQLiteAsyncConnection? _connection;
 
+        // ============================================================
+        //  INITIALIZATION
+        // ============================================================
+
         /// <summary>
         /// Initializes the database connection and creates tables if they do not exist.
         /// </summary>
@@ -93,7 +97,7 @@ namespace CollectIQ.Services
                 await _connection!.InsertAsync(existing);
             }
 
-            existing.DisplayName = passwordHash; // Temporary field reuse for password hash
+            existing.DisplayName = passwordHash; // Temporary reuse for password hash
             await _connection!.UpdateAsync(existing);
         }
 
@@ -158,6 +162,34 @@ namespace CollectIQ.Services
         {
             await InitializeAsync();
             return await _connection!.Table<Card>().ToListAsync();
+        }
+
+        /// <summary>
+        /// Deletes a card and its related images from the collection.
+        /// </summary>
+        /// <param name="cardId">The unique ID of the card to delete.</param>
+        /// <returns>Number of rows deleted from the Card table.</returns>
+        public async Task<int> DeleteCardAsync(string cardId)
+        {
+            if (string.IsNullOrWhiteSpace(cardId))
+                return 0;
+
+            await InitializeAsync();
+
+            try
+            {
+                // Delete related CardImage entries first
+                await _connection!.ExecuteAsync("DELETE FROM CardImage WHERE CardId = ?", cardId);
+
+                // Delete the card itself
+                int rows = await _connection.ExecuteAsync("DELETE FROM Card WHERE Id = ?", cardId);
+                return rows;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SqliteDatabase] DeleteCardAsync failed: {ex.Message}");
+                return 0;
+            }
         }
     }
 }
