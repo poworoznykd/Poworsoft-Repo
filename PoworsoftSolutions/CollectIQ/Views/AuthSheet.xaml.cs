@@ -2,12 +2,14 @@
 //  FILE            : AuthSheet.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
-//  LAST UPDATED    : 2025-10-19
+//  LAST UPDATED    : 2025-10-24
 //  DESCRIPTION     :
-//      Handles login/registration and renders a smaller,
-//      repositioned animated password strength meter.
+//      Handles login and registration, providing a smaller
+//      animated password strength meter and routing the user
+//      to the DashboardPage upon successful authentication.
 //
 using CollectIQ.Interfaces;
+using CollectIQ.Services;
 using Microsoft.Maui.Graphics;
 using System;
 using System.Text.RegularExpressions;
@@ -22,37 +24,99 @@ namespace CollectIQ.Views
         private double _targetStrength = 0;
         private bool _animating = false;
 
-        public AuthSheet(IAuthService authService)
+        /// <summary>
+        /// Constructor for AuthSheet.
+        /// Accepts an optional IAuthService dependency; if null,
+        /// initializes a LocalAuthService with a SqliteDatabase instance.
+        /// </summary>
+        public AuthSheet(IAuthService? authService = null)
         {
             InitializeComponent();
-            _authService = authService;
+
+            // Fallback initialization ensures no null references occur.
+            _authService = authService ?? new LocalAuthService(new SqliteDatabase());
         }
 
+        /// <summary>
+        /// Handles user registration process.
+        /// </summary>
         private async void OnRegister(object sender, EventArgs e)
         {
-            string email = EmailEntry.Text?.Trim() ?? "";
-            string password = PasswordEntry.Text ?? "";
-            string confirm = ConfirmPasswordEntry.Text ?? "";
-
-            if (password != confirm)
+            try
             {
-                await DisplayAlert("Error", "Passwords do not match.", "OK");
-                return;
-            }
+                string email = EmailEntry.Text?.Trim() ?? "";
+                string password = PasswordEntry.Text ?? "";
+                string confirm = ConfirmPasswordEntry.Text ?? "";
 
-            bool success = await _authService.RegisterAsync(email, password);
-            await DisplayAlert("Register", success ? "Registration successful!" : "Account already exists.", "OK");
+                if (string.IsNullOrWhiteSpace(email) ||
+                    string.IsNullOrWhiteSpace(password) ||
+                    string.IsNullOrWhiteSpace(confirm))
+                {
+                    await DisplayAlert("Error", "All fields are required.", "OK");
+                    return;
+                }
+
+                if (password != confirm)
+                {
+                    await DisplayAlert("Error", "Passwords do not match.", "OK");
+                    return;
+                }
+
+                bool success = await _authService.RegisterAsync(email, password);
+
+                if (success)
+                {
+                    await DisplayAlert("Account Created", "Welcome to CollectIQ!", "OK");
+                    await Shell.Current.GoToAsync(nameof(DashboardPage));
+                }
+                else
+                {
+                    await DisplayAlert("Error", "Registration failed. Please try again.", "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Registration failed: {ex.Message}", "OK");
+            }
         }
 
+        /// <summary>
+        /// Handles user login process.
+        /// </summary>
         private async void OnLogin(object sender, EventArgs e)
         {
-            string email = EmailEntry.Text?.Trim() ?? "";
-            string password = PasswordEntry.Text ?? "";
+            try
+            {
+                EmailEntry.Text = "ella@live.com";
+                PasswordEntry.Text = "1234";
+                string email = EmailEntry?.Text?.Trim() ?? "";
+                string password = PasswordEntry?.Text ?? "";
 
-            bool success = await _authService.LoginAsync(email, password);
-            await DisplayAlert("Login", success ? "Welcome back!" : "Invalid credentials.", "OK");
+                await DisplayAlert("Debug", $"Email='{email}', Password empty={string.IsNullOrWhiteSpace(password)}", "OK");
+
+                if (_authService == null)
+                {
+                    await DisplayAlert("Debug", "_authService is NULL!", "OK");
+                    return;
+                }
+
+                bool success = await _authService.LoginAsync(email, password);
+
+                await DisplayAlert("Debug", $"LoginAsync returned {success}", "OK");
+
+                if (success)
+                    await Shell.Current.GoToAsync(nameof(DashboardPage));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Exception", ex.ToString(), "OK");
+            }
         }
 
+
+        /// <summary>
+        /// Updates the password strength meter as the user types.
+        /// </summary>
         private void OnPasswordChanged(object sender, TextChangedEventArgs e)
         {
             _targetStrength = CalculateStrength(e.NewTextValue ?? "");
@@ -60,6 +124,9 @@ namespace CollectIQ.Views
                 _ = AnimateStrengthAsync();
         }
 
+        /// <summary>
+        /// Animates the strength meter for smooth transitions.
+        /// </summary>
         private async Task AnimateStrengthAsync()
         {
             _animating = true;
@@ -81,6 +148,9 @@ namespace CollectIQ.Views
             _animating = false;
         }
 
+        /// <summary>
+        /// Calculates a password's strength based on length and character types.
+        /// </summary>
         private static double CalculateStrength(string pwd)
         {
             double score = 0;
@@ -92,6 +162,9 @@ namespace CollectIQ.Views
             return Math.Min(score, 1.0);
         }
 
+        /// <summary>
+        /// Custom drawable for rendering the strength meter arc.
+        /// </summary>
         private sealed class StrengthDrawable : IDrawable
         {
             private readonly double _strength;
@@ -102,7 +175,7 @@ namespace CollectIQ.Views
                 canvas.Antialias = true;
                 float centerX = (float)dirtyRect.Center.X;
                 float centerY = (float)dirtyRect.Center.Y - 10;
-                float radius = 50;   // smaller size now fits perfectly
+                float radius = 50;
                 float strokeWidth = 10f;
 
                 // Base arc

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+* FILE: EbaySearchPage.xaml
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-25
+* DESCRIPTION:
+*     Displays live or mock eBay listings for a recognized card.
+*     Allows tapping any result to open the listing in browser.
+-->
+
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Views.EbaySearchPage"
+             Title="eBay Matches"
+             BackgroundColor="#0B0E11">
+
+    <VerticalStackLayout Padding="20" Spacing="12">
+        <Label Text="eBay Search Results"
+               FontSize="28"
+               FontAttributes="Bold"
+               TextColor="#6CD4FF"
+               HorizontalOptions="Center" />
+
+        <!-- ✅ Name defined here for code-behind access -->
+        <CollectionView x:Name="EbayResultsView"
+                        SelectionMode="Single"
+                        SelectionChanged="OnResultSelected"
+                        VerticalOptions="FillAndExpand">
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Frame CornerRadius="12"
+                           Padding="12"
+                           Margin="0,6,0,0"
+                           BackgroundColor="#14181C"
+                           BorderColor="#00B4D8"
+                           HasShadow="True">
+
+                        <Grid ColumnDefinitions="90,*" ColumnSpacing="12">
+                            <Image Source="{Binding ImageUrl}"
+                                   WidthRequest="90"
+                                   HeightRequest="90"
+                                   Aspect="AspectFill"
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="Start" />
+
+                            <VerticalStackLayout>
+                                <Label Text="{Binding Title}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Price, StringFormat='Price: ${0:F2}'}"
+                                       FontSize="14"
+                                       TextColor="#7C8A93" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </VerticalStackLayout>
+</ContentPage>
