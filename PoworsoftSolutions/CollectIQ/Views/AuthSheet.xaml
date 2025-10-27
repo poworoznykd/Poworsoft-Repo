@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.AuthSheet"
-             Shell.NavBarIsVisible="False"
-             BackgroundColor="Transparent">
+             Shell.NavBarIsVisible="True"
+             Shell.TitleColor="#0ab8f9"
+             Shell.BackgroundColor="{StaticResource OffBlack}">
 
     <Grid>
         <!-- Gradient background -->
@@ -76,7 +77,8 @@
             <!-- Register -->
             <Button x:Name="RegisterButton"
                        BorderWidth="2"
-                    BorderColor="AliceBlue"
+                    Style="{StaticResource AccentButton}"
+                    BorderColor="LightSeaGreen"
                     Text="Register"
                     Clicked="OnRegister"
                     HeightRequest="50"
@@ -84,19 +86,21 @@
                     BackgroundColor="#0ab8f9"
                     TextColor="White"
                     FontAttributes="Bold"
-                    Margin="0,0,0,12" />
+                    Margin="0,0,0,12"/>
 
             <!-- Login -->
             <Button x:Name="LoginButton"
+                    Style="{StaticResource AccentButton}"
                        BorderWidth="2"
-   BorderColor="AliceBlue"
+                    BorderColor="LightSeaGreen"
                     Text="Login"
                     Clicked="OnLogin"
                     HeightRequest="50"
                     CornerRadius="14"
                     BackgroundColor="#0ab8f9"
                     TextColor="White"
-                    FontAttributes="Bold" />
+                    FontAttributes="Bold"/>
+
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

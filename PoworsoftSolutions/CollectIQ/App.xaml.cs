@@ -13,16 +13,11 @@ namespace CollectIQ
 {
     public partial class App : Application
     {
-        public App(LandingPage landingPage)
+        public App()
         {
             InitializeComponent();
-
-            // Use a NavigationPage wrapper so we can navigate cleanly.
-            MainPage = new NavigationPage(landingPage)
-            {
-                BarBackgroundColor = Colors.Transparent,
-                BarTextColor = Colors.White
-            };
+            MainPage = new AppShell();
         }
+
     }
 }

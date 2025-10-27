@@ -23,21 +23,23 @@
 
             <!-- Primary: Guest -->
             <Button x:Name="EnterButton"
-                       BorderWidth="2"
-                BorderColor="AliceBlue"
-              Text="Get Started (Guest)"
-              Clicked="OnGuest"
-              HeightRequest="52" WidthRequest="260"
-              CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White" />
+                BorderWidth="2"
+                Style="{StaticResource AccentButton}"
+                BorderColor="LightSeaGreen"
+                Text="Get Started (Guest)"
+                Clicked="OnGuest"
+                HeightRequest="52" WidthRequest="260"
+                CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White" />
 
             <!-- Secondary: Auth -->
             <Button x:Name="AuthButton"
-                    BorderWidth="2"
-                    BorderColor="AliceBlue"
-              Text="Sign In / Register"
-              Clicked="OnAuth"
-              HeightRequest="52" WidthRequest="260"
-              CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White" />
+                BorderWidth="2"
+                Style="{StaticResource AccentButton}"
+                BorderColor="LightSeaGreen"
+                Text="Sign In / Register"
+                Clicked="OnAuth"
+                HeightRequest="52" WidthRequest="260"
+                CornerRadius="14" BackgroundColor="#0ab8f9" TextColor="White"/>
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

@@ -8,6 +8,7 @@
 //      navigation to authentication (sign-in/register) screens.
 //
 using CollectIQ.Interfaces;
+using CollectIQ.Services;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
@@ -53,6 +54,8 @@ namespace CollectIQ.Views
         {
             try
             {
+                var db = new SqliteDatabase();
+                var authService = new LocalAuthService(db);
                 // Navigate cleanly to AuthSheet
                 await Navigation.PushAsync(new AuthSheet(_authService));
             }
