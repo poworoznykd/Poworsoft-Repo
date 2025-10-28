@@ -1,73 +1,123 @@
-﻿/*
-* FILE: ScanPage.xaml.cs
-* PROJECT: CollectIQ
-* PROGRAMMER: Darryl Poworoznyk
-* UPDATED VERSION: 2025-10-28
-* DESCRIPTION:
-*     Controls the ZXing camera preview and mock card recognition.
-*/
-
-using ZXing.Net.Maui;
-using ZXing.Net.Maui.Controls;
-using CollectIQ.Services;
-using CollectIQ.Models;
-using System;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Storage;
+using CommunityToolkit.Maui.Core;
 
 namespace CollectIQ.Views
 {
     public partial class ScanPage : ContentPage
     {
-        private readonly SqliteDatabase _database = new SqliteDatabase();
+        private bool _isScanning = false;
+        private bool _capturingBack = false;
+        private string _frontImagePath = string.Empty;
+        private string _backImagePath = string.Empty;
 
         public ScanPage()
         {
             InitializeComponent();
+            AnimateScanLine();
         }
 
-        private void OnBarcodesDetected(object sender, BarcodeDetectionEventArgs e)
+        protected override async void OnAppearing()
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (e.Results?.Any() == true)
-                {
-                    var result = e.Results.First().Value;
-                    await DisplayAlert("Scanned", $"Detected: {result}", "OK");
-                }
-            });
-        }
-        private async void OnCaptureClicked(object sender, EventArgs e)
-        {
+            base.OnAppearing();
             try
             {
-                StatusLabel.Text = "Processing card...";
-
-                // Simulated recognized card
-                var card = new Card
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Player = "Patrick Mahomes",
-                    Team = "Kansas City Chiefs",
-                    Year = 2017,
-                    Set = "Panini Prizm",
-                    Number = "PM-RC",
-                    Name = "Patrick Mahomes Rookie Card",
-                    GradeCompany = "Raw",
-                    PhotoPath = string.Empty
-                };
-
-                await _database.AddCardAsync(card);
-
-                StatusLabel.Text = $"Added: {card.Name}";
-                await DisplayAlert("Success",
-                    $"Saved {card.Name} to your collection.",
-                    "OK");
-
-                await Navigation.PushAsync(new EbaySearchPage());
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await CameraView.StartCameraPreview(cts.Token);
+                _isScanning = true;
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Error", ex.Message, "OK");
+                Debug.WriteLine($"Camera start error: {ex.Message}");
             }
+        }
+
+        protected override void OnDisappearing()
+        {
+            base.OnDisappearing();
+            try
+            {
+                _isScanning = false;
+                CameraView.StopCameraPreview();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Camera stop error: {ex.Message}");
+            }
+        }
+
+        private async void AnimateScanLine()
+        {
+            while (true)
+            {
+                if (_isScanning)
+                {
+                    await ScanLine.TranslateTo(0, 360, 1200, Easing.CubicInOut);
+                    await ScanLine.TranslateTo(0, 0, 1200, Easing.CubicInOut);
+                }
+                await Task.Delay(50);
+            }
+        }
+
+        private async void OnScanClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                _isScanning = false;
+
+                var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var imageStream = await CameraView.CaptureImage(captureCts.Token);
+
+                if (imageStream != null)
+                {
+                    string folderPath = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
+                    Directory.CreateDirectory(folderPath);
+
+                    string fileName = _capturingBack ? $"card_back_{Guid.NewGuid()}.jpg" : $"card_front_{Guid.NewGuid()}.jpg";
+                    string fullPath = Path.Combine(folderPath, fileName);
+
+                    using (var fileStream = File.Create(fullPath))
+                        await imageStream.CopyToAsync(fileStream);
+
+                    if (!_capturingBack)
+                    {
+                        _frontImagePath = fullPath;
+                        _capturingBack = true;
+                        await DisplayAlert("Flip Card", "Now flip your card and capture the BACK side.", "OK");
+                        _isScanning = true;
+                        return;
+                    }
+
+                    _backImagePath = fullPath;
+                    _capturingBack = false;
+
+                    await DisplayAlert("Captured", "Both sides captured. Searching eBay...", "OK");
+
+                    await Shell.Current.GoToAsync($"{nameof(EbaySearchPage)}?frontPath={Uri.EscapeDataString(_frontImagePath)}&backPath={Uri.EscapeDataString(_backImagePath)}");
+                }
+
+                _isScanning = true;
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Capture failed: {ex.Message}", "OK");
+                _isScanning = true;
+            }
+        }
+
+        private async void OnAddManuallyClicked(object sender, EventArgs e)
+        {
+            await DisplayAlert("Manual Entry", "Manual card entry form coming soon.", "OK");
+        }
+
+        private void Camera_MediaCaptured(object sender, MediaCapturedEventArgs e)
+        {
+            Debug.WriteLine("Media captured successfully.");
         }
     }
 }

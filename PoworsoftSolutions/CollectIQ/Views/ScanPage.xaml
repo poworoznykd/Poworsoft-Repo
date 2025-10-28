@@ -1,53 +1,79 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-           xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="CollectIQ.Views.ScanPage"
-             Title="Scan Card"
-             BackgroundColor="#05080D">
+             BackgroundColor="#05080D"
+             Title="Scan Card">
 
-    <Grid RowDefinitions="*,Auto,Auto" Padding="10">
+    <Grid RowDefinitions="*,Auto">
 
-        <!-- CAMERA PREVIEW -->
-        <Frame Grid.Row="0"
-               CornerRadius="18"
-               BorderColor="#00C6FF"
-               BackgroundColor="#0A0E13"
-               Padding="4"
-               HasShadow="True">
-            <zxing:CameraBarcodeReaderView 
-                x:Name="CameraView"
-                BarcodesDetected="OnBarcodesDetected"
-                HorizontalOptions="FillAndExpand"
-                VerticalOptions="FillAndExpand" />
+        <!-- Live Camera Feed -->
+        <toolkit:CameraView
+            x:Name="CameraView"
+            Grid.Row="0"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            WidthRequest="340"
+            HeightRequest="400"
+            BackgroundColor="Black"
+            CameraFlashMode="Off"
+            MediaCaptured="Camera_MediaCaptured"
+            Margin="20" />
 
-        </Frame>
+        <!-- Animated Scan Line Overlay -->
+        <BoxView x:Name="ScanLine"
+                 HeightRequest="3"
+                 BackgroundColor="#00FF88"
+                 Opacity="0.9"
+                 VerticalOptions="Start"
+                 HorizontalOptions="FillAndExpand"
+                 Margin="30,0,30,0"/>
 
-        <!-- STATUS TEXT -->
-        <Label x:Name="StatusLabel"
-               Grid.Row="1"
-               Text="Align your card within the frame"
-               FontSize="16"
-               HorizontalOptions="Center"
-               TextColor="#A8EFFF"
-               Margin="0,15,0,10" />
+        <!-- Bottom Controls -->
+        <Grid Grid.Row="1"
+              Padding="0,20,0,25"
+              RowDefinitions="Auto,Auto"
+              ColumnDefinitions="*,*">
 
-        <!-- CAPTURE BUTTON -->
-        <Button x:Name="CaptureButton"
-                Grid.Row="2"
-                Text="Simulate Scan"
-                WidthRequest="220"
-                HeightRequest="60"
-                FontSize="18"
-                FontAttributes="Bold"
-                BackgroundColor="#001020"
-                TextColor="#BFFFFF"
-                CornerRadius="18"
-                Clicked="OnCaptureClicked">
-            <Button.Shadow>
-                <Shadow Brush="#00C6FF" Radius="18" Opacity="0.9" Offset="0,6" />
-            </Button.Shadow>
-        </Button>
+            <!-- Capture Button -->
+            <Button x:Name="ScanButton"
+                    Grid.ColumnSpan="2"
+                    Clicked="OnScanClicked"
+                    BackgroundColor="Transparent"
+                    BorderColor="#00FF88"
+                    BorderWidth="4"
+                    WidthRequest="88"
+                    HeightRequest="88"
+                    CornerRadius="44"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End">
+                <Button.Shadow>
+                    <Shadow Brush="#00FF88" Radius="25" />
+                </Button.Shadow>
+            </Button>
 
+            <!-- Manual Entry Button -->
+            <Button x:Name="ManualButton"
+                    Text="Add Manually"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    BackgroundColor="#001020"
+                    TextColor="#6CD4FF"
+                    CornerRadius="12"
+                    HeightRequest="50"
+                    Clicked="OnAddManuallyClicked"
+                    Margin="0,20,0,0" />
+
+            <!-- Status Label -->
+            <Label x:Name="ResultLabel"
+                   Text="Ready to scan..."
+                   FontSize="16"
+                   Grid.Row="1"
+                   Grid.Column="1"
+                   TextColor="#A8EFFF"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End" />
+        </Grid>
     </Grid>
 </ContentPage>
