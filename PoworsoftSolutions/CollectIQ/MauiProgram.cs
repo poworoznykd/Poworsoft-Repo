@@ -2,10 +2,10 @@
 //  FILE            : MauiProgram.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2025-10-23
+//  UPDATED VERSION : 2025-10-28
 //  DESCRIPTION     :
 //      Configures CollectIQ’s MAUI application, registers core services,
-//      and applies consistent navigation bar styling.
+//      enables CommunityToolkit CameraView handlers, and applies consistent navigation bar styling.
 //
 
 using CollectIQ.Interfaces;
@@ -15,7 +15,8 @@ using CommunityToolkit.Maui;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
-using ZXing.Net.Maui;   // ✅ correct namespace for UseBarcodeReader
+using Plugin.Maui.OCR;
+
 
 namespace CollectIQ
 {
@@ -28,7 +29,8 @@ namespace CollectIQ
             builder
                 .UseMauiApp<App>()
                 .UseMauiCommunityToolkit()
-                .UseBarcodeReader()       // ✅ correct for ZXing.Net.MAUI 1.0.0
+                .UseMauiCommunityToolkitCamera()
+                .UseOcr()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

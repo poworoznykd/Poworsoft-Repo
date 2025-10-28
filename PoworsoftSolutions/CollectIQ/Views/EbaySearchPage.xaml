@@ -1,38 +1,44 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!--
-* FILE: EbaySearchPage.xaml
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-25
-* DESCRIPTION:
-*     Displays live or mock eBay listings for a recognized card.
-*     Allows tapping any result to open the listing in browser.
--->
+<ContentPage 
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="CollectIQ.Views.EbaySearchPage"
+    Title="eBay Matches"
+    BackgroundColor="#0B0E11">
 
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="CollectIQ.Views.EbaySearchPage"
-             Title="eBay Matches"
-             BackgroundColor="#0B0E11">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20" RowSpacing="15">
 
-    <VerticalStackLayout Padding="20" Spacing="12">
-        <Label Text="eBay Search Results"
+        <!-- HEADER -->
+        <Label Text="eBay Card Recognition"
                FontSize="28"
                FontAttributes="Bold"
+               HorizontalOptions="Center"
                TextColor="#6CD4FF"
-               HorizontalOptions="Center" />
+               Margin="0,10,0,10" />
 
-        <!-- ✅ Name defined here for code-behind access -->
+        <!-- OCR STATUS -->
+        <Label x:Name="StatusLabel"
+               Grid.Row="1"
+               Text="Analyzing captured image..."
+               FontSize="16"
+               TextColor="#A8EFFF"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center"
+               LineBreakMode="WordWrap" />
+
+        <!-- RESULTS -->
         <CollectionView x:Name="EbayResultsView"
+                        Grid.Row="2"
                         SelectionMode="Single"
                         SelectionChanged="OnResultSelected"
-                        VerticalOptions="FillAndExpand">
+                        VerticalOptions="FillAndExpand"
+                        BackgroundColor="Transparent">
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <Frame CornerRadius="12"
                            Padding="12"
-                           Margin="0,6,0,0"
+                           Margin="0,8,0,0"
                            BackgroundColor="#14181C"
                            BorderColor="#00B4D8"
                            HasShadow="True">
@@ -45,20 +51,59 @@
                                    VerticalOptions="Center"
                                    HorizontalOptions="Start" />
 
-                            <VerticalStackLayout>
+                            <VerticalStackLayout VerticalOptions="Center">
                                 <Label Text="{Binding Title}"
                                        FontSize="16"
                                        FontAttributes="Bold"
                                        TextColor="White"
                                        LineBreakMode="TailTruncation" />
-                                <Label Text="{Binding Price, StringFormat='Price: ${0:F2}'}"
+                                <Label Text="{Binding Price, StringFormat='${0:F2}'}"
                                        FontSize="14"
-                                       TextColor="#7C8A93" />
+                                       TextColor="#6CD4FF" />
+                                <Label Text="{Binding Currency}"
+                                       FontSize="12"
+                                       TextColor="#9EA3A8" />
                             </VerticalStackLayout>
                         </Grid>
                     </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-    </VerticalStackLayout>
+
+        <!-- MANUAL SEARCH SECTION -->
+        <StackLayout Grid.Row="3" Spacing="10" Padding="0,15,0,0">
+
+            <Label Text="Didn’t find your card? Search manually:"
+                   FontSize="16"
+                   TextColor="#A8EFFF"
+                   HorizontalOptions="Center" />
+
+            <Entry x:Name="ManualSearchBox"
+                   Placeholder="Enter card details or keywords..."
+                   FontSize="14"
+                   BackgroundColor="#111418"
+                   TextColor="White"
+                   PlaceholderColor="#6CD4FF"
+                   HeightRequest="45"
+                   Margin="0,0,0,5"
+                   Keyboard="Text" />
+
+            <Button Text="Search eBay Again"
+                    Clicked="OnManualSearchClicked"
+                    BackgroundColor="#00B4FF"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    CornerRadius="10"
+                    HeightRequest="48" />
+
+            <Button Text="Add Manually to Collection"
+                    BackgroundColor="#001020"
+                    TextColor="#6CD4FF"
+                    BorderColor="#00B4FF"
+                    BorderWidth="2"
+                    CornerRadius="10"
+                    HeightRequest="48"
+                    Clicked="OnManualSearchClicked" />
+        </StackLayout>
+    </Grid>
 </ContentPage>
