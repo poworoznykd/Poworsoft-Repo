@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CollectIQ")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+bea9b4a4e39cc74402d8637da1759e33470b17d4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+e7c55b3ee18f1a480e37e523cd57f9bd57f666d7")]
 [assembly: System.Reflection.AssemblyProductAttribute("CollectIQ")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CollectIQ")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

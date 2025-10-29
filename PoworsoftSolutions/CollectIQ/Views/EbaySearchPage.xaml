@@ -1,97 +1,109 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage
+<ContentPage 
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     x:Class="CollectIQ.Views.EbaySearchPage"
-    BackgroundColor="{StaticResource PageBackgroundColor}"
-    Title="eBay Search">
+    Title="eBay Matches"
+    BackgroundColor="#0B0E11">
 
-    <VerticalStackLayout Padding="16" Spacing="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20" RowSpacing="15">
 
-        <!-- Header -->
-        <Label Text="eBay Card Search"
-               Style="{StaticResource HeaderStyle}"
-               HorizontalOptions="Center" />
+        <!-- HEADER -->
+        <Label Text="eBay Card Recognition"
+               FontSize="28"
+               FontAttributes="Bold"
+               HorizontalOptions="Center"
+               TextColor="#6CD4FF"
+               Margin="0,10,0,10" />
 
-        <!-- OCR / Manual Search Input -->
-        <Entry x:Name="ManualSearchBox"
-               Placeholder="Enter or edit card text here..."
-               Style="{StaticResource EntryStyle}"
-               ClearButtonVisibility="WhileEditing" />
+        <!-- OCR STATUS -->
+        <Label x:Name="StatusLabel"
+               Grid.Row="1"
+               Text="Analyzing captured image..."
+               FontSize="16"
+               TextColor="#A8EFFF"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center"
+               LineBreakMode="WordWrap" />
 
-        <!-- Search Button -->
-        <Button Text="Search eBay"
-                Clicked="OnManualSearchClicked"
-                BackgroundColor="{StaticResource PrimaryColor}"
-                TextColor="White"
-                CornerRadius="10"
-                FontAttributes="Bold"
-                HeightRequest="44" />
-
-        <!-- Divider -->
-        <BoxView HeightRequest="1"
-                 BackgroundColor="{StaticResource DividerColor}" />
-
-        <!-- Results -->
+        <!-- RESULTS -->
         <CollectionView x:Name="EbayResultsView"
+                        Grid.Row="2"
                         SelectionMode="Single"
                         SelectionChanged="OnResultSelected"
-                        ItemsSource="{Binding Listings}">
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Vertical"
-                                   ItemSpacing="8" />
-            </CollectionView.ItemsLayout>
+                        VerticalOptions="FillAndExpand"
+                        BackgroundColor="Transparent">
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Frame Margin="2"
-                           Padding="8"
-                           CornerRadius="10"
-                           BorderColor="{StaticResource PrimaryColor}"
-                           BackgroundColor="{StaticResource CardBackgroundColor}"
+                    <Frame CornerRadius="12"
+                           Padding="12"
+                           Margin="0,8,0,0"
+                           BackgroundColor="#14181C"
+                           BorderColor="#00B4D8"
                            HasShadow="True">
 
-                        <Grid ColumnDefinitions="Auto,*"
-                              ColumnSpacing="12"
-                              RowDefinitions="Auto,Auto">
-
-                            <!-- Card Image -->
-                            <Image Grid.RowSpan="2"
-                                   Source="{Binding ImageUrl}"
-                                   WidthRequest="80"
-                                   HeightRequest="80"
+                        <Grid ColumnDefinitions="90,*" ColumnSpacing="12">
+                            <Image Source="{Binding ImageUrl}"
+                                   WidthRequest="90"
+                                   HeightRequest="90"
                                    Aspect="AspectFill"
-                                   HorizontalOptions="Start"
-                                   VerticalOptions="Center" />
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="Start" />
 
-                            <!-- Title -->
-                            <Label Grid.Column="1"
-                                   Text="{Binding Title}"
-                                   Style="{StaticResource CardTitleStyle}"
-                                   TextColor="{StaticResource PrimaryTextColor}"
-                                   LineBreakMode="WordWrap"
-                                   FontSize="Medium" />
-
-                            <!-- Price -->
-                            <Label Grid.Column="1"
-                                   Grid.Row="1"
-                                   Text="{Binding Price, StringFormat='${0:F2}'}"
-                                   FontAttributes="Bold"
-                                   FontSize="Small"
-                                   TextColor="{StaticResource AccentColor}" />
+                            <VerticalStackLayout VerticalOptions="Center">
+                                <Label Text="{Binding Title}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Price, StringFormat='${0:F2}'}"
+                                       FontSize="14"
+                                       TextColor="#6CD4FF" />
+                                <Label Text="{Binding Currency}"
+                                       FontSize="12"
+                                       TextColor="#9EA3A8" />
+                            </VerticalStackLayout>
                         </Grid>
                     </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- Empty State -->
-        <Label x:Name="EmptyMessage"
-               Text="No cards found."
-               IsVisible="False"
-               HorizontalOptions="Center"
-               VerticalOptions="CenterAndExpand"
-               TextColor="{StaticResource SecondaryTextColor}" />
+        <!-- MANUAL SEARCH SECTION -->
+        <StackLayout Grid.Row="3" Spacing="10" Padding="0,15,0,0">
 
-    </VerticalStackLayout>
+            <Label Text="Didn’t find your card? Search manually:"
+                   FontSize="16"
+                   TextColor="#A8EFFF"
+                   HorizontalOptions="Center" />
+
+            <Entry x:Name="ManualSearchBox"
+                   Placeholder="Enter card details or keywords..."
+                   FontSize="14"
+                   BackgroundColor="#111418"
+                   TextColor="White"
+                   PlaceholderColor="#6CD4FF"
+                   HeightRequest="45"
+                   Margin="0,0,0,5"
+                   Keyboard="Text" />
+
+            <Button Text="Search eBay Again"
+                    Clicked="OnManualSearchClicked"
+                    BackgroundColor="#00B4FF"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    CornerRadius="10"
+                    HeightRequest="48" />
+
+            <Button Text="Add Manually to Collection"
+                    BackgroundColor="#001020"
+                    TextColor="#6CD4FF"
+                    BorderColor="#00B4FF"
+                    BorderWidth="2"
+                    CornerRadius="10"
+                    HeightRequest="48"
+                    Clicked="OnManualSearchClicked" />
+        </StackLayout>
+    </Grid>
 </ContentPage>

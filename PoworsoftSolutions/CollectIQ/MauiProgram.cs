@@ -72,7 +72,9 @@ namespace CollectIQ
             });
 #endif
 
-            return builder.Build();
+            var app = builder.Build();
+            CollectIQ.Utilities.ServiceHelper.Services = app.Services;
+            return app;
         }
     }
 }

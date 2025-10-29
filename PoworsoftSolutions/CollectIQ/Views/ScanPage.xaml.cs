@@ -1,11 +1,21 @@
-﻿using System;
+﻿/*
+* FILE: ScanPage.xaml.cs
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-18
+* UPDATED: 2025-10-28
+* DESCRIPTION:
+*     Handles live camera scanning of card front and back, saves images,
+*     and passes them to the eBay search workflow.
+*/
+
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
-using CommunityToolkit.Maui.Core;
 
 namespace CollectIQ.Views
 {
@@ -75,25 +85,25 @@ namespace CollectIQ.Views
 
                 if (imageStream != null)
                 {
-                    string folderPath = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
-                    Directory.CreateDirectory(folderPath);
+                    string folder = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
+                    Directory.CreateDirectory(folder);
 
-                    string fileName = _capturingBack ? $"card_back_{Guid.NewGuid()}.jpg" : $"card_front_{Guid.NewGuid()}.jpg";
-                    string fullPath = Path.Combine(folderPath, fileName);
+                    string name = _capturingBack ? $"card_back_{Guid.NewGuid()}.jpg" : $"card_front_{Guid.NewGuid()}.jpg";
+                    string path = Path.Combine(folder, name);
 
-                    using (var fileStream = File.Create(fullPath))
-                        await imageStream.CopyToAsync(fileStream);
+                    using (var fs = File.Create(path))
+                        await imageStream.CopyToAsync(fs);
 
                     if (!_capturingBack)
                     {
-                        _frontImagePath = fullPath;
+                        _frontImagePath = path;
                         _capturingBack = true;
                         await DisplayAlert("Flip Card", "Now flip your card and capture the BACK side.", "OK");
                         _isScanning = true;
                         return;
                     }
 
-                    _backImagePath = fullPath;
+                    _backImagePath = path;
                     _capturingBack = false;
 
                     await DisplayAlert("Captured", "Both sides captured. Searching eBay...", "OK");
@@ -115,9 +125,10 @@ namespace CollectIQ.Views
             await DisplayAlert("Manual Entry", "Manual card entry form coming soon.", "OK");
         }
 
-        private void Camera_MediaCaptured(object sender, MediaCapturedEventArgs e)
+        private void Camera_MediaCaptured(object sender, EventArgs e)
         {
-            Debug.WriteLine("Media captured successfully.");
+            System.Diagnostics.Debug.WriteLine("[Camera] Media captured successfully.");
         }
+
     }
 }
