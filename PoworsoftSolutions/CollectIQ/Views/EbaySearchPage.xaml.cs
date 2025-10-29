@@ -1,23 +1,13 @@
-﻿/*
-* FILE: EbaySearchPage.xaml.cs
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-18
-* UPDATED: 2025-10-28
-* DESCRIPTION:
-*     Displays eBay search results based on OCR text extracted from
-*     front and back card images or manual input.
-*/
-
-using System;
-using System.Threading.Tasks;
-using Microsoft.Maui.Controls;
-using CollectIQ.Models;
+﻿using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
+using Microsoft.Maui.Controls;
+using Plugin.Maui.OCR;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Net.Http;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace CollectIQ.Views
 {
@@ -27,6 +17,7 @@ namespace CollectIQ.Views
     {
         private readonly EbayService _ebayService = new(new HttpClient());
         public ObservableCollection<EbayListing> Listings { get; } = new();
+        private readonly IOcrService _ocrService;
 
         private string _frontPath = string.Empty;
         public string FrontPath { get => _frontPath; set => _frontPath = value; }
@@ -39,57 +30,102 @@ namespace CollectIQ.Views
             {
                 _backPath = value;
                 if (!string.IsNullOrEmpty(value))
-                    _ = ProcessImagesAsync();
+                    _ = ProcessBackImageAsync(value);
             }
         }
 
-        public EbaySearchPage()
+        public EbaySearchPage(IOcrService ocrService)
         {
+            _ocrService = ocrService;
             InitializeComponent();
             BindingContext = this;
         }
 
-        private async Task ProcessImagesAsync()
+        private async Task<string?> RecognizeTextFromImageAsync(string imagePath)
         {
             try
             {
-                string? text = await OCRUtility.ExtractTextFromFrontAndBackAsync(_frontPath, _backPath);
-                string? sanitizedText = await OCRUtility.SanitizeForEbay(text ?? string.Empty);
-                if (string.IsNullOrWhiteSpace(sanitizedText))
-                {
-                    await DisplayAlert("No Text Found", "OCR could not extract text.", "OK");
-                    return;
-                }
+                if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
+                    return null;
 
-                ManualSearchBox.Text = sanitizedText;
-                await PerformSearchAsync(sanitizedText);
+                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
+                var result = await _ocrService.RecognizeTextAsync(imageBytes);
+                Debug.WriteLine($"[OCR] Detected Text: {result.AllText}");
+                return result.AllText.Trim();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[EbaySearchPage] {ex.Message}");
-                await DisplayAlert("Error", ex.Message, "OK");
+                Debug.WriteLine($"[OCR ERROR]: {ex.Message}");
+                await DisplayAlert("OCR Error", ex.Message, "OK");
+                return null;
             }
         }
 
+        private async Task ProcessBackImageAsync(string imagePath)
+        {
+            try
+            {
+                var text = await RecognizeTextFromImageAsync(imagePath);
+                ManualSearchBox.Text = text;
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    await DisplayAlert("No Text Found", "Could not extract text from the back image.", "OK");
+                    return;
+                }
+
+                // --- NEW: Keep only the first 6–8 relevant words to avoid flooding eBay
+                var trimmed = text.Replace("\r", " ").Replace("\n", " ");
+                var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string reduced = string.Join(' ', words.Take(8));
+
+                // --- NEW: Sanitize but keep digits and key names like Topps/Chrome
+                string sanitized = System.Text.RegularExpressions.Regex
+                    .Replace(reduced, @"[^a-zA-Z0-9\s]", "")
+                    .Trim();
+
+                StatusLabel.Text = $"Searching eBay for: {sanitized}";
+                await PerformSearchAsync(sanitized);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"OCR or search failed: {ex.Message}", "OK");
+            }
+        }
+
+
+
+        // ============================================================
+        // UPDATED: Show all results, not just one
+        // ============================================================
         private async Task PerformSearchAsync(string query)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(query)) return;
+                if (string.IsNullOrWhiteSpace(query))
+                    return;
 
-                var result = await _ebayService.GetBestMatchAsync(query);
+                // --- ensure spaces not double-escaped
+                string cleaned = query.Trim();
+                StatusLabel.Text = $"Searching eBay for: {cleaned}";
                 Listings.Clear();
 
-                if (result != null)
-                    Listings.Add(result);
+                var results = await _ebayService.SearchListingsAsync(cleaned, 10);
+                if (results != null && results.Count > 0)
+                {
+                    foreach (var item in results)
+                        Listings.Add(item);
+                }
                 else
+                {
                     await DisplayAlert("No Results", "No eBay matches found.", "OK");
+                }
 
                 EbayResultsView.ItemsSource = Listings;
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Search Error", ex.Message, "OK");
+                await DisplayAlert("Error", $"eBay search failed: {ex.Message}", "OK");
             }
         }
 
@@ -101,16 +137,16 @@ namespace CollectIQ.Views
                 await DisplayAlert("Missing Input", "Enter text to search eBay.", "OK");
                 return;
             }
-
             await PerformSearchAsync(query);
         }
 
         private async void OnResultSelected(object sender, SelectionChangedEventArgs e)
         {
-            if (e.CurrentSelection.Count == 0) return;
+            if (e.CurrentSelection.Count == 0)
+                return;
 
             if (e.CurrentSelection[0] is EbayListing listing && !string.IsNullOrEmpty(listing.Url))
-                await Browser.Default.OpenAsync(listing.Url);
+                await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
 
             ((CollectionView)sender).SelectedItem = null;
         }
