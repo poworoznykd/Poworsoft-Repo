@@ -150,5 +150,46 @@ namespace CollectIQ.Views
 
             ((CollectionView)sender).SelectedItem = null;
         }
+
+        private async void OnAddToCollectionSwipe(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipeItem && swipeItem.BindingContext is EbayListing listing)
+            {
+                try
+                {
+                    var card = new Card
+                    {
+                        Name = listing.Title,
+                        EstimatedValue = listing.Price,
+                        CollectionId = "Default",
+                        PhotoPath = listing.ImageUrl,
+                        Set = "eBay Import",
+                        GradeCompany = "Raw"
+                    };
+
+                    // You likely have a database helper or service (similar to CollectionPage)
+                    await App.Database.AddCardAsync(card);
+
+                    await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Error", $"Could not add card: {ex.Message}", "OK");
+                }
+            }
+        }
+
+        private async void OnViewOnEbaySwipe(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipeItem && swipeItem.BindingContext is EbayListing listing && !string.IsNullOrEmpty(listing.Url))
+            {
+                await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
+            }
+        }
+
+        private async void Add_Manual_Button_Clicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new CardPage());
+        }
     }
 }

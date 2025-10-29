@@ -36,43 +36,56 @@
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Frame CornerRadius="12"
-               Padding="8"
-               Margin="0,8,0,0"
-               BackgroundColor="#14181C"
-               BorderColor="#00B4D8"
-               HasShadow="True">
+                    <SwipeView>
+                        <SwipeView.RightItems>
+                            <SwipeItems Mode="Reveal">
+                                <SwipeItem Text="Add to Collection"
+                       BackgroundColor="#00B4D8"
+                       IconImageSource="add_icon.png"
+                       Invoked="OnAddToCollectionSwipe" />
+                                <SwipeItem Text="View on eBay"
+                       BackgroundColor="#0096C7"
+                       IconImageSource="external_link.png"
+                       Invoked="OnViewOnEbaySwipe" />
+                            </SwipeItems>
+                        </SwipeView.RightItems>
 
-                        <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
-                            <!-- Thumbnail -->
-                            <Image Source="{Binding ImageUrl}"
-                       Grid.RowSpan="2"
-                       WidthRequest="100"
-                       HeightRequest="100"
-                       Aspect="AspectFit"
-                       VerticalOptions="Center"
-                       HorizontalOptions="Center" />
+                        <Frame CornerRadius="12"
+           Padding="8"
+           Margin="0,8,0,0"
+           BackgroundColor="#14181C"
+           BorderColor="#00B4D8"
+           HasShadow="True">
 
-                            <!-- Title -->
-                            <Label Grid.Column="1"
-                       Text="{Binding Title}"
-                       FontSize="16"
-                       FontAttributes="Bold"
-                       TextColor="White"
-                       LineBreakMode="TailTruncation"
-                       VerticalOptions="Start"
-                       HorizontalOptions="Start" />
+                            <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
+                                <Image Source="{Binding ImageUrl}"
+                   Grid.RowSpan="2"
+                   WidthRequest="100"
+                   HeightRequest="100"
+                   Aspect="AspectFit"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Center" />
 
-                            <!-- Price -->
-                            <Label Grid.Column="1"
-                       Grid.Row="1"
-                       Text="{Binding Price, StringFormat='${0:F2}'}"
-                       FontSize="14"
-                       TextColor="#6CD4FF"
-                       VerticalOptions="End"
-                       HorizontalOptions="Start" />
-                        </Grid>
-                    </Frame>
+                                <Label Grid.Column="1"
+                   Text="{Binding Title}"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="White"
+                   LineBreakMode="TailTruncation"
+                   VerticalOptions="Start"
+                   HorizontalOptions="Start" />
+
+                                <Label Grid.Column="1"
+                   Grid.Row="1"
+                   Text="{Binding Price, StringFormat='${0:F2}'}"
+                   FontSize="14"
+                   TextColor="#6CD4FF"
+                   VerticalOptions="End"
+                   HorizontalOptions="Start" />
+                            </Grid>
+                        </Frame>
+                    </SwipeView>
+
                 </DataTemplate>
             </CollectionView.ItemTemplate>
 
@@ -111,7 +124,7 @@
                     BorderWidth="2"
                     CornerRadius="10"
                     HeightRequest="48"
-                    Clicked="OnManualSearchClicked" />
+                    Clicked="Add_Manual_Button_Clicked" />
         </StackLayout>
     </Grid>
 </ContentPage>

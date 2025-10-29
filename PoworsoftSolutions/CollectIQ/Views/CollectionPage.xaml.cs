@@ -93,8 +93,7 @@ namespace CollectIQ.Views
         {
             if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
             {
-                await DisplayAlert("Edit Card",
-                    $"Editing for '{card.Name}' coming soon!", "OK");
+                await Navigation.PushAsync(new CardPage(card));
             }
         }
 
