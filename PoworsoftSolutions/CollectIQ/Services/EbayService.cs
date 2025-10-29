@@ -2,23 +2,11 @@
 * FILE: EbayService.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-28
+* FIRST VERSION: 2025-10-18
 * DESCRIPTION:
-*     Live eBay Browse API client used by CollectIQ to search for cards
-*     based on OCR text or manual user input. Supports both single best-match
-*     and multi-result searches, returning eBay listing objects.
-*
-*     ENDPOINT:
-*         https://api.ebay.com/buy/browse/v1/item_summary/search?q={query}
-*
-*     INSTRUCTIONS FOR YOUR TOKEN:
-*     ------------------------------------------------------------
-*     1. Go to https://developer.ebay.com/signin → create an app.
-*     2. Request an OAuth2 token using the Client Credentials flow
-*        (scope: https://api.ebay.com/oauth/api_scope).
-*     3. Copy your "access_token" value from the JSON response.
-*     4. PASTE IT BELOW in the variable named `_accessToken`.
-*     ------------------------------------------------------------
+*     Enhanced eBay Browse API client with sanitized query,
+*     brand correction, category targeting, and multi-listing
+*     results for CollectIQ card recognition workflow.
 */
 
 using System;
@@ -29,124 +17,127 @@ using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Utilities;
 using Newtonsoft.Json.Linq;
 
 namespace CollectIQ.Services
 {
-    public sealed class EbayService : IEbayService
+    public class EbayService : IEbayService
     {
         private readonly HttpClient _httpClient;
 
-        // 👇 THIS IS WHERE YOU PASTE YOUR TOKEN
-        // Example: private readonly string _accessToken = "v^1.1#B4CAA....";
-        private readonly string _accessToken = "v^1.1#i^1#p^1#r^0#I^3#f^0#t^H4sIAAAAAAAA/+VYfWwURRTv9QNpsPAHWoQoHAuIoLs7u9vbu9u0F48eleOjPbhy0gYh+zHXLt3bXXZ2aY8I1hoqAqL4BQJCg6IEQyIJRhKkRpGImGiiooGoMYYSC0YTA2KIRmfvSmkrAaRHbOL9szdv3rx57/e+Zga0Diue3j6r/WKJ57b8jlbQmu/xMCNA8bCi+0cW5I8rygN9GDwdrZNbC9sKfixHYkozhQUQmYaOoLclpelIyBArCMfSBUNEKhJ0MQWRYMtCPDxvrsBSQDAtwzZkQyO80UgFIfJQhhzHchLPc5Lkw1T9ssxao4JgGdEvBf2SojBQUVgZzyPkwKiObFG38TxgfSQDSDZQy3IC4ASWp3iWrSe8CWgh1dAxCwWIUEZdIbPW6qPrtVUVEYKWjYUQoWi4Kl4TjkZmVteW031khXpwiNui7aD+o0pDgd6EqDnw2tugDLcQd2QZIkTQoewO/YUK4cvK3IT6WaiZJOSCPj9XFpQkf9CXEyirDCsl2tfWw6WoCpnMsApQt1U7fT1EMRrSMijbPaNqLCIa8bqf+Y6oqUkVWhXEzBnhunAsRoQiomWltZhBKpk/SCZjCyIkE4QKp8CAQgZ9ihKQFblno6y0HpgH7FRp6Irqgoa81YY9A2KtYX9sWMHXBxvMVKPXWOGk7WrUyxesBcxlDBlfvevUrBcdu1F3/QpTGAhvZnh9D/Sutm1LlRwb9koYOJGBCPvaNFWFGDiZicWe8GlBFUSjbZsCTTc3N1PNHGVYDTQLAEMvmjc3LjfClEhgXjfXs/zq9ReQasYUGeKVSBXstIl1acGxihXQG4iQj2MDgO3Bvb9aoYHUfxD62Ez3z4hcZYhf8nFlfj8IshyQgnwgFxkS6glS2tUDSmKaTIlWE7RNTZQhKeM4c1LQUhWB8yVZLpCEpMIHk2RZMJkkJZ/CkzhrIYBQkuRg4P+UKDca6nEoW9DOSaznLM4fXhmuoR2NX1nFRiNyC1MP56D5SRCePcevzV1RVRdtqk+GawMxJdZccaPZcFXjKzUVI1OL988FAG6u5w6EWQayoTIo8+KyYcKYoalyemg5mLOUmGjZ6TjUNEwYlJFh04zmplbnzLx/WSZuzu7c9aj/qD9d1SrkhuzQsspdj7AA0VQptwNRspGi3Vw3RHz8cMlLM1p7r8o4gInGNNywZEjhvqRIotxEWVBUDF1LDwo3FZ98hxRq2M4sCKqSPbJSGSQotELGFiPDwRggqsY9wdUaTVDH/dC2DE2DVoIZdD1IpRxblDQ41ApDDhJEFYdYs2b8PMMHWR7wg7JLzrTipUOtpLmlvLDNI97ycr4AilpqaNluWobiyO4Z9RZcOej+DyChvMyPafN8ANo8nfkeDygHU5hJYOKwgoWFBbePQ6oNKVVMUkht0PG93oJUE0ybomrlj847fuJk9fhDs/c8dXpM65rJ9HN5I/u8v3Q8Au7qfYEpLmBG9HmOAXdfmSliRo0pYX0MYAP4AsOxfD2YdGW2kCktvGPxnUsOdp3/bdqXr/y6aHnpm4e/Wzl2GijpZfJ4ivJwsOStf3Vr9N0pxVPm33vfqFnBMv6l0pnavBGrx9NO98s/Lz7dTb+39vvXjp6JfHtgY+ToV97q6PBP3tjMJqaXdm3N34LeP97o/2jPpV2B8icPb/jhrfPrutZuZj//uvP86Pp9dQ8+dLJ99MZjE8b+8s5fR/Zv3xv6Y8fazrVW6zPSxe3k6/t/OrHtYFwiKybumrO747OPF0a7X1yl1h29WLB++LJTRxrKzeKyxc9WOqCp+Nwm/sCFqfe88MAXTx3TPt2bSHzz+/KiCx92JJ5PrapbvW+qtuPpzs5dB94+dGJN18RTO5nUhAR4YpRNGPy0bfxO76Yl60raE+fWddMbHt99avnILX+e2VDy2KVHtbPW2a1ZX/4NhTnrwxkTAAA=";
-        public EbayService()
-        {
-            _httpClient = new HttpClient();
-        }
+        // === Paste your Production OAuth Application Token below ===
+        private const string AccessToken = "v^1.1#i^1#f^0#I^3#p^1#r^0#t^H4sIAAAAAAAA/+VYW2wUVRju9oJUpIASQEBYhopQ2NkzM93t7tCuLF0KC6XddheEKtazM2fK2LkxZ5Z2eTBrAzWQqIQQHwRJow/6YCQkRm6RByIxEBMNXrBRBA3GEkgkSgQ0UM9MS9lWAkiX2MR9mZ3//Oc/3/+d/3LmgMyo4rLOZZ1Xxroeyu/KgEy+y8WMAcWjiuaXFORPLcoDWQqurkxpprCjoKcSQ1Ux+EaEDV3DyN2uKhrmHWEVlTI1XodYxrwGVYR5S+Dj4ZW1PEsD3jB1Sxd0hXJHI1UUZEUuCRk/4w/4AgGOIVLtps2EXkUJFSAIgmRQgn6O8ZNhjFMoqmELalYVxQLW52GAhw0mQDkPWB5wdJALNlHu1cjEsq4RFRpQIQct78w1s6DeGSnEGJkWMUKFouGaeH04GllSl6j0ZtkK9dMQt6CVwoPfqnURuVdDJYXuvAx2tPl4ShAQxpQ31LfCYKN8+CaY+4DvMJ0URNYHGIREJCTLGSEnVNbopgqtO+OwJbLokRxVHmmWbKXvxihhI/kiEqz+tzpiIhpx24+GFFRkSUZmFbVkcXhtOBajQhFommklpntE5w8WPLHGiIcJIpETUUD0BH2iGBBEoX+hPmv9NA9ZqVrXRNkmDbvrdGsxIqjRYG443pfFDVGq1+rNsGTZiLL1/AMcck32pvbtYspar9n7ilRChNt5vfsODMy2LFNOpiw0YGHogEMRySrDkEVq6KATi/3h046rqPWWZfBeb1tbG93G0brZ4mUBYLxrVtbGhfVIhZSta+e6oy/ffYJHdlwREJmJZd5KGwRLO4lVAkBroUI+jg0Atp/3wbBCQ6X/EGT57B2cEbnKEBiUAkhkGPIsFwNSTopNqD9IvTYOlIRpjwrNVmQZChSQRyBxllKRKYs855NYLiAhj+gPSp7yoCR5kj7R72EkhABCyaQQDPyfEuVeQz2OBBNZuYn1XMX5M5vC9d6U4t9Uw0YjQjvThFbgBgmEl6+oUGo31qyNtjZJ4UQgJsbaqu41G27rfLUiE2YSZP2cEGDnes5IWKZjC4nDci8u6AaK6YospEfWBnOmGIOmlY4jRSGCYTkZNoxojmp1rtz7l2Xi/vzOYY/6b/rTbb3CdsiOLK/s+ZgYgIZM2x2IFnTVq9u5DsnxwxY3O6jdt1ccrOQlMtKwBESTviQmodBKmwiKuqakh8WbTE6+I4o14mcfCbLYd2SlHSZovFEgHmM9RTjAdL19gkvorUgj/dAydUVB5mpm2PVAVVMWTCpopBWGHCSIDEdYs2Yq/EwFA3wsNyy/BKcVN4+0kuaU8sIO1wsPupw3IqioI8t3w9TFlGCfUR/AJ4d38P1HKM/5MR2uo6DDdSTf5QKV4ElmNpg1qmBVYcEjU7FsIVqGEo3lFo1815uIbkVpA8pm/mN5J77urptxePl7W89Nzmwp9e7IK8m6fulaB6YMXMAUFzBjsm5jwPRbI0XMuMljWR8D2CAoByzgmsDsW6OFzKTCiRHzMLujc0b3Nqn0k8jSQ/nS7td+AGMHlFyuojwSK3nPH/BPTz+XsNbs+GLChXNvqJnocbDr8ZJrOxe17zra3bP1xox57587+XPNmY978UsfmWteReev/XH2nUsn/tq5v7cxcYmauXPb23vmC53fWLHizuMHx9c+PCeyeRx3Cc2MLP1d7CmsaD99csKkU1s27vpcgu2vuI59NnnOngnhKyVo4U+7z964PgsGfxOvnukZfWraRMV1THgr0P3pLysXGNMysctt25d/e2P05bILTzQf3LKq8FG/Op7e/d3FD8veFU6f2n5xlm/D3N6FV2ceut6g7X1dY8G885Vz33x638t7DwSrcevVdX8+W6Y2N3xw5FCm/KnOC7/+qHy5/6uFU9CGfV3Hv28JL9jcWzq1by//BhqVgfsYEwAA";
+
+        public EbayService() : this(new HttpClient()) { }
 
         public EbayService(HttpClient httpClient)
         {
             _httpClient = httpClient;
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", AccessToken);
+            _httpClient.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
         }
 
-        // ============================================================
-        //  SINGLE BEST MATCH
-        // ============================================================
+        //// === Helper: sanitize OCR text ===
+        //private static string SanitizeForEbay(string text)
+        //{
+        //    if (string.IsNullOrWhiteSpace(text))
+        //        return string.Empty;
 
-        public async Task<EbayListing?> GetBestMatchAsync(string query)
-        {
-            if (string.IsNullOrWhiteSpace(query))
-                return null;
+        //    string cleaned = System.Text.RegularExpressions.Regex.Replace(
+        //        text, @"(www\.|\.com|©|inc\.|company|rights reserved|code[\w\d]+)",
+        //        "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-            try
-            {
-                string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search?q={Uri.EscapeDataString(query)}&limit=1";
+        //    cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim();
 
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", _accessToken);
-                _httpClient.DefaultRequestHeaders.Accept.Add(
-                    new MediaTypeWithQualityHeaderValue("application/json"));
+        //    cleaned = cleaned.Replace("XeTOPPS", "Topps", StringComparison.OrdinalIgnoreCase)
+        //                     .Replace("TOPPS", "Topps", StringComparison.OrdinalIgnoreCase)
+        //                     .Replace("PANNI", "Panini", StringComparison.OrdinalIgnoreCase)
+        //                     .Replace("CHROME", "Chrome", StringComparison.OrdinalIgnoreCase)
+        //                     .Replace("ROOKE", "Rookie", StringComparison.OrdinalIgnoreCase)
+        //                     .Replace("RC", "Rookie", StringComparison.OrdinalIgnoreCase);
 
-                var json = await _httpClient.GetStringAsync(url);
-                var root = JObject.Parse(json);
-                var item = root.SelectToken("itemSummaries[0]");
-                if (item == null)
-                    return null;
+        //    var tokens = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        //    if (tokens.Length > 6)
+        //        cleaned = string.Join(" ", tokens[..6]);
 
-                return new EbayListing
-                {
-                    Title = item.Value<string>("title") ?? string.Empty,
-                    ImageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? string.Empty,
-                    Price = decimal.TryParse(item.SelectToken("price.value")?.ToString(),
-                        NumberStyles.Any, CultureInfo.InvariantCulture, out var price)
-                        ? price : null,
-                    Currency = item.SelectToken("price.currency")?.ToString() ?? "USD",
-                    ListingId = item.Value<string>("itemId") ?? string.Empty,
-                    Url = item.Value<string>("itemWebUrl") ?? string.Empty
-                };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[EbayService:GetBestMatchAsync] {ex.Message}");
-                return null;
-            }
-        }
+        //    return cleaned;
+        //}
 
-        // ============================================================
-        //  MULTI-RESULT SEARCH (used by OCR workflow)
-        // ============================================================
-
+        /// <summary>
+        /// Gets a list of live eBay listings for a sanitized query.
+        /// </summary>
         public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
         {
             var results = new List<EbayListing>();
-            if (string.IsNullOrWhiteSpace(query))
+            if (string.IsNullOrWhiteSpace(query)) return results;
+
+            // --- Sanitize query text ---
+            string sanitized = await OCRUtility.SanitizeForEbay(query); // synchronous call
+            if (string.IsNullOrWhiteSpace(sanitized))
                 return results;
 
-            try
+            string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search?q={Uri.EscapeDataString(sanitized)}&limit={limit}";
+
+            using HttpRequestMessage req = new(HttpMethod.Get, url);
+            req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+            // === Attach your actual token here ===
+            // Replace EbayOAuthToken with whatever field/property holds your real token.
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+
+            System.Diagnostics.Debug.WriteLine($"[eBay URL] {url}");
+            System.Diagnostics.Debug.WriteLine($"[Auth Header Sent] {req.Headers.Authorization}");
+
+            using HttpResponseMessage resp = await _httpClient.SendAsync(req);
+
+            if (!resp.IsSuccessStatusCode)
             {
-                string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search?q={Uri.EscapeDataString(query)}&limit={limit}";
-
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_accessToken}");
-                _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-
-                var json = await _httpClient.GetStringAsync(url);
-                var root = JObject.Parse(json);
-                var items = root["itemSummaries"];
-                if (items == null)
-                    return results;
-
-                foreach (var item in items)
-                {
-                    string title = item.Value<string>("title") ?? "";
-                    string imageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? "";
-                    string urlWeb = item.Value<string>("itemWebUrl") ?? "";
-                    string priceStr = item.SelectToken("price.value")?.ToString() ?? "";
-                    string currency = item.SelectToken("price.currency")?.ToString() ?? "USD";
-
-                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var priceVal);
-
-                    results.Add(new EbayListing
-                    {
-                        Title = title,
-                        ImageUrl = imageUrl,
-                        Price = priceVal,
-                        Currency = currency,
-                        ListingId = item.Value<string>("itemId") ?? "",
-                        Url = urlWeb
-                    });
-                }
+                string err = await resp.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"[eBay API Error]: {resp.StatusCode} - {err}");
+                return results;
             }
-            catch (Exception ex)
+
+            string json = await resp.Content.ReadAsStringAsync();
+            var root = Newtonsoft.Json.Linq.JObject.Parse(json);
+            var items = root.SelectToken("itemSummaries");
+            if (items == null) return results;
+
+            foreach (var item in items)
             {
-                Console.WriteLine($"[EbayService:SearchListingsAsync] {ex.Message}");
+                string title = item.Value<string>("title") ?? string.Empty;
+                string imageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? string.Empty;
+                string currency = item.SelectToken("price.currency")?.ToString() ?? "USD";
+                string priceStr = item.SelectToken("price.value")?.ToString() ?? string.Empty;
+
+                decimal? price = null;
+                if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    price = parsed;
+
+                results.Add(new EbayListing
+                {
+                    Title = title,
+                    ImageUrl = imageUrl,
+                    Price = price,
+                    Currency = currency,
+                    ListingId = item.Value<string>("itemId") ?? string.Empty
+                });
             }
 
             return results;
+        }
+
+
+
+        /// <summary>
+        /// Retains existing single best match method for backward compatibility.
+        /// </summary>
+        public async Task<EbayListing?> GetBestMatchAsync(string query)
+        {
+            var list = await SearchListingsAsync(query, 1);
+            return list.Count > 0 ? list[0] : null;
         }
     }
 }
