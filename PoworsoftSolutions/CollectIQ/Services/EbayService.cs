@@ -69,64 +69,74 @@ namespace CollectIQ.Services
         /// <summary>
         /// Gets a list of live eBay listings for a sanitized query.
         /// </summary>
+        /// <summary>
+        /// Gets a list of live eBay listings for a sanitized query.
+        /// </summary>
         public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
         {
             var results = new List<EbayListing>();
-            if (string.IsNullOrWhiteSpace(query)) return results;
-
-            // --- Sanitize query text ---
-            string sanitized = await OCRUtility.SanitizeForEbay(query); // synchronous call
-            if (string.IsNullOrWhiteSpace(sanitized))
+            if (string.IsNullOrWhiteSpace(query))
                 return results;
 
+            string sanitized = await OCRUtility.SanitizeForEbay(query);
             string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search?q={Uri.EscapeDataString(sanitized)}&limit={limit}";
 
             using HttpRequestMessage req = new(HttpMethod.Get, url);
             req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-
-            // === Attach your actual token here ===
-            // Replace EbayOAuthToken with whatever field/property holds your real token.
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
 
             System.Diagnostics.Debug.WriteLine($"[eBay URL] {url}");
-            System.Diagnostics.Debug.WriteLine($"[Auth Header Sent] {req.Headers.Authorization}");
+            System.Diagnostics.Debug.WriteLine($"[Auth Token Length] {req.Headers.Authorization.Parameter?.Length}");
 
-            using HttpResponseMessage resp = await _httpClient.SendAsync(req);
-
-            if (!resp.IsSuccessStatusCode)
+            try
             {
-                string err = await resp.Content.ReadAsStringAsync();
-                System.Diagnostics.Debug.WriteLine($"[eBay API Error]: {resp.StatusCode} - {err}");
+                using HttpResponseMessage resp = await _httpClient.SendAsync(req);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    string err = await resp.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"[eBay API Error]: {resp.StatusCode} - {err}");
+                    return results;
+                }
+
+                string json = await resp.Content.ReadAsStringAsync();
+                var root = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var items = root.SelectToken("itemSummaries");
+                if (items == null)
+                    return results;
+
+                foreach (var item in items)
+                {
+                    string title = item.Value<string>("title") ?? string.Empty;
+                    string imageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? string.Empty;
+                    string currency = item.SelectToken("price.currency")?.ToString() ?? "USD";
+                    string priceStr = item.SelectToken("price.value")?.ToString() ?? string.Empty;
+
+                    decimal? price = null;
+                    if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any,
+                                         System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                        price = parsed;
+
+                    string webUrl = item.Value<string>("itemWebUrl") ?? string.Empty;
+
+                    results.Add(new EbayListing
+                    {
+                        Title = title,
+                        ImageUrl = imageUrl,
+                        Price = price,
+                        Currency = currency,
+                        ListingId = item.Value<string>("itemId") ?? string.Empty,
+                        Url = webUrl
+                    });
+                }
+
                 return results;
             }
-
-            string json = await resp.Content.ReadAsStringAsync();
-            var root = Newtonsoft.Json.Linq.JObject.Parse(json);
-            var items = root.SelectToken("itemSummaries");
-            if (items == null) return results;
-
-            foreach (var item in items)
+            catch (Exception ex)
             {
-                string title = item.Value<string>("title") ?? string.Empty;
-                string imageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? string.Empty;
-                string currency = item.SelectToken("price.currency")?.ToString() ?? "USD";
-                string priceStr = item.SelectToken("price.value")?.ToString() ?? string.Empty;
-
-                decimal? price = null;
-                if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                    price = parsed;
-
-                results.Add(new EbayListing
-                {
-                    Title = title,
-                    ImageUrl = imageUrl,
-                    Price = price,
-                    Currency = currency,
-                    ListingId = item.Value<string>("itemId") ?? string.Empty
-                });
+                System.Diagnostics.Debug.WriteLine($"[eBay EXCEPTION]: {ex.Message}");
+                return results; // always return, even on failure
             }
-
-            return results;
         }
 
 
