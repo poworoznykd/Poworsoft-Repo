@@ -84,7 +84,6 @@ namespace CollectIQ.Views
                     .Replace(reduced, @"[^a-zA-Z0-9\s]", "")
                     .Trim();
 
-                StatusLabel.Text = $"Searching eBay for: {sanitized}";
                 await PerformSearchAsync(sanitized);
             }
             catch (Exception ex)
@@ -107,7 +106,6 @@ namespace CollectIQ.Views
 
                 // --- ensure spaces not double-escaped
                 string cleaned = query.Trim();
-                StatusLabel.Text = $"Searching eBay for: {cleaned}";
                 Listings.Clear();
 
                 var results = await _ebayService.SearchListingsAsync(cleaned, 10);
@@ -157,27 +155,26 @@ namespace CollectIQ.Views
             {
                 try
                 {
-                    var card = new Card
+                    // Create a pre-populated Card object for editing
+                    var prefilled = new Card
                     {
                         Name = listing.Title,
-                        EstimatedValue = listing.Price,
-                        CollectionId = "Default",
                         PhotoPath = listing.ImageUrl,
+                        EstimatedValue = listing.Price,
                         Set = "eBay Import",
                         GradeCompany = "Raw"
                     };
 
-                    // You likely have a database helper or service (similar to CollectionPage)
-                    await App.Database.AddCardAsync(card);
-
-                    await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
+                    // Navigate to CardPage for confirmation / edit
+                    await Navigation.PushAsync(new CardPage(prefilled));
                 }
                 catch (Exception ex)
                 {
-                    await DisplayAlert("Error", $"Could not add card: {ex.Message}", "OK");
+                    await DisplayAlert("Navigation Error", ex.Message, "OK");
                 }
             }
         }
+
 
         private async void OnViewOnEbaySwipe(object sender, EventArgs e)
         {

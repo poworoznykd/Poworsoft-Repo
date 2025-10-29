@@ -6,7 +6,7 @@
     Title="eBay Matches"
     BackgroundColor="#0B0E11">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20" RowSpacing="15">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20" RowSpacing="15">
 
         <!-- HEADER -->
         <Label Text="eBay Card Recognition"
@@ -14,23 +14,12 @@
                FontAttributes="Bold"
                HorizontalOptions="Center"
                TextColor="#6CD4FF"
-               Margin="0,10,0,10" />
+               Margin="0,10,0,5" />
 
-        <!-- OCR STATUS -->
-        <Label x:Name="StatusLabel"
-               Grid.Row="1"
-               Text="Analyzing captured image..."
-               FontSize="16"
-               TextColor="#A8EFFF"
-               HorizontalOptions="Center"
-               HorizontalTextAlignment="Center"
-               LineBreakMode="WordWrap" />
-
-        <!-- RESULTS -->
+        <!-- RESULTS LIST -->
         <CollectionView x:Name="EbayResultsView"
-                        Grid.Row="2"
-                        SelectionMode="Single"
-                        SelectionChanged="OnResultSelected"
+                        Grid.Row="1"
+                        SelectionMode="None"
                         VerticalOptions="FillAndExpand"
                         BackgroundColor="Transparent">
 
@@ -39,60 +28,74 @@
                     <SwipeView>
                         <SwipeView.RightItems>
                             <SwipeItems Mode="Reveal">
-                                <SwipeItem Text="Add to Collection"
-                       BackgroundColor="#00B4D8"
-                       IconImageSource="add_icon.png"
-                       Invoked="OnAddToCollectionSwipe" />
-                                <SwipeItem Text="View on eBay"
-                       BackgroundColor="#0096C7"
-                       IconImageSource="external_link.png"
-                       Invoked="OnViewOnEbaySwipe" />
+
+                                <!-- ADD TO COLLECTION -->
+                                <SwipeItem
+                                    Text="Add to Collection"
+                                    Style="{StaticResource AccentButton}"
+                                    IconImageSource="add_icon.png"
+                                    Invoked="OnAddToCollectionSwipe" />
+
+                                <!-- VIEW ON EBAY -->
+                                <SwipeItem
+                                    Text="View on eBay"
+                                    Style="{StaticResource AccentButton}"
+                                    IconImageSource="open_link_icon.png"
+                                    Invoked="OnViewOnEbaySwipe" />
+
                             </SwipeItems>
                         </SwipeView.RightItems>
 
                         <Frame CornerRadius="12"
-           Padding="8"
-           Margin="0,8,0,0"
-           BackgroundColor="#14181C"
-           BorderColor="#00B4D8"
-           HasShadow="True">
+                               Padding="10"
+                               Margin="0,8,0,0"
+                               BackgroundColor="#14181C"
+                               BorderColor="#00B4D8"
+                               HasShadow="True">
 
-                            <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
-                                <Image Source="{Binding ImageUrl}"
-                   Grid.RowSpan="2"
-                   WidthRequest="100"
-                   HeightRequest="100"
-                   Aspect="AspectFit"
-                   VerticalOptions="Center"
-                   HorizontalOptions="Center" />
+                            <Grid ColumnDefinitions="100, *"
+                                  ColumnSpacing="12"
+                                  VerticalOptions="Center"
+                                  RowDefinitions="Auto,Auto">
 
+                                <!-- Card Image (Left) -->
+                                <Image Grid.RowSpan="3"
+                                       Source="{Binding ImageUrl}"
+                                       WidthRequest="100"
+                                       HeightRequest="100"
+                                       Aspect="AspectFit"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="Start" />
+
+                                <!-- Card Title -->
                                 <Label Grid.Column="1"
-                   Text="{Binding Title}"
-                   FontSize="16"
-                   FontAttributes="Bold"
-                   TextColor="White"
-                   LineBreakMode="TailTruncation"
-                   VerticalOptions="Start"
-                   HorizontalOptions="Start" />
+                                       Grid.Row="0"
+                                       Text="{Binding Title}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       LineBreakMode="WordWrap"
+                                       MaxLines="2"
+                                       VerticalOptions="Start" />
 
+                                <!-- Card Price -->
                                 <Label Grid.Column="1"
-                   Grid.Row="1"
-                   Text="{Binding Price, StringFormat='${0:F2}'}"
-                   FontSize="14"
-                   TextColor="#6CD4FF"
-                   VerticalOptions="End"
-                   HorizontalOptions="Start" />
+                                       Grid.Row="1"
+                                       Text="{Binding Price, StringFormat='${0:F2}'}"
+                                       FontSize="14"
+                                       TextColor="#6CD4FF"
+                                       VerticalOptions="End"
+                                       Margin="0,4,0,0" />
+
                             </Grid>
                         </Frame>
                     </SwipeView>
-
                 </DataTemplate>
             </CollectionView.ItemTemplate>
-
         </CollectionView>
 
         <!-- MANUAL SEARCH SECTION -->
-        <StackLayout Grid.Row="3" Spacing="10" Padding="0,15,0,0">
+        <StackLayout Grid.Row="2" Spacing="10" Padding="0,10,0,0">
 
             <Label Text="Didn’t find your card? Search manually:"
                    FontSize="16"
