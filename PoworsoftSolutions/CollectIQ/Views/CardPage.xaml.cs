@@ -10,6 +10,7 @@
 //
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Services;
 using Microsoft.Maui.Media;
 using System;
 using System.IO;
@@ -21,7 +22,7 @@ namespace CollectIQ.Views
     /// <summary>
     /// Page for creating or editing a single card with photo and eBay assist.
     /// </summary>
-    public partial class AddCardPage : ContentPage
+    public partial class CardPage : ContentPage
     {
         private readonly IDatabase _database;
         private readonly IEbayService _ebayService;
@@ -34,18 +35,13 @@ namespace CollectIQ.Views
         /// <summary>
         /// Initializes a new instance of the <see cref="AddCardPage"/> class.
         /// </summary>
-        public AddCardPage(
-            IDatabase database,
-            IEbayService ebayService,
-            IImageStorage imageStorage,
-            Card? existing = null)
+        public CardPage(Card? existing = null)
         {
             InitializeComponent();
 
-            _database = database;
-            _ebayService = ebayService;
-            _imageStorage = imageStorage;
-
+            _database = App.Database; 
+            _ebayService = new EbayService(); 
+            _imageStorage = new ImageStorage();
             _card = existing ?? new Card();
             Bind();
         }

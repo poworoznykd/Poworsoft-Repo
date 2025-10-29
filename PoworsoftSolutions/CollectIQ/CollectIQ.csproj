@@ -77,6 +77,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="Views\CardPage.xaml.cs">
+      <DependentUpon>CardPage.xaml</DependentUpon>
+    </Compile>
     <Compile Update="Views\CollectionPage.xaml.cs">
       <DependentUpon>CollectionPage.xaml</DependentUpon>
     </Compile>
@@ -86,7 +89,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <MauiXaml Update="Views\AddCardPage.xaml">
+    <MauiXaml Update="Views\CardPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\AuthSheet.xaml">

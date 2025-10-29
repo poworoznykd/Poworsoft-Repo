@@ -8,11 +8,13 @@
 //      Loads LandingPage first, then transitions to AuthSheet.
 //
 using CollectIQ.Views;
+using CollectIQ.Services;
 
 namespace CollectIQ
 {
     public partial class App : Application
     {
+        public static SqliteDatabase Database { get; } = new SqliteDatabase();
         public App()
         {
             InitializeComponent();

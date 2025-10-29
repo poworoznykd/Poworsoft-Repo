@@ -48,17 +48,17 @@ build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Resources.Styles
 build_metadata.AdditionalFiles.TargetPath = Resources\Styles\Styles.xaml
 build_metadata.AdditionalFiles.RelativePath = Resources\Styles\Styles.xaml
 
-[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/AddCardPage.xaml]
-build_metadata.AdditionalFiles.GenKind = Xaml
-build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.AddCardPage.xaml
-build_metadata.AdditionalFiles.TargetPath = Views\AddCardPage.xaml
-build_metadata.AdditionalFiles.RelativePath = Views\AddCardPage.xaml
-
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/AuthSheet.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.AuthSheet.xaml
 build_metadata.AdditionalFiles.TargetPath = Views\AuthSheet.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\AuthSheet.xaml
+
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/CardPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.CardPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\CardPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\CardPage.xaml
 
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/CollectionPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
