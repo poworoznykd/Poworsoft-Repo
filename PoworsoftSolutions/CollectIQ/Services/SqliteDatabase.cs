@@ -191,5 +191,32 @@ namespace CollectIQ.Services
                 return 0;
             }
         }
+
+        /// <summary>
+        /// Updates an existing card record in the SQLite collection.
+        /// </summary>
+        /// <param name="card">The card entity with updated properties.</param>
+        /// <returns>The number of rows affected by the update operation.</returns>
+        public async Task<int> UpdateCardAsync(Card card)
+        {
+            await InitializeAsync();
+
+            if (card == null)
+                throw new ArgumentNullException(nameof(card), "Cannot update a null card entity.");
+
+            if (string.IsNullOrWhiteSpace(card.Id))
+                throw new ArgumentException("Card must have a valid ID before updating.", nameof(card));
+
+            try
+            {
+                return await _connection!.UpdateAsync(card);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SqliteDatabase] UpdateCardAsync failed: {ex.Message}");
+                return 0;
+            }
+        }
+
     }
 }

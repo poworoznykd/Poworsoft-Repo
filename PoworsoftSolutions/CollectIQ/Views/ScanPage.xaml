@@ -1,4 +1,16 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+* FILE: ScanPage.xaml
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-18
+* UPDATED: 2025-10-28
+* DESCRIPTION:
+*     Defines the user interface for scanning a trading card’s front and back
+*     using the live camera feed. Includes visual scan line animation,
+*     capture controls, and manual entry navigation.
+-->
+
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
@@ -6,9 +18,10 @@
              BackgroundColor="#05080D"
              Title="Scan Card">
 
+    <!-- === Root Grid Layout === -->
     <Grid RowDefinitions="*,Auto">
 
-        <!-- Live Camera Feed -->
+        <!-- === Live Camera Feed === -->
         <toolkit:CameraView
             x:Name="CameraView"
             Grid.Row="0"
@@ -21,22 +34,22 @@
             MediaCaptured="Camera_MediaCaptured"
             Margin="20" />
 
-        <!-- Animated Scan Line Overlay -->
+        <!-- === Animated Scan Line Overlay === -->
         <BoxView x:Name="ScanLine"
                  HeightRequest="3"
                  BackgroundColor="#00FF88"
                  Opacity="0.9"
                  VerticalOptions="Start"
                  HorizontalOptions="FillAndExpand"
-                 Margin="30,0,30,0"/>
+                 Margin="30,0,30,0" />
 
-        <!-- Bottom Controls -->
+        <!-- === Bottom Controls === -->
         <Grid Grid.Row="1"
               Padding="0,20,0,25"
               RowDefinitions="Auto,Auto"
               ColumnDefinitions="*,*">
 
-            <!-- Capture Button -->
+            <!-- === Capture Button === -->
             <Button x:Name="ScanButton"
                     Style="{StaticResource AccentButtonGreen}"
                     Grid.ColumnSpan="2"
@@ -54,7 +67,7 @@
                 </Button.Shadow>
             </Button>
 
-            <!-- Manual Entry Button -->
+            <!-- === Manual Entry Button === -->
             <Button x:Name="ManualButton"
                     Style="{StaticResource AccentButton}"
                     Text="Add Manually"
@@ -67,7 +80,7 @@
                     Clicked="OnAddManuallyClicked"
                     Margin="0,20,0,0" />
 
-            <!-- Status Label -->
+            <!-- === Status Label === -->
             <Label x:Name="ResultLabel"
                    Text="Ready to scan..."
                    FontSize="16"

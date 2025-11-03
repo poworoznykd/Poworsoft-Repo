@@ -2,44 +2,155 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.CardPage"
-             Title="Add / Edit Card">
-
+             Title="Add / Edit Card" Appearing="ContentPage_Appearing">
 
     <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="10">
+        <VerticalStackLayout Padding="20" Spacing="16" BackgroundColor="#0A0E12">
 
-            <Image x:Name="PreviewImage"
-             HeightRequest="220"
-             Aspect="AspectFill" />
+            <!-- Title -->
+            <Label Text="Add / Edit Card"
+                   FontSize="26"
+                   FontAttributes="Bold"
+                   TextColor="#00B4FF"
+                   HorizontalOptions="Center" />
 
-            <HorizontalStackLayout Spacing="8">
-                <Button Text="Take Photo" Clicked="OnTakePhoto"/>
-                <Button Text="Pick Photo" Clicked="OnPickPhoto"/>
-            </HorizontalStackLayout>
+            <!-- Front & Back Images -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Padding="0,10">
+
+                <!-- Front -->
+                <Border Stroke="#00B4D8"
+                        StrokeThickness="2"
+                        BackgroundColor="#14181C"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="0">
+                    <Border.Shadow>
+                        <Shadow Brush="#5500B4D8" Radius="8" />
+                    </Border.Shadow>
+                    <Grid>
+                        <Image x:Name="FrontImagePreview"
+                               Aspect="AspectFit"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               WidthRequest="140"
+                               HeightRequest="140" />
+                        <Label Text="Front"
+                               HorizontalOptions="Center"
+                               VerticalOptions="End"
+                               FontSize="12"
+                               TextColor="Gray"
+                               Margin="0,4" />
+                    </Grid>
+                </Border>
+
+                <!-- Back -->
+                <Border Grid.Column="1"
+                        Stroke="#00B4D8"
+                        StrokeThickness="2"
+                        BackgroundColor="#14181C"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="0">
+                    <Border.Shadow>
+                        <Shadow Brush="#5500B4D8" Radius="8" />
+                    </Border.Shadow>
+                    <Grid>
+                        <Image x:Name="BackImagePreview"
+                               Aspect="AspectFit"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               WidthRequest="140"
+                               HeightRequest="140" />
+                        <Label Text="Back"
+                               HorizontalOptions="Center"
+                               VerticalOptions="End"
+                               FontSize="12"
+                               TextColor="Gray"
+                               Margin="0,4" />
+                    </Grid>
+                </Border>
+
+            </Grid>
+
+            <!-- Buttons Row -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button Text="Take Photos"
+                        Style="{StaticResource AccentButton}"
+                        Clicked="OnTakePhotos"
+                        BackgroundColor="#00B4FF"
+                        TextColor="White"
+                        CornerRadius="8"
+                        FontAttributes="Bold" />
+
+                <Button Text="Pick Photo"
+                        Style="{StaticResource AccentButton}"
+                        Grid.Column="1"
+                        Clicked="OnPickPhotos"
+                        BackgroundColor="#0078D7"
+                        TextColor="White"
+                        CornerRadius="8"
+                        FontAttributes="Bold" />
+            </Grid>
+
+            <!-- eBay Section -->
+            <Label Text="Describe to search on eBay:"
+                   TextColor="White"
+                   FontSize="14" />
 
             <Entry x:Name="EbayQueryEntry"
-             Placeholder="Describe the card to search on eBay (e.g., 2019 Prizm #248 Ja Morant)" />
-            <HorizontalStackLayout Spacing="8">
-                <Button Text="Find on eBay" Clicked="OnFindEbay"/>
-                <Button Text="Use eBay Image" Clicked="OnUseEbayImage"/>
-            </HorizontalStackLayout>
+                   Placeholder="e.g., 2018 Prizm Tom Brady"
+                   TextColor="White"
+                   PlaceholderColor="Gray"
+                   BackgroundColor="#14181C" />
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button Text="Find on eBay"
+                        Style="{StaticResource AccentButton}"
+                        Clicked="OnFindEbay"
+                        BackgroundColor="#00B4FF"
+                        TextColor="White"
+                        CornerRadius="8" />
+
+                <Button Text="Use eBay Image"
+                        Style="{StaticResource AccentButtonGreen}"
+                        Grid.Column="1"
+                        Clicked="OnUseEbayImage"
+                        BackgroundColor="#28A745"
+                        TextColor="White"
+                        CornerRadius="8" />
+            </Grid>
+
             <Label x:Name="EbayResultLabel"
-             LineBreakMode="WordWrap"
-             TextColor="Gray" />
+                   TextColor="#6CD4FF"
+                   FontSize="12"
+                   HorizontalOptions="Center"
+                   LineBreakMode="WordWrap" />
 
-            <Entry x:Name="PlayerEntry"  Placeholder="Player" />
-            <Entry x:Name="YearEntry"    Placeholder="Year (e.g., 2019)" />
-            <Entry x:Name="SetEntry"     Placeholder="Set (e.g., Prizm)" />
-            <Entry x:Name="NumberEntry"  Placeholder="# (e.g., 248)" />
-            <Entry x:Name="TeamEntry"    Placeholder="Team" />
-            <Entry x:Name="GradeCoEntry" Placeholder="Grader (PSA/SGC/BGS/RAW)" />
-            <Entry x:Name="GradeEntry"   Placeholder="Grade (10, 9.5, 9, AUTH)" />
-            <Entry x:Name="PriceEntry"   Placeholder="Purchase Price" Keyboard="Numeric" />
+            <!-- Text Fields -->
+            <Entry x:Name="PlayerEntry" Placeholder="Player" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="YearEntry" Placeholder="Year" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="SetEntry" Placeholder="Set (e.g., Prizm)" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="NumberEntry" Placeholder="# (e.g., 248)" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="TeamEntry" Placeholder="Team" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="GradeCoEntry" Placeholder="Grading Company" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="GradeEntry" Placeholder="Grade" TextColor="White" BackgroundColor="#14181C"/>
+            <Entry x:Name="PriceEntry" Placeholder="Purchase Price" TextColor="White" BackgroundColor="#14181C"/>
 
-            <HorizontalStackLayout Spacing="12" Margin="0,6,0,0">
-                <Button Text="Save" Clicked="OnSave"/>
-                <Button Text="Delete" TextColor="Red" Clicked="OnDelete"/>
-            </HorizontalStackLayout>
+            <!-- Save/Delete -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Padding="0,20,0,0">
+                <Button Text="Save"
+                        Style="{StaticResource AccentButton}"
+                        Clicked="OnSave"
+                        BackgroundColor="#00B4FF"
+                        TextColor="White"
+                        CornerRadius="10" />
+
+                <Button Text="Delete"
+                        Style="{StaticResource AccentButtonRed}"
+                        Grid.Column="1"
+                        Clicked="OnDelete"
+                        BackgroundColor="#FF3B30"
+                        TextColor="White"
+                        CornerRadius="10" />
+            </Grid>
 
         </VerticalStackLayout>
     </ScrollView>

@@ -165,7 +165,8 @@ namespace CollectIQ.Views
                         Name = listing.Title,
                         EstimatedValue = listing.Price,
                         CollectionId = "Default",
-                        PhotoPath = listing.ImageUrl,
+                        FrontImagePath = listing.ImageUrl,
+                        BackImagePath = listing.ImageUrl,
                         Set = "eBay Import",
                         GradeCompany = "Raw"
                     };

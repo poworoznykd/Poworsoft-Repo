@@ -1,234 +1,280 @@
-//
-//  FILE            : AddCardPage.xaml.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : <Your Name>
-//  FIRST VERSION   : 2025-10-18
-//  DESCRIPTION     :
-//      Code-behind for the Add/Edit Card screen. Supports camera capture,
-//      gallery picking, eBay-assisted search, and saving an attached image
-//      locally for the card record.
-//
-using CollectIQ.Interfaces;
-using CollectIQ.Models;
-using CollectIQ.Services;
-using Microsoft.Maui.Media;
+﻿/*
+* FILE: CardPage.xaml.cs
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-28
+* UPDATED: 2025-10-29
+* DESCRIPTION:
+*     Handles add/edit card functionality including photo capture,
+*     OCR parsing, eBay lookup, and persistence to SQLite.
+*     Implements full SET Coding Standards Rev 1.11.
+*/
+
 using System;
-using System.IO;
-using System.Net.Http;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Diagnostics;
+using Microsoft.Maui.Controls;
+using CollectIQ.Services;
+using CollectIQ.Models;
+using CollectIQ.Utilities;
 
 namespace CollectIQ.Views
 {
-    /// <summary>
-    /// Page for creating or editing a single card with photo and eBay assist.
-    /// </summary>
     public partial class CardPage : ContentPage
     {
-        private readonly IDatabase _database;
-        private readonly IEbayService _ebayService;
-        private readonly IImageStorage _imageStorage;
+        // === Fields ===
+        private readonly SqliteDatabase database;
+        private Card? currentCard;
+        private string? frontPath;
+        private string? backPath;
 
-        private Card _card;
-        private string? _candidateEbayImageUrl;
-        private EbayListing? _lastEbayListing;
-
+        // === Constructor ===
         /// <summary>
-        /// Initializes a new instance of the <see cref="AddCardPage"/> class.
+        /// Initializes a new instance of the <see cref="CardPage"/> class.
         /// </summary>
+        /// <param name="existing">Optional existing card to edit.</param>
         public CardPage(Card? existing = null)
         {
             InitializeComponent();
+            database = new SqliteDatabase();
 
-            _database = App.Database; 
-            _imageStorage = new ImageStorage();
-            _card = existing ?? new Card();
-            Bind();
+            if (existing != null)
+                LoadExistingCard(existing);
         }
 
+        // === Helper Methods ===
         /// <summary>
-        /// Binds current card values to UI controls.
+        /// Loads an existing card's details into the input fields for editing.
         /// </summary>
-        private void Bind()
-        {
-            PlayerEntry.Text = _card.Player;
-            YearEntry.Text = _card.Year.ToString();
-            SetEntry.Text = _card.Set;
-            NumberEntry.Text = _card.Number;
-            TeamEntry.Text = _card.Team;
-            GradeCoEntry.Text = _card.GradeCompany;
-            GradeEntry.Text = _card.Grade?.ToString() ?? string.Empty;
-            PriceEntry.Text = _card.PurchasePrice?.ToString() ?? string.Empty;
-
-            if (!string.IsNullOrWhiteSpace(_card.PhotoPath))
-            {
-                PreviewImage.Source = _card.PhotoPath;
-            }
-        }
-
-        /// <summary>
-        /// Captures a photo using the device camera.
-        /// </summary>
-        private async void OnTakePhoto(object sender, EventArgs e)
+        /// <param name="card">The existing card to edit.</param>
+        private void LoadExistingCard(Card card)
         {
             try
             {
-                FileResult? photo = await MediaPicker.CapturePhotoAsync(new MediaPickerOptions
+                currentCard = card;
+                PlayerEntry.Text = card.Player;
+                YearEntry.Text = card.Year.ToString();
+                SetEntry.Text = card.Set;
+                NumberEntry.Text = card.Number;
+                TeamEntry.Text = card.Team;
+                GradeCoEntry.Text = card.GradeCompany;
+                GradeEntry.Text = card.Grade?.ToString();
+                PriceEntry.Text = card.PurchasePrice?.ToString();
+
+                frontPath = card.FrontImagePath;
+                backPath = card.BackImagePath;
+
+                if (!string.IsNullOrWhiteSpace(frontPath))
+                    FrontImagePreview.Source = ImageSource.FromFile(frontPath);
+
+                if (!string.IsNullOrWhiteSpace(backPath))
+                    BackImagePreview.Source = ImageSource.FromFile(backPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CardPage] Failed to load card: {ex.Message}");
+            }
+        }
+
+        // === Navigation ===
+        /// <summary>
+        /// Handles navigation parameters from ScanPage or manual entry.
+        /// Populates image previews and OCR-derived eBay search text.
+        /// </summary>
+        protected override void OnNavigatedTo(NavigatedToEventArgs args)
+        {
+            base.OnNavigatedTo(args);
+
+            try
+            {
+                if (Shell.Current?.CurrentState is not null &&
+                    Shell.Current.CurrentState.Location.OriginalString.Contains("?"))
                 {
-                    Title = "Card Photo"
-                });
+                    var query = System.Web.HttpUtility.ParseQueryString(
+                        Shell.Current.CurrentState.Location.Query);
 
-                if (photo == null)
-                    return;
+                    string? front = query["FrontPath"];
+                    string? back = query["BackPath"];
+                    string? parsed = query["Parsed"];
 
-                using Stream stream = await photo.OpenReadAsync();
-                string path = await _imageStorage.SaveAsync(stream, ".jpg");
+                    if (!string.IsNullOrWhiteSpace(front))
+                    {
+                        frontPath = Uri.UnescapeDataString(front);
+                        FrontImagePreview.Source = ImageSource.FromFile(frontPath);
+                    }
 
-                _card.PhotoPath = path;
-                PreviewImage.Source = path;
+                    if (!string.IsNullOrWhiteSpace(back))
+                    {
+                        backPath = Uri.UnescapeDataString(back);
+                        BackImagePreview.Source = ImageSource.FromFile(backPath);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(parsed))
+                        EbayQueryEntry.Text = Uri.UnescapeDataString(parsed);
+                }
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Camera Error", ex.Message, "OK");
+                Debug.WriteLine($"[CardPage] Navigation parameter handling error: {ex.Message}");
             }
         }
 
+        #region Event Handlers
+
         /// <summary>
-        /// Allows the user to pick a photo from the gallery.
+        /// Opens ScanPage to capture card photos and perform OCR.
+        /// After completion, returns here with image paths.
         /// </summary>
-        private async void OnPickPhoto(object sender, EventArgs e)
+        private async void OnTakePhotos(object sender, EventArgs e)
         {
             try
             {
-                FileResult? photo = await MediaPicker.PickPhotoAsync();
-                if (photo == null)
-                    return;
-
-                using Stream stream = await photo.OpenReadAsync();
-                string path = await _imageStorage.SaveAsync(stream, ".jpg");
-
-                _card.PhotoPath = path;
-                PreviewImage.Source = path;
+                await Shell.Current.Navigation.PushAsync(new ScanPage(nameof(CardPage)));
+                frontPath = currentCard?.FrontImagePath;
+                FrontImagePreview.Source = ImageSource.FromFile(frontPath);
+                backPath = currentCard?.BackImagePath;
+                BackImagePreview.Source = ImageSource.FromFile(backPath);
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Gallery Error", ex.Message, "OK");
+                await DisplayAlert("Error", $"Unable to open camera: {ex.Message}", "OK");
             }
         }
 
         /// <summary>
-        /// Searches eBay for listings matching the query entered by the user.
+        /// Allows the user to manually pick front and back photos from device storage.
+        /// Automatically runs OCR and fills eBay query text.
+        /// </summary>
+        private async void OnPickPhotos(object sender, EventArgs e)
+        {
+            try
+            {
+                var frontPick = await FilePicker.PickAsync();
+                if (frontPick != null)
+                {
+                    frontPath = frontPick.FullPath;
+                    FrontImagePreview.Source = ImageSource.FromFile(frontPath);
+                }
+
+                var backPick = await FilePicker.PickAsync();
+                if (backPick != null)
+                {
+                    backPath = backPick.FullPath;
+                    BackImagePreview.Source = ImageSource.FromFile(backPath);
+                }
+
+                if (!string.IsNullOrWhiteSpace(frontPath) && !string.IsNullOrWhiteSpace(backPath))
+                {
+                    string? rawText = await OCRUtility.ExtractTextFromFrontAndBackAsync(frontPath, backPath);
+                    string? cleaned = await OCRUtility.SanitizeForEbay(rawText ?? string.Empty);
+                    EbayQueryEntry.Text = cleaned ?? string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Photo selection failed: {ex.Message}", "OK");
+            }
+        }
+
+        /// <summary>
+        /// Performs an eBay search using the current query field.
         /// </summary>
         private async void OnFindEbay(object sender, EventArgs e)
         {
-            string query = EbayQueryEntry.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                await DisplayAlert("Search", "Enter a description to search.", "OK");
-                return;
-            }
-
             try
             {
-                _lastEbayListing = await _ebayService.GetBestMatchAsync(query);
-                if (_lastEbayListing == null)
+                string query = EbayQueryEntry.Text?.Trim() ?? string.Empty;
+                if (string.IsNullOrEmpty(query))
                 {
-                    EbayResultLabel.Text = "No result found.";
-                    _candidateEbayImageUrl = null;
+                    await DisplayAlert("Missing Query", "Please enter or scan a description first.", "OK");
                     return;
                 }
 
-                _candidateEbayImageUrl = _lastEbayListing.ImageUrl;
-
-                string priceText = _lastEbayListing.Price.HasValue
-                    ? $"{_lastEbayListing.Price.Value:#,0.00} {_lastEbayListing.Currency}"
-                    : "N/A";
-
-                EbayResultLabel.Text = $"Found: {_lastEbayListing.Title}\nPrice: {priceText}";
-
-                if (!string.IsNullOrWhiteSpace(_candidateEbayImageUrl))
-                {
-                    PreviewImage.Source = ImageSource.FromUri(new Uri(_candidateEbayImageUrl));
-                }
+                await Shell.Current.GoToAsync($"{nameof(EbaySearchPage)}?query={Uri.EscapeDataString(query)}");
             }
             catch (Exception ex)
             {
-                await DisplayAlert("eBay Error", ex.Message, "OK");
+                await DisplayAlert("Error", $"Unable to search eBay: {ex.Message}", "OK");
             }
         }
 
         /// <summary>
-        /// Uses the image from the last found eBay listing as the card image.
+        /// Placeholder event for future eBay integration to populate card details.
         /// </summary>
         private async void OnUseEbayImage(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_candidateEbayImageUrl))
-            {
-                await DisplayAlert("Image", "No eBay image selected. Run 'Find on eBay' first.", "OK");
-                return;
-            }
-
-            try
-            {
-                using HttpClient http = new HttpClient();
-                using Stream stream = await http.GetStreamAsync(_candidateEbayImageUrl);
-                string path = await _imageStorage.SaveAsync(stream, ".jpg");
-
-                _card.PhotoPath = path;
-                PreviewImage.Source = path;
-
-                if (_lastEbayListing?.Price is decimal p && string.IsNullOrWhiteSpace(PriceEntry.Text))
-                {
-                    PriceEntry.Text = p.ToString();
-                }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Download Error", ex.Message, "OK");
-            }
+            await DisplayAlert("Info", "Feature under development: auto-populate from eBay match.", "OK");
         }
 
         /// <summary>
-        /// Saves or updates the current card to the database.
+        /// Saves the current card entry to the SQLite collection database.
+        /// Updates the record if it already exists.
         /// </summary>
         private async void OnSave(object sender, EventArgs e)
         {
-            _card.Player = PlayerEntry.Text?.Trim() ?? string.Empty;
-            _card.Set = SetEntry.Text?.Trim() ?? string.Empty;
-            _card.Number = NumberEntry.Text?.Trim() ?? string.Empty;
-            _card.Team = TeamEntry.Text?.Trim() ?? string.Empty;
-            _card.GradeCompany = GradeCoEntry.Text?.Trim() ?? string.Empty;
+            try
+            {
+                var card = currentCard ?? new Card();
 
-            if (int.TryParse(YearEntry.Text, out int year))
-                _card.Year = year;
+                card.Player = PlayerEntry.Text?.Trim() ?? string.Empty;
+                card.Year = int.TryParse(YearEntry.Text, out int y) ? y : 0;
+                card.Set = SetEntry.Text?.Trim() ?? string.Empty;
+                card.Number = NumberEntry.Text?.Trim() ?? string.Empty;
+                card.Team = TeamEntry.Text?.Trim() ?? string.Empty;
+                card.GradeCompany = GradeCoEntry.Text?.Trim() ?? string.Empty;
+                card.Grade = double.TryParse(GradeEntry.Text, out double g) ? g : null;
+                card.PurchasePrice = decimal.TryParse(PriceEntry.Text, out decimal p) ? p : null;
 
-            if (double.TryParse(GradeEntry.Text, out double grade))
-                _card.Grade = grade;
+                card.FrontImagePath = currentCard?.FrontImagePath ?? string.Empty;
+                card.BackImagePath = currentCard?.BackImagePath ?? string.Empty;
 
-            if (decimal.TryParse(PriceEntry.Text, out decimal price))
-                _card.PurchasePrice = price;
+                if (currentCard != null)
+                    await database.UpdateCardAsync(card);
+                else
+                    await database.AddCardAsync(card);
 
-            await _database.UpsertAsync(_card);
-            await DisplayAlert("Saved", "Card saved.", "OK");
-            await Navigation.PopAsync();
+                await DisplayAlert("Success", "Card saved to collection.", "OK");
+                await Shell.Current.GoToAsync("..");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Unable to save card: {ex.Message}", "OK");
+            }
         }
 
         /// <summary>
-        /// Deletes the current card and returns to the previous page.
+        /// Delete operation placeholder.
         /// </summary>
         private async void OnDelete(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_card.Id))
+            await DisplayAlert("Notice", "Delete functionality coming soon.", "OK");
+        }
+
+        #endregion
+
+        private void ContentPage_Appearing(object sender, EventArgs e)
+        {
+            base.OnAppearing();
+
+            var cachedResult = NavigationCache.Get<Dictionary<string, string>>(nameof(CardPage));
+
+            if (cachedResult != null)
             {
-                await Navigation.PopAsync();
-                return;
+                if (cachedResult.TryGetValue("FrontPath", out var front))
+                {
+                    currentCard.FrontImagePath = front;
+                    FrontImagePreview.Source = ImageSource.FromFile(front);
+                }
+
+                if (cachedResult.TryGetValue("BackPath", out var back))
+                {
+                    currentCard.BackImagePath = back;
+                    BackImagePreview.Source = ImageSource.FromFile(back);
+                }
+
+                // Clear after use
+                NavigationCache.Clear(nameof(CardPage));
             }
-
-            bool confirm = await DisplayAlert("Delete", "Remove this card?", "Yes", "No");
-            if (!confirm)
-                return;
-
-            await _database.DeleteAsync<Card>(_card.Id);
-            await Navigation.PopAsync();
         }
     }
 }

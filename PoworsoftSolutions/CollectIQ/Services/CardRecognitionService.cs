@@ -43,7 +43,7 @@ namespace CollectIQ.Services
                 Grade = null,
                 PurchasePrice = 0,
                 EstimatedValue = 285.50m,
-                PhotoPath = imagePath
+                //PhotoPath = imagePath
             };
         }
     }

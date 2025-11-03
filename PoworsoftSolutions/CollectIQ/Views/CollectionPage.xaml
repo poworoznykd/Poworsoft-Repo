@@ -91,7 +91,7 @@
                                        HasShadow="False"
                                        BackgroundColor="#0E1115"
                                        Margin="0,0,10,0">
-                                    <Image Source="{Binding PhotoPath}"
+                                    <Image Source="{Binding FrontImagePath}"
                                            WidthRequest="72"
                                            HeightRequest="100"
                                            Aspect="AspectFill" />
