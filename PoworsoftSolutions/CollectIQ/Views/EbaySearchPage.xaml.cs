@@ -15,6 +15,8 @@ namespace CollectIQ.Views
     [QueryProperty(nameof(BackPath), "backPath")]
     public partial class EbaySearchPage : ContentPage
     {
+        private EbayListing? selectedListing;
+        private bool swipeInProgress = false;
         private readonly EbayService _ebayService = new(new HttpClient());
         public ObservableCollection<EbayListing> Listings { get; } = new();
         private readonly IOcrService _ocrService;
@@ -75,8 +77,8 @@ namespace CollectIQ.Views
                     return;
                 }
 
-                
-                
+
+
 
                 StatusLabel.Text = $"Searching eBay for: {sanitized}";
                 await PerformSearchAsync(sanitized);
@@ -139,15 +141,22 @@ namespace CollectIQ.Views
             if (e.CurrentSelection.Count == 0)
                 return;
 
-            if (e.CurrentSelection[0] is EbayListing listing && !string.IsNullOrEmpty(listing.Url))
-                await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
-
+            if (e.CurrentSelection[0] is EbayListing listing &&
+                !string.IsNullOrEmpty(listing.Url))
+            {
+                selectedListing = e.CurrentSelection[0] as EbayListing;
+                if (!swipeInProgress)
+                {
+                    await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
+                }
+            }
             ((CollectionView)sender).SelectedItem = null;
         }
 
         private async void OnAddToCollectionSwipe(object sender, EventArgs e)
         {
-            if (sender is SwipeItem swipeItem && swipeItem.BindingContext is EbayListing listing)
+            if (selectedListing is EbayListing listing &&
+                selectedListing != null)
             {
                 try
                 {
@@ -175,15 +184,27 @@ namespace CollectIQ.Views
 
         private async void OnViewOnEbaySwipe(object sender, EventArgs e)
         {
-            if (sender is SwipeItem swipeItem && swipeItem.BindingContext is EbayListing listing && !string.IsNullOrEmpty(listing.Url))
-            {
+            if (selectedListing == null)
+                return;
+
+            if (selectedListing is EbayListing listing &&
+                !string.IsNullOrEmpty(listing.Url))
                 await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
-            }
         }
 
         private async void Add_Manual_Button_Clicked(object sender, EventArgs e)
         {
             await Navigation.PushAsync(new CardPage());
+        }
+
+        private void SwipeView_SwipeStarted(object sender, SwipeStartedEventArgs e)
+        {
+            swipeInProgress = true;
+        }
+
+        private void SwipeView_SwipeEnded(object sender, SwipeEndedEventArgs e)
+        {
+            swipeInProgress = false;
         }
     }
 }

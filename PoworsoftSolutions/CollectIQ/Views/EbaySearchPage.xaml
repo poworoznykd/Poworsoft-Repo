@@ -36,29 +36,36 @@
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <SwipeView>
-                        <SwipeView.RightItems>
-                            <SwipeItems Mode="Reveal">
-                                <SwipeItem Text="Add to Collection"
-                       BackgroundColor="#00B4D8"
-                       IconImageSource="add_icon.png"
-                       Invoked="OnAddToCollectionSwipe" />
-                                <SwipeItem Text="View on eBay"
-                       BackgroundColor="#0096C7"
-                       IconImageSource="external_link.png"
-                       Invoked="OnViewOnEbaySwipe" />
+                    <SwipeView SwipeStarted="SwipeView_SwipeStarted" SwipeEnded="SwipeView_SwipeEnded">
+                      <SwipeView.RightItems>
+                        <SwipeItems Mode="Reveal">
+                                <!-- DELETE -->
+                                <SwipeItem Text="Ebay"
+                                     BackgroundColor="#260000"
+                                     IconImageSource="open_link_icon.png"
+                                     CommandParameter="{Binding .}"
+                                     Invoked="OnViewOnEbaySwipe" />
+
+                                <!-- EDIT -->
+                                <SwipeItem Text="Add"
+                                     BackgroundColor="#002600"
+                                     IconImageSource="add_icon.png"
+                                     CommandParameter="{Binding .}"
+                                     Invoked="OnAddToCollectionSwipe" />
                             </SwipeItems>
-                        </SwipeView.RightItems>
+                    </SwipeView.RightItems>
+
+
 
                         <Frame CornerRadius="12"
-           Padding="8"
-           Margin="0,8,0,0"
-           BackgroundColor="#14181C"
-           BorderColor="#00B4D8"
-           HasShadow="True">
+                           Padding="8"
+                           Margin="0,8,0,0"
+                           BackgroundColor="#14181C"
+                           BorderColor="#00B4D8"
+                           HasShadow="True">        
 
-                            <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
-                                <Image Source="{Binding ImageUrl}"
+                    <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
+                        <Image Source="{Binding ImageUrl}"
                    Grid.RowSpan="2"
                    WidthRequest="100"
                    HeightRequest="100"

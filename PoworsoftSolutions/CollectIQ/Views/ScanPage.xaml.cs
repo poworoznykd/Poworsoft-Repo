@@ -122,7 +122,8 @@ namespace CollectIQ.Views
 
         private async void OnAddManuallyClicked(object sender, EventArgs e)
         {
-            await DisplayAlert("Manual Entry", "Manual card entry form coming soon.", "OK");
+            await Shell.Current.GoToAsync($"{nameof(EbaySearchPage)}");
+            //await DisplayAlert("Manual Entry", "Manual card entry form coming soon.", "OK");
         }
 
         private void Camera_MediaCaptured(object sender, EventArgs e)
