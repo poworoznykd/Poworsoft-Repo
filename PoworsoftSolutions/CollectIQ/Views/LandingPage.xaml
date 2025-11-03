@@ -34,7 +34,7 @@
             <!-- Secondary: Auth -->
             <Button x:Name="AuthButton"
                 BorderWidth="2"
-                Style="{StaticResource AccentButton}"
+                Style="{StaticResource AccentButtonGreen}"
                 BorderColor="LightSeaGreen"
                 Text="Sign In / Register"
                 Clicked="OnAuth"

@@ -3,13 +3,13 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     x:Class="CollectIQ.Views.EbaySearchPage"
-    Title="eBay Matches"
+    Title="Search"
     BackgroundColor="#0B0E11">
 
     <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20" RowSpacing="15">
 
         <!-- HEADER -->
-        <Label Text="eBay Card Recognition"
+        <Label Text="Search Results"
                FontSize="28"
                FontAttributes="Bold"
                HorizontalOptions="Center"
@@ -19,7 +19,7 @@
         <!-- OCR STATUS -->
         <Label x:Name="StatusLabel"
                Grid.Row="1"
-               Text="Analyzing captured image..."
+               Text="READY"
                FontSize="16"
                TextColor="#A8EFFF"
                HorizontalOptions="Center"
@@ -41,14 +41,14 @@
                         <SwipeItems Mode="Reveal">
                                 <!-- DELETE -->
                                 <SwipeItem Text="Ebay"
-                                     BackgroundColor="#260000"
+                                     BackgroundColor="#147d89"
                                      IconImageSource="open_link_icon.png"
                                      CommandParameter="{Binding .}"
                                      Invoked="OnViewOnEbaySwipe" />
 
                                 <!-- EDIT -->
                                 <SwipeItem Text="Add"
-                                     BackgroundColor="#002600"
+                                     BackgroundColor="#14891b"
                                      IconImageSource="add_icon.png"
                                      CommandParameter="{Binding .}"
                                      Invoked="OnAddToCollectionSwipe" />
@@ -116,15 +116,32 @@
                    Margin="0,0,0,5"
                    Keyboard="Text" />
 
-            <Button Text="Search eBay Again"
-                    Clicked="OnManualSearchClicked"
+            <HorizontalStackLayout Spacing="8"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center">
+                <ImageButton Source="search_icon.png"
+                 BackgroundColor="#00B4FF"
+                 CornerRadius="10"
+                 HeightRequest="48"
+                 WidthRequest="48"
+                 Clicked="OnManualSearchClicked"
+                 Padding="10" />
+
+                <Button Text="SEARCH"
+                        Style="{StaticResource AccentButton}"
                     BackgroundColor="#00B4FF"
                     TextColor="White"
                     FontAttributes="Bold"
                     CornerRadius="10"
-                    HeightRequest="48" />
+                    HeightRequest="48"
+                    WidthRequest="120"
+                    Clicked="OnManualSearchClicked" />
+            </HorizontalStackLayout>
+
+
 
             <Button Text="Add Manually to Collection"
+                    Style="{StaticResource AccentButton}"
                     BackgroundColor="#001020"
                     TextColor="#6CD4FF"
                     BorderColor="#00B4FF"

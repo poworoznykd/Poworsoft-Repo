@@ -38,6 +38,7 @@
 
             <!-- Capture Button -->
             <Button x:Name="ScanButton"
+                    Style="{StaticResource AccentButtonGreen}"
                     Grid.ColumnSpan="2"
                     Clicked="OnScanClicked"
                     BackgroundColor="Transparent"
@@ -55,6 +56,7 @@
 
             <!-- Manual Entry Button -->
             <Button x:Name="ManualButton"
+                    Style="{StaticResource AccentButton}"
                     Text="Add Manually"
                     Grid.Row="1"
                     Grid.Column="0"

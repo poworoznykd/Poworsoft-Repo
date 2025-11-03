@@ -90,7 +90,7 @@
 
             <!-- Login -->
             <Button x:Name="LoginButton"
-                    Style="{StaticResource AccentButton}"
+                    Style="{StaticResource AccentButtonGreen}"
                        BorderWidth="2"
                     BorderColor="LightSeaGreen"
                     Text="Login"

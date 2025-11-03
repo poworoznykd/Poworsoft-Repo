@@ -92,17 +92,17 @@ namespace CollectIQ.Views
                 string email = EmailEntry?.Text?.Trim() ?? "";
                 string password = PasswordEntry?.Text ?? "";
 
-                await DisplayAlert("Debug", $"Email='{email}', Password empty={string.IsNullOrWhiteSpace(password)}", "OK");
+                //await DisplayAlert("Debug", $"Email='{email}', Password empty={string.IsNullOrWhiteSpace(password)}", "OK");
 
                 if (_authService == null)
                 {
-                    await DisplayAlert("Debug", "_authService is NULL!", "OK");
+                    //await DisplayAlert("Debug", "_authService is NULL!", "OK");
                     return;
                 }
 
                 bool success = await _authService.LoginAsync(email, password);
 
-                await DisplayAlert("Debug", $"LoginAsync returned {success}", "OK");
+                //await DisplayAlert("Debug", $"LoginAsync returned {success}", "OK");
 
                 if (success)
                     await Shell.Current.GoToAsync(nameof(DashboardPage));

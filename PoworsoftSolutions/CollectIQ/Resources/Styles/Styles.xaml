@@ -474,6 +474,55 @@
         </Setter>
     </Style>
 
+    <Style x:Key="AccentButtonPurple" TargetType="Button">
+        <Setter Property="TextColor" Value="#e7b5f1" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#4a0c56" Offset="0.0" />
+                    <GradientStop Color="#28062f" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#cd2bed"
+              Radius="22"
+              Opacity="0.85"
+              Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <Style x:Key="AccentButtonGreen" TargetType="Button">
+        <Setter Property="TextColor" Value="#c0f4b9" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#11460a" Offset="0.0" />
+                    <GradientStop Color="#061903" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#27f90a"
+                 Radius="22"
+                 Opacity="0.85"
+                 Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
     <!-- Aurora Blue Accent Button -->
     <Style x:Key="AccentButton_AuroraBlue"
                TargetType="Button">

@@ -3,96 +3,89 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.DashboardPage"
              Title="Dashboard"
-             BackgroundColor="{StaticResource OffBlack}">
+             BackgroundColor="#0E141A">
 
     <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="20">
+        <VerticalStackLayout Padding="24" Spacing="20">
 
-            <!-- HEADER -->
-            <VerticalStackLayout Spacing="4" Margin="0,10,0,20">
-                <Label Text="CollectIQ"
-                       FontSize="34"
-                       FontAttributes="Bold"
-                       HorizontalOptions="Center"
-                       TextColor="{StaticResource Secondary}" />
-                <Label Text="Your Digital Card Vault"
-                       FontSize="16"
-                       HorizontalOptions="Center"
-                       TextColor="{StaticResource SecondaryDarkText}" />
-            </VerticalStackLayout>
-
-            <!-- CARD STATS -->
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-                <Frame CornerRadius="16" BackgroundColor="{StaticResource PrimaryDark}" Padding="18" HasShadow="True">
-                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
-                        <Label Text="Cards Owned" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
-                        <Label Text="342" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource Secondary}" />
-                    </VerticalStackLayout>
-                </Frame>
-
-                <Frame CornerRadius="16" BackgroundColor="{StaticResource PrimaryDark}" Padding="18" HasShadow="True" Grid.Column="1">
-                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
-                        <Label Text="Est. Collection Value" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
-                        <Label Text="$24,350" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource Secondary}" />
-                    </VerticalStackLayout>
-                </Frame>
-            </Grid>
-
-            <!-- ACTION CENTER -->
-            <Label Text="Action Center"
-                   FontSize="20"
+            <!-- Header Section -->
+            <Label Text="Collect IQ"
+                   FontSize="28"
                    FontAttributes="Bold"
-                   TextColor="{StaticResource Secondary}"
-                   Margin="0,25,0,6" />
+                   TextColor="#00B4D8"
+                   HorizontalOptions="Center" />
 
-            <Grid RowDefinitions="Auto,Auto"
-                  ColumnDefinitions="*,*"
-                  ColumnSpacing="16"
-                  RowSpacing="16">
+            <!-- Card Statistics Section -->
+            <Frame CornerRadius="12"
+                   Padding="20"
+                   BackgroundColor="#14181C"
+                   BorderColor="#00B4D8"
+                   HasShadow="True">
+                <Grid ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto"
+                      ColumnSpacing="20">
 
-                <!-- Scan Card -->
-                <Button Text="Scan Card"
-                        Style="{StaticResource AccentButton}"
-                        FontAttributes="Bold"
-                        HeightRequest="60"
-                        Command="{Binding ScanCardCommand}"
-                        Grid.Row="0" Grid.Column="0" />
+                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                        <Label Text="Cards Owned"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#AAAAAA" />
+                        <Label Text="{Binding CardsOwned}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="#6CD4FF"
+                               HorizontalOptions="Start" />
+                    </VerticalStackLayout>
 
-                <!-- eBay Compare -->
-                <Button Text="Compare on eBay"
-                        Style="{StaticResource AccentButton}"
-                        FontAttributes="Bold"
-                        HeightRequest="60"
-                        Command="{Binding EbayCompareCommand}"
-                        Grid.Row="0" Grid.Column="1" />
-
-                <!-- My Collection -->
-                <Button Text="My Collection"
-                        Style="{StaticResource AccentButton}"
-                        FontAttributes="Bold"
-                        HeightRequest="60"
-                        Command="{Binding ViewCollectionCommand}"
-                        Grid.Row="1" Grid.Column="0"
-                        Grid.ColumnSpan="2" />
-            </Grid>
-
-            <!-- FUTURE MODULE PLACEHOLDER -->
-            <Frame Margin="0,30,0,0"
-                   CornerRadius="20"
-                   BackgroundColor="{StaticResource PrimaryDark}"
-                   HasShadow="True"
-                   Padding="24">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Coming Soon"
-                           FontSize="18"
-                           FontAttributes="Bold"
-                           TextColor="{StaticResource Secondary}" />
-                    <Label Text="AI Vision will let you identify, grade, and authenticate cards instantly from a scan."
-                           TextColor="{StaticResource SecondaryDarkText}"
-                           FontSize="14"
-                           LineBreakMode="WordWrap" />
-                </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="4">
+                        <Label Text="Collection Value"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#AAAAAA" />
+                        <Label Text="{Binding CollectionValue, StringFormat='${0:N2}'}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="#6CD4FF"
+                               HorizontalOptions="Start" />
+                    </VerticalStackLayout>
+                </Grid>
             </Frame>
+
+            <!-- Divider -->
+            <BoxView HeightRequest="1"
+                     Color="#333333"
+                     Margin="0,10" />
+
+            <!-- Action Buttons Section -->
+            <VerticalStackLayout Spacing="16" Margin="0,10,0,0">
+
+                <Button Text="Scan New Card"
+                        Style="{StaticResource AccentButton}"
+                        Command="{Binding ScanCardCommand}"
+                        BackgroundColor="#00B4D8"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="10"
+                        HeightRequest="55" />
+
+                <Button Text="Compare on eBay"
+                        Command="{Binding EbayCompareCommand}"
+                        Style="{StaticResource AccentButtonGreen}"
+                        BackgroundColor="#0078D7"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="10"
+                        HeightRequest="55" />
+
+                <Button Text="View My Collection"
+                        Command="{Binding ViewCollectionCommand}"
+                        Style="{StaticResource AccentButton}"
+                        BackgroundColor="#28A745"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="10"
+                        HeightRequest="55" />
+            </VerticalStackLayout>
 
         </VerticalStackLayout>
     </ScrollView>

@@ -21,6 +21,7 @@ namespace CollectIQ.Views
 {
     public partial class ScanPage : ContentPage
     {
+        private bool _animationRunning = false;
         private bool _isScanning = false;
         private bool _capturingBack = false;
         private string _frontImagePath = string.Empty;
@@ -29,17 +30,30 @@ namespace CollectIQ.Views
         public ScanPage()
         {
             InitializeComponent();
-            AnimateScanLine();
+        }
+
+        protected override void OnDisappearing()
+        {
+            base.OnDisappearing();
+            _isScanning = false;
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
+
             try
             {
                 var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 await CameraView.StartCameraPreview(cts.Token);
                 _isScanning = true;
+
+                // Give the layout time to complete
+                ScanLine.TranslationY = 0;
+                await WaitForLayoutAsync(ScanLine);
+
+                // Start animation loop
+                _ = AnimateScanLineAsync();
             }
             catch (Exception ex)
             {
@@ -47,30 +61,19 @@ namespace CollectIQ.Views
             }
         }
 
-        protected override void OnDisappearing()
+        private async Task WaitForLayoutAsync(VisualElement element)
         {
-            base.OnDisappearing();
-            try
-            {
-                _isScanning = false;
-                CameraView.StopCameraPreview();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Camera stop error: {ex.Message}");
-            }
+            // Wait until the element has a non-zero size
+            while (element.Width <= 0 || element.Height <= 0)
+                await Task.Delay(50);
         }
 
-        private async void AnimateScanLine()
+        private async Task AnimateScanLineAsync()
         {
-            while (true)
+            while (_isScanning && ScanLine != null)
             {
-                if (_isScanning)
-                {
-                    await ScanLine.TranslateTo(0, 360, 1200, Easing.CubicInOut);
-                    await ScanLine.TranslateTo(0, 0, 1200, Easing.CubicInOut);
-                }
-                await Task.Delay(50);
+                await ScanLine.TranslateTo(0, 360, 1200, Easing.CubicInOut);
+                await ScanLine.TranslateTo(0, 0, 1200, Easing.CubicInOut);
             }
         }
 
