@@ -1,153 +1,302 @@
-﻿/*
-* FILE: EbayService.cs
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-18
-* DESCRIPTION:
-*     Enhanced eBay Browse API client with sanitized query,
-*     brand correction, category targeting, and multi-listing
-*     results for CollectIQ card recognition workflow.
-*/
-
+﻿//
+//  FILE            : EbayService.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-11-03
+//  DESCRIPTION     :
+//      REST-based eBay Browse API service for CollectIQ.
+//      Loads credentials from Resources/Raw/secure.json,
+//      automatically refreshes OAuth2 access tokens,
+//      and retrieves live item summaries for card recognition.
+//
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
-using CollectIQ.Utilities;
-using Newtonsoft.Json.Linq;
+using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Services
 {
     public class EbayService : IEbayService
     {
         private readonly HttpClient _httpClient;
+        private SecureConfig? _config;
+        private bool _initialized;
 
-        // === Paste your Production OAuth Application Token below ===
-        private const string AccessToken = "v^1.1#i^1#f^0#I^3#p^1#r^0#t^H4sIAAAAAAAA/+VYW2wUVRju9oJUpIASQEBYhopQ2NkzM93t7tCuLF0KC6XddheEKtazM2fK2LkxZ5Z2eTBrAzWQqIQQHwRJow/6YCQkRm6RByIxEBMNXrBRBA3GEkgkSgQ0UM9MS9lWAkiX2MR9mZ3//Oc/3/+d/3LmgMyo4rLOZZ1Xxroeyu/KgEy+y8WMAcWjiuaXFORPLcoDWQqurkxpprCjoKcSQ1Ux+EaEDV3DyN2uKhrmHWEVlTI1XodYxrwGVYR5S+Dj4ZW1PEsD3jB1Sxd0hXJHI1UUZEUuCRk/4w/4AgGOIVLtps2EXkUJFSAIgmRQgn6O8ZNhjFMoqmELalYVxQLW52GAhw0mQDkPWB5wdJALNlHu1cjEsq4RFRpQIQct78w1s6DeGSnEGJkWMUKFouGaeH04GllSl6j0ZtkK9dMQt6CVwoPfqnURuVdDJYXuvAx2tPl4ShAQxpQ31LfCYKN8+CaY+4DvMJ0URNYHGIREJCTLGSEnVNbopgqtO+OwJbLokRxVHmmWbKXvxihhI/kiEqz+tzpiIhpx24+GFFRkSUZmFbVkcXhtOBajQhFommklpntE5w8WPLHGiIcJIpETUUD0BH2iGBBEoX+hPmv9NA9ZqVrXRNkmDbvrdGsxIqjRYG443pfFDVGq1+rNsGTZiLL1/AMcck32pvbtYspar9n7ilRChNt5vfsODMy2LFNOpiw0YGHogEMRySrDkEVq6KATi/3h046rqPWWZfBeb1tbG93G0brZ4mUBYLxrVtbGhfVIhZSta+e6oy/ffYJHdlwREJmJZd5KGwRLO4lVAkBroUI+jg0Atp/3wbBCQ6X/EGT57B2cEbnKEBiUAkhkGPIsFwNSTopNqD9IvTYOlIRpjwrNVmQZChSQRyBxllKRKYs855NYLiAhj+gPSp7yoCR5kj7R72EkhABCyaQQDPyfEuVeQz2OBBNZuYn1XMX5M5vC9d6U4t9Uw0YjQjvThFbgBgmEl6+oUGo31qyNtjZJ4UQgJsbaqu41G27rfLUiE2YSZP2cEGDnes5IWKZjC4nDci8u6AaK6YospEfWBnOmGIOmlY4jRSGCYTkZNoxojmp1rtz7l2Xi/vzOYY/6b/rTbb3CdsiOLK/s+ZgYgIZM2x2IFnTVq9u5DsnxwxY3O6jdt1ccrOQlMtKwBESTviQmodBKmwiKuqakh8WbTE6+I4o14mcfCbLYd2SlHSZovFEgHmM9RTjAdL19gkvorUgj/dAydUVB5mpm2PVAVVMWTCpopBWGHCSIDEdYs2Yq/EwFA3wsNyy/BKcVN4+0kuaU8sIO1wsPupw3IqioI8t3w9TFlGCfUR/AJ4d38P1HKM/5MR2uo6DDdSTf5QKV4ElmNpg1qmBVYcEjU7FsIVqGEo3lFo1815uIbkVpA8pm/mN5J77urptxePl7W89Nzmwp9e7IK8m6fulaB6YMXMAUFzBjsm5jwPRbI0XMuMljWR8D2CAoByzgmsDsW6OFzKTCiRHzMLujc0b3Nqn0k8jSQ/nS7td+AGMHlFyuojwSK3nPH/BPTz+XsNbs+GLChXNvqJnocbDr8ZJrOxe17zra3bP1xox57587+XPNmY978UsfmWteReev/XH2nUsn/tq5v7cxcYmauXPb23vmC53fWLHizuMHx9c+PCeyeRx3Cc2MLP1d7CmsaD99csKkU1s27vpcgu2vuI59NnnOngnhKyVo4U+7z964PgsGfxOvnukZfWraRMV1THgr0P3pLysXGNMysctt25d/e2P05bILTzQf3LKq8FG/Op7e/d3FD8veFU6f2n5xlm/D3N6FV2ceut6g7X1dY8G885Vz33x638t7DwSrcevVdX8+W6Y2N3xw5FCm/KnOC7/+qHy5/6uFU9CGfV3Hv28JL9jcWzq1by//BhqVgfsYEwAA";
-
-        public EbayService() : this(new HttpClient()) { }
-
-        public EbayService(HttpClient httpClient)
+        public EbayService(HttpClient client)
         {
-            _httpClient = httpClient;
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", AccessToken);
-            _httpClient.DefaultRequestHeaders.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json"));
+            _httpClient = client;
         }
 
-        //// === Helper: sanitize OCR text ===
-        //private static string SanitizeForEbay(string text)
-        //{
-        //    if (string.IsNullOrWhiteSpace(text))
-        //        return string.Empty;
-
-        //    string cleaned = System.Text.RegularExpressions.Regex.Replace(
-        //        text, @"(www\.|\.com|©|inc\.|company|rights reserved|code[\w\d]+)",
-        //        "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-        //    cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim();
-
-        //    cleaned = cleaned.Replace("XeTOPPS", "Topps", StringComparison.OrdinalIgnoreCase)
-        //                     .Replace("TOPPS", "Topps", StringComparison.OrdinalIgnoreCase)
-        //                     .Replace("PANNI", "Panini", StringComparison.OrdinalIgnoreCase)
-        //                     .Replace("CHROME", "Chrome", StringComparison.OrdinalIgnoreCase)
-        //                     .Replace("ROOKE", "Rookie", StringComparison.OrdinalIgnoreCase)
-        //                     .Replace("RC", "Rookie", StringComparison.OrdinalIgnoreCase);
-
-        //    var tokens = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        //    if (tokens.Length > 6)
-        //        cleaned = string.Join(" ", tokens[..6]);
-
-        //    return cleaned;
-        //}
-
-        /// <summary>
-        /// Gets a list of live eBay listings for a sanitized query.
-        /// </summary>
-        /// <summary>
-        /// Gets a list of live eBay listings for a sanitized query.
-        /// </summary>
-        public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
+        // -------------------------------------------------------
+        //  Initialization: load secure.json from app package
+        // -------------------------------------------------------
+        public async Task InitializeAsync()
         {
-            var results = new List<EbayListing>();
-            if (string.IsNullOrWhiteSpace(query))
-                return results;
-
-            string sanitized = await OCRUtility.SanitizeForEbay(query);
-            string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search?q={Uri.EscapeDataString(sanitized)}&limit={limit}";
-
-            using HttpRequestMessage req = new(HttpMethod.Get, url);
-            req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
-
-            System.Diagnostics.Debug.WriteLine($"[eBay URL] {url}");
-            System.Diagnostics.Debug.WriteLine($"[Auth Token Length] {req.Headers.Authorization.Parameter?.Length}");
+            if (_initialized)
+                return;
 
             try
             {
-                using HttpResponseMessage resp = await _httpClient.SendAsync(req);
+                using var stream = await FileSystem.OpenAppPackageFileAsync("secure.json");
+                using var reader = new StreamReader(stream);
+                string json = await reader.ReadToEndAsync();
+
+                _config = JsonSerializer.Deserialize<SecureConfig>(json)
+                    ?? throw new InvalidOperationException("secure.json parse error");
+
+                _initialized = true;
+                System.Diagnostics.Debug.WriteLine("[eBay INIT] Credentials loaded.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[eBay INIT ERROR] {ex}");
+                throw;
+            }
+        }
+
+        // -------------------------------------------------------
+        //  Refresh OAuth2 access token using the stored refresh token
+        // -------------------------------------------------------
+        private async Task<string?> RefreshAccessTokenAsync()
+        {
+            try
+            {
+                if (!_initialized)
+                    await InitializeAsync();
+
+                if (_config == null)
+                    throw new InvalidOperationException("Config not loaded.");
+
+                string credentials = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes($"{_config.EBAY_CLIENT_ID}:{_config.EBAY_CLIENT_SECRET}")
+                );
+
+                var req = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
+                req.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+                req.Content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("grant_type", "client_credentials"),
+                    new KeyValuePair<string, string>("scope", "https://api.ebay.com/oauth/api_scope")
+                });
+
+
+                var resp = await _httpClient.SendAsync(req);
+                string content = await resp.Content.ReadAsStringAsync();
+
+                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN] {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN BODY] {content}");
+
+                if (!resp.IsSuccessStatusCode)
+                    return null;
+
+                using var doc = JsonDocument.Parse(content);
+                return doc.RootElement.TryGetProperty("access_token", out var tokenEl)
+                    ? tokenEl.GetString()
+                    : null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN ERROR] {ex.Message}");
+                return null;
+            }
+        }
+
+        private string CleanQueryForEbay(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return "";
+
+            // Lowercase and trim punctuation
+            query = Regex.Replace(query, @"[^A-Za-z0-9\s]", " ");
+            query = Regex.Replace(query, @"\s{2,}", " ").Trim();
+
+            // Split words
+            var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+            // Filter out noise: short or non-vowel words
+            tokens = tokens
+                .Where(t => t.Length > 2 && Regex.IsMatch(t, "[aeiouAEIOU]"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Keep year + brand + player words only
+            var keepers = new List<string>();
+            foreach (var t in tokens)
+            {
+                if (Regex.IsMatch(t, @"^(19|20)\d{2}$") || // year
+                    Regex.IsMatch(t, @"(Panini|Donruss|Topps|Prizm|Select|Mosaic)", RegexOptions.IgnoreCase) ||
+                    char.IsUpper(t[0])) // likely player name
+                {
+                    keepers.Add(t);
+                }
+            }
+
+            // Fallback: if filter too strict, revert to cleaned tokens
+            if (keepers.Count < 3)
+                keepers = tokens;
+
+            return string.Join(" ", keepers);
+        }
+
+
+        // -------------------------------------------------------
+        //  Search listings via eBay Browse API
+        // -------------------------------------------------------
+        public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
+        {
+            var results = new List<EbayListing>();
+
+            if (string.IsNullOrWhiteSpace(query))
+                return results;
+
+            await InitializeAsync();
+            string? token = await RefreshAccessTokenAsync();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                System.Diagnostics.Debug.WriteLine("[eBay SEARCH] Token unavailable.");
+                return results;
+            }
+
+            // Clean up query before sending to eBay
+            string safeQuery = CleanQueryForEbay(query);
+            System.Diagnostics.Debug.WriteLine($"[eBay CLEAN QUERY] {safeQuery}");
+
+            // Build final URL with extra filters
+            string url = "https://api.ebay.com/buy/browse/v1/item_summary/search" +
+                         $"?q={Uri.EscapeDataString(safeQuery)}" +
+                         $"&limit={limit}" +
+                         $"&fieldgroups=EXTENDED" +
+                         $"&filter=priceCurrency:USD";
+
+            System.Diagnostics.Debug.WriteLine($"[eBay SEARCH URL] {url}");
+
+
+            var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            try
+            {
+                var resp = await _httpClient.SendAsync(req);
+                string json = await resp.Content.ReadAsStringAsync();
 
                 if (!resp.IsSuccessStatusCode)
                 {
-                    string err = await resp.Content.ReadAsStringAsync();
-                    System.Diagnostics.Debug.WriteLine($"[eBay API Error]: {resp.StatusCode} - {err}");
+                    System.Diagnostics.Debug.WriteLine($"[eBay API ERROR] {resp.StatusCode}: {json}");
                     return results;
                 }
 
-                string json = await resp.Content.ReadAsStringAsync();
-                var root = Newtonsoft.Json.Linq.JObject.Parse(json);
-                var items = root.SelectToken("itemSummaries");
-                if (items == null)
-                    return results;
-
-                foreach (var item in items)
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("itemSummaries", out var items))
                 {
-                    string title = item.Value<string>("title") ?? string.Empty;
-                    string imageUrl = item.SelectToken("image.imageUrl")?.ToString() ?? string.Empty;
-                    string currency = item.SelectToken("price.currency")?.ToString() ?? "USD";
-                    string priceStr = item.SelectToken("price.value")?.ToString() ?? string.Empty;
+                    System.Diagnostics.Debug.WriteLine("[eBay SEARCH] No itemSummaries found.");
+                    return results;
+                }
 
-                    decimal? price = null;
-                    if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any,
-                                         System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                        price = parsed;
-
-                    string webUrl = item.Value<string>("itemWebUrl") ?? string.Empty;
+                foreach (var item in items.EnumerateArray())
+                {
+                    string title = item.GetPropertyOrDefault("title", string.Empty);
+                    string imageUrl = item.GetPropertyOrDefault("image", "imageUrl");
+                    string currency = item.GetNestedProperty("price", "currency") ?? "USD";
+                    string priceStr = item.GetNestedProperty("price", "value") ?? "0";
+                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price);
+                    string urlWeb = item.GetPropertyOrDefault("itemWebUrl", string.Empty);
+                    string id = item.GetPropertyOrDefault("itemId", string.Empty);
 
                     results.Add(new EbayListing
                     {
                         Title = title,
                         ImageUrl = imageUrl,
-                        Price = price,
                         Currency = currency,
-                        ListingId = item.Value<string>("itemId") ?? string.Empty,
-                        Url = webUrl
+                        Price = price,
+                        Url = urlWeb,
+                        ListingId = id
                     });
                 }
 
+                System.Diagnostics.Debug.WriteLine($"[eBay SEARCH] Found {results.Count} listings.");
                 return results;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[eBay EXCEPTION]: {ex.Message}");
-                return results; // always return, even on failure
+                System.Diagnostics.Debug.WriteLine($"[eBay SEARCH EXCEPTION] {ex.Message}");
+                return results;
             }
         }
 
-
-
-        /// <summary>
-        /// Retains existing single best match method for backward compatibility.
-        /// </summary>
+        // -------------------------------------------------------
+        //  Best Match (first result)
+        // -------------------------------------------------------
         public async Task<EbayListing?> GetBestMatchAsync(string query)
         {
             var list = await SearchListingsAsync(query, 1);
             return list.Count > 0 ? list[0] : null;
         }
+    }
+
+    // -------------------------------------------------------
+    //  JSON helper extensions
+    // -------------------------------------------------------
+    internal static class JsonExtensions
+    {
+        public static string GetPropertyOrDefault(this JsonElement el, string obj, string nested)
+        {
+            try
+            {
+                if (!el.TryGetProperty(obj, out JsonElement subObj))
+                    return "";
+
+                // If the property itself is a string, just return it
+                if (subObj.ValueKind == JsonValueKind.String)
+                    return subObj.GetString() ?? "";
+
+                // If it’s an object, look inside it
+                if (subObj.ValueKind == JsonValueKind.Object && subObj.TryGetProperty(nested, out JsonElement value))
+                    return value.GetString() ?? "";
+
+                // If it’s an array, grab the first element’s nested value
+                if (subObj.ValueKind == JsonValueKind.Array && subObj.GetArrayLength() > 0)
+                {
+                    var first = subObj[0];
+                    if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty(nested, out JsonElement nestedVal))
+                        return nestedVal.GetString() ?? "";
+                }
+
+                return "";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[JSON EXT ERROR] {ex.Message}");
+                return "";
+            }
+        }
+
+
+        public static string? GetNestedProperty(this JsonElement el, string parent, string child)
+        {
+            if (el.TryGetProperty(parent, out var p) && p.TryGetProperty(child, out var c))
+                return c.GetString();
+            return null;
+        }
+    }
+
+    // -------------------------------------------------------
+    //  Secure Config model
+    // -------------------------------------------------------
+    public class SecureConfig
+    {
+        public string EBAY_CLIENT_ID { get; set; } = string.Empty;
+        public string EBAY_CLIENT_SECRET { get; set; } = string.Empty;
+        public string EBAY_REFRESH_TOKEN { get; set; } = string.Empty;
     }
 }

@@ -40,7 +40,6 @@ namespace CollectIQ.Views
             InitializeComponent();
 
             _database = App.Database; 
-            _ebayService = new EbayService(); 
             _imageStorage = new ImageStorage();
             _card = existing ?? new Card();
             Bind();

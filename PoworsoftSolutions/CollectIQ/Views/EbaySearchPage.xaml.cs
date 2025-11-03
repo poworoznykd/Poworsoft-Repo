@@ -66,23 +66,17 @@ namespace CollectIQ.Views
             try
             {
                 var text = await RecognizeTextFromImageAsync(imagePath);
-                ManualSearchBox.Text = text;
+                string sanitized = await OCRUtility.SanitizeForEbay(text) ?? string.Empty;
+                ManualSearchBox.Text = sanitized;
 
-                if (string.IsNullOrWhiteSpace(text))
+                if (string.IsNullOrWhiteSpace(sanitized))
                 {
                     await DisplayAlert("No Text Found", "Could not extract text from the back image.", "OK");
                     return;
                 }
 
-                // --- NEW: Keep only the first 6–8 relevant words to avoid flooding eBay
-                var trimmed = text.Replace("\r", " ").Replace("\n", " ");
-                var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                string reduced = string.Join(' ', words.Take(8));
-
-                // --- NEW: Sanitize but keep digits and key names like Topps/Chrome
-                string sanitized = System.Text.RegularExpressions.Regex
-                    .Replace(reduced, @"[^a-zA-Z0-9\s]", "")
-                    .Trim();
+                
+                
 
                 StatusLabel.Text = $"Searching eBay for: {sanitized}";
                 await PerformSearchAsync(sanitized);

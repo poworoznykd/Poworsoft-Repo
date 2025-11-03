@@ -48,6 +48,11 @@
     <MauiAsset Include="eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </MauiAsset>
+    <MauiAsset Include="Resources\Raw\secure.json" LogicalName="secure.json" />
+	<None Update="Resources\Raw\secure.json">
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	</None>
+
 
     <MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
   </ItemGroup>
@@ -111,5 +116,6 @@
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
   </ItemGroup>
+
 
 </Project>
