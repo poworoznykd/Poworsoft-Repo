@@ -15,11 +15,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="CollectIQ.Views.ScanPage"
+               xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
              BackgroundColor="#05080D"
              Title="Scan Card">
 
     <!-- === Root Grid Layout === -->
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,80" Padding="0" RowSpacing="15">
 
         <!-- === Live Camera Feed === -->
         <toolkit:CameraView
@@ -41,7 +42,7 @@
                  Opacity="0.9"
                  VerticalOptions="Start"
                  HorizontalOptions="FillAndExpand"
-                 Margin="30,0,30,0" />
+                 Margin="30,25,30,0" />
 
         <!-- === Bottom Controls === -->
         <Grid Grid.Row="1"
@@ -69,12 +70,14 @@
 
             <!-- === Manual Entry Button === -->
             <Button x:Name="ManualButton"
-                    Style="{StaticResource AccentButton}"
+                    Style="{StaticResource AccentButton_AuroraBlue}"
                     Text="Add Manually"
                     Grid.Row="1"
                     Grid.Column="0"
                     BackgroundColor="#001020"
-                    TextColor="#6CD4FF"
+                    TextColor="White"
+                    BorderColor="#00B4FF"
+                    BorderWidth="2"
                     CornerRadius="12"
                     HeightRequest="50"
                     Clicked="OnAddManuallyClicked"
@@ -90,5 +93,6 @@
                    VerticalOptions="Center"
                    HorizontalOptions="End" />
         </Grid>
+        <controls:FuturisticNavBar Grid.Row="4" Margin="0,12,0,0"/>
     </Grid>
 </ContentPage>

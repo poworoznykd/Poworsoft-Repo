@@ -1,34 +1,58 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Shell
-     x:Class="CollectIQ.AppShell"
+    x:Class="CollectIQ.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:views="clr-namespace:CollectIQ.Views"
+    xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
     Shell.NavBarHasShadow="False"
     Shell.BackgroundColor="{StaticResource OffBlack}"
     Shell.TitleColor="{StaticResource Secondary}"
-    Shell.TabBarBackgroundColor="{StaticResource PrimaryDark}"
-    Shell.TabBarForegroundColor="{StaticResource NeonGreen}"
-    Shell.TabBarUnselectedColor="{StaticResource Gray600}">
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarIsVisible="False">
 
-    <!-- Hide navigation bar globally -->
+    <!-- =========================================== -->
+    <!-- GLOBAL STYLES AND RESOURCES                 -->
+    <!-- =========================================== -->
     <Shell.Resources>
         <Style TargetType="NavigationPage">
             <Setter Property="Shell.NavBarIsVisible" Value="False" />
         </Style>
     </Shell.Resources>
 
-    <!-- Landing Page -->
-    <ShellContent
-        Title="CollectIQ"
-        ContentTemplate="{DataTemplate views:LandingPage}" />
+    <!-- =========================================== -->
+    <!-- APPLICATION STRUCTURE                       -->
+    <!-- =========================================== -->
+    <TabBar
+        Shell.BackgroundColor="{StaticResource OffBlack}"
+        Shell.TitleColor="{StaticResource Secondary}"
+        Shell.UnselectedColor="{StaticResource Gray600}"
+        Shell.TabBarBackgroundColor="{StaticResource PrimaryDark}"
+        Shell.TabBarTitleColor="{StaticResource NeonGreen}">
 
-    <!-- Main App Tabs -->
-    <TabBar>
+        <!-- DASHBOARD -->
         <ShellContent
+            Route="DashboardPage"
             Title="Dashboard"
-            Icon="dashboard.png"
             ContentTemplate="{DataTemplate views:DashboardPage}" />
+
+        <!-- SCAN -->
+        <ShellContent
+            Route="ScanPage"
+            Title="Scan"
+            ContentTemplate="{DataTemplate views:ScanPage}" />
+
+        <!-- COLLECTION -->
+        <ShellContent
+            Route="CollectionPage"
+            Title="Collection"
+            ContentTemplate="{DataTemplate views:CollectionPage}" />
+
+        <!-- SEARCH -->
+        <ShellContent
+            Route="EbaySearchPage"
+            Title="Search"
+            ContentTemplate="{DataTemplate views:EbaySearchPage}" />
     </TabBar>
 
 </Shell>

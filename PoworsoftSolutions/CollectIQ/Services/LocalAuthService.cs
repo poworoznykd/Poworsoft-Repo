@@ -52,7 +52,12 @@ namespace CollectIQ.Services
             if (storedHash != ComputeHash(password))
                 return false;
 
+            // ============================================================
+            //  STEP 1: Store session credentials securely
+            // ============================================================
             await SecureStorage.SetAsync(SessionKey, email);
+            await SecureStorage.SetAsync("last_login", DateTime.UtcNow.ToString());
+
             return true;
         }
 
@@ -66,7 +71,18 @@ namespace CollectIQ.Services
         public async Task<bool> IsSignedInAsync()
         {
             var email = await SecureStorage.GetAsync(SessionKey);
-            return !string.IsNullOrEmpty(email);
+            var lastLogin = await SecureStorage.GetAsync("last_login");
+
+            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(lastLogin))
+                return false;
+
+            // Expire session after 12 hours
+            if (DateTime.TryParse(lastLogin, out DateTime timestamp))
+            {
+                return DateTime.UtcNow - timestamp < TimeSpan.FromHours(12);
+            }
+
+            return false;
         }
 
         public async Task<string?> GetCurrentUserEmailAsync()

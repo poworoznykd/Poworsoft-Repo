@@ -100,6 +100,9 @@
     <MauiXaml Update="Views\AuthSheet.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
+    <MauiXaml Update="Views\Controls\FuturisticNavBar.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
     <MauiXaml Update="Views\DashboardPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>

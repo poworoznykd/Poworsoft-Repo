@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="CollectIQ.Views.Controls.FuturisticNavBar"
+    BackgroundColor="{StaticResource OffBlack}"
+    Padding="0,8"
+    HeightRequest="85">
+
+    <Grid RowDefinitions="Auto" ColumnDefinitions="*,*,*,*" VerticalOptions="End" Padding="20,5" ColumnSpacing="25">
+        <!-- Home -->
+        <VerticalStackLayout x:Name="HomeWrapper" Spacing="4" HorizontalOptions="Center">
+            <Path x:Name="HomeIcon"
+                  Data="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+                  Stroke="{StaticResource MidnightBlue}"
+                  StrokeThickness="2"
+                  HeightRequest="26"
+                  WidthRequest="30"
+                  HorizontalOptions="Center" />
+            <Label Text="Home" FontSize="12" TextColor="{StaticResource Secondary}" HorizontalOptions="Center"/>
+        </VerticalStackLayout>
+
+        <!-- Scan -->
+        <VerticalStackLayout x:Name="ScanWrapper" Spacing="4" Grid.Column="1" HorizontalOptions="Center">
+            <Path x:Name="ScanIcon"
+                  Data="M3 4v6h2V6h4V4H3zm12 0v2h4v4h2V4h-6zM3 14v6h6v-2H5v-4H3zm16 0v4h-4v2h6v-6h-2z"
+                  Stroke="{StaticResource MidnightBlue}"
+                  StrokeThickness="2"
+                  HeightRequest="26"
+                  WidthRequest="30"
+                  HorizontalOptions="Center"/>
+            <Label Text="Scan" FontSize="12" TextColor="{StaticResource Secondary}" HorizontalOptions="Center"/>
+        </VerticalStackLayout>
+
+        <!-- Collection -->
+        <VerticalStackLayout x:Name="CollectionWrapper" Spacing="4" Grid.Column="2" HorizontalOptions="Center">
+            <Path x:Name="CollectionIcon"
+                  Data="M4 4h16v2H4V4zm0 4h16v2H4V8zm0 4h10v2H4v-2z"
+                  Stroke="{StaticResource MidnightBlue}"
+                  StrokeThickness="2"
+                  HeightRequest="26"
+                  WidthRequest="30"
+                  HorizontalOptions="Center"/>
+            <Label Text="Collection" FontSize="12" TextColor="{StaticResource Secondary}" HorizontalOptions="Center"/>
+        </VerticalStackLayout>
+
+        <!-- Search -->
+        <VerticalStackLayout x:Name="SearchWrapper" Spacing="4" Grid.Column="3" HorizontalOptions="Center">
+            <Path x:Name="SearchIcon"
+                  Data="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16a6.471 6.471 0 004.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+                  Stroke="{StaticResource MidnightBlue}"
+                  StrokeThickness="2"
+                  HeightRequest="26"
+                  WidthRequest="30"
+                  HorizontalOptions="Center"/>
+            <Label Text="Search" FontSize="12" TextColor="{StaticResource Secondary}" HorizontalOptions="Center"/>
+        </VerticalStackLayout>
+    </Grid>
+</ContentView>

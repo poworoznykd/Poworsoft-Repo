@@ -105,7 +105,17 @@ namespace CollectIQ.Views
                 //await DisplayAlert("Debug", $"LoginAsync returned {success}", "OK");
 
                 if (success)
-                    await Shell.Current.GoToAsync(nameof(DashboardPage));
+                {
+                    // Create and assign a new Shell as the root of the app
+                    Application.Current.MainPage = new AppShell();
+
+                    // Optional small delay to let Shell initialize
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await Task.Delay(100);
+                        await Shell.Current.GoToAsync(nameof(DashboardPage));
+                    });
+                }
             }
             catch (Exception ex)
             {

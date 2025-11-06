@@ -13,23 +13,31 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.CollectionPage"
+             xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
              Title="My Collection"
              BackgroundColor="#0B0E11">
 
-    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+    <Grid RowDefinitions="Auto,*,80" Padding="0">
 
-        <!-- HEADER -->
-        <VerticalStackLayout Spacing="6" Grid.Row="0">
-            <Label Text="My Card Collection"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   TextColor="#6CD4FF"
-                   HorizontalOptions="Center" />
-            <BoxView HeightRequest="2"
-                     WidthRequest="160"
-                     Color="#00B4D8"
-                     HorizontalOptions="Center" />
-        </VerticalStackLayout>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="80" />
+            </Grid.ColumnDefinitions>
+            <!-- ADD NEW CARD BUTTON -->
+                <Button Grid.Column="1"
+                    Style="{StaticResource AccentButton_AuroraBlue}"
+                    ImageSource="add_icon.png"
+                    FontSize="18"
+                    FontAttributes="Bold"
+                    TextColor="White"
+                    HeightRequest="54"
+                    CornerRadius="14"
+                    Margin="0,10,0,0"
+                    VerticalOptions="End"
+                    Clicked="OnAddCardClicked">     
+                </Button>
+            </Grid>
 
         <!-- SCROLLABLE COLLECTION -->
         <CollectionView x:Name="CardsCollectionView"
@@ -126,19 +134,7 @@
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
+        <controls:FuturisticNavBar Grid.Row="2" Margin="0,12,0,0"/>
 
-        <!-- ADD NEW CARD BUTTON -->
-        <Button Grid.Row="2"
-                Style="{StaticResource AccentButton}"
-                Text="➕  Add New Card"
-                FontSize="18"
-                FontAttributes="Bold"
-                TextColor="White"
-                HeightRequest="54"
-                CornerRadius="14"
-                Margin="0,10,0,0"
-                VerticalOptions="End"
-                Clicked="OnAddCardClicked">
-        </Button>
     </Grid>
 </ContentPage>

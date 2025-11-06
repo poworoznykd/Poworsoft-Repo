@@ -36,6 +36,7 @@ namespace CollectIQ
             Routing.RegisterRoute(nameof(ScanPage), typeof(ScanPage));
             Routing.RegisterRoute(nameof(EbaySearchPage), typeof(EbaySearchPage));
             Routing.RegisterRoute(nameof(CollectionPage), typeof(CollectionPage));
+            Routing.RegisterRoute(nameof(CardPage), typeof(CardPage));
         }
     }
 }

@@ -208,7 +208,7 @@ namespace CollectIQ.Views
         /// <param name="e">Event arguments.</param>
         private async void OnAddManuallyClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync($"{nameof(EbaySearchPage)}");
+            await Shell.Current.GoToAsync($"{nameof(CardPage)}");
         }
 
         /// <summary>

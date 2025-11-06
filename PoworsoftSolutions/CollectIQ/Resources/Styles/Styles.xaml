@@ -546,7 +546,42 @@
         </Setter>
     </Style>
 
-
+    <!-- 🔵 Aurora Blue Button -->
+    <Style x:Key="AuroraButtonBlue" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#00B4FF" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5500B4FF"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00B4FF" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#0088CC" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#7700B4FF" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    
     <!-- Aurora Blue Accent Button -->
     <Style x:Key="AccentButton_AuroraBlue"
                TargetType="Button">
@@ -569,6 +604,84 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ========================================= -->
+    <!--  AURORA BUTTON STYLES                     -->
+    <!--  Programmer: Darryl Poworoznyk            -->
+    <!-- ========================================= -->
+
+    <!-- Aurora Green Button -->
+    <Style x:Key="AuroraButtonGreen" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#00FF88" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6600FF88"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00FF88" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#00CC66" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#AA00FF88" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Red Button -->
+    <Style x:Key="AuroraButtonRed" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#FF0044" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#88FF0044"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#FF0044" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#CC0033" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#AAFF0044" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
 
 
 

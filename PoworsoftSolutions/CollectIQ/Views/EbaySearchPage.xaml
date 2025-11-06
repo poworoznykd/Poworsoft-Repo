@@ -3,92 +3,88 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     x:Class="CollectIQ.Views.EbaySearchPage"
+      xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
     Title="Search"
     BackgroundColor="#0B0E11">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20" RowSpacing="15">
-
+    <Grid RowDefinitions="Auto,Auto,*,Auto,80" Padding="0" RowSpacing="15">
         <!-- HEADER -->
         <Label Text="Search Results"
-               FontSize="28"
-               FontAttributes="Bold"
-               HorizontalOptions="Center"
-               TextColor="#6CD4FF"
-               Margin="0,10,0,10" />
+            FontSize="28"
+            FontAttributes="Bold"
+            HorizontalOptions="Center"
+            TextColor="#A8EFFF"
+            Margin="0,10,0,10" />
 
         <!-- OCR STATUS -->
         <Label x:Name="StatusLabel"
-               Grid.Row="1"
-               Text="READY"
-               FontSize="16"
-               TextColor="#A8EFFF"
-               HorizontalOptions="Center"
-               HorizontalTextAlignment="Center"
-               LineBreakMode="WordWrap" />
+            Grid.Row="1"
+            Text="READY"
+            FontSize="16"
+            TextColor="#A8EFFF"
+            HorizontalOptions="Center"
+            HorizontalTextAlignment="Center"
+            LineBreakMode="WordWrap" />
 
         <!-- RESULTS -->
         <CollectionView x:Name="EbayResultsView"
-                        Grid.Row="2"
-                        SelectionMode="Single"
-                        SelectionChanged="OnResultSelected"
-                        VerticalOptions="FillAndExpand"
-                        BackgroundColor="Transparent">
+            Grid.Row="2"
+            SelectionMode="Single"
+            SelectionChanged="OnResultSelected"
+            VerticalOptions="FillAndExpand"
+            BackgroundColor="Transparent">
 
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <SwipeView SwipeStarted="SwipeView_SwipeStarted" SwipeEnded="SwipeView_SwipeEnded">
-                      <SwipeView.RightItems>
-                        <SwipeItems Mode="Reveal">
+                        <SwipeView.RightItems>
+                            <SwipeItems Mode="Reveal">
                                 <!-- DELETE -->
                                 <SwipeItem Text="Ebay"
-                                     BackgroundColor="#147d89"
-                                     IconImageSource="open_link_icon.png"
-                                     CommandParameter="{Binding .}"
-                                     Invoked="OnViewOnEbaySwipe" />
+                                BackgroundColor="#147d89"
+                                IconImageSource="open_link_icon.png"
+                                CommandParameter="{Binding .}"
+                                Invoked="OnViewOnEbaySwipe" />
 
                                 <!-- EDIT -->
                                 <SwipeItem Text="Add"
-                                     BackgroundColor="#14891b"
-                                     IconImageSource="add_icon.png"
-                                     CommandParameter="{Binding .}"
-                                     Invoked="OnAddToCollectionSwipe" />
+                                BackgroundColor="#14891b"
+                                IconImageSource="add_icon.png"
+                                CommandParameter="{Binding .}"
+                                Invoked="OnAddToCollectionSwipe" />
                             </SwipeItems>
-                    </SwipeView.RightItems>
-
-
-
+                        </SwipeView.RightItems>
                         <Frame CornerRadius="12"
-                           Padding="8"
-                           Margin="0,8,0,0"
-                           BackgroundColor="#14181C"
-                           BorderColor="#00B4D8"
-                           HasShadow="True">        
+                            Padding="8"
+                            Margin="0,8,0,0"
+                            BackgroundColor="#14181C"
+                            BorderColor="#00B4D8"
+                            HasShadow="True">
 
-                    <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
-                        <Image Source="{Binding ImageUrl}"
-                   Grid.RowSpan="2"
-                   WidthRequest="100"
-                   HeightRequest="100"
-                   Aspect="AspectFit"
-                   VerticalOptions="Center"
-                   HorizontalOptions="Center" />
-
-                                <Label Grid.Column="1"
-                   Text="{Binding Title}"
-                   FontSize="16"
-                   FontAttributes="Bold"
-                   TextColor="White"
-                   LineBreakMode="TailTruncation"
-                   VerticalOptions="Start"
-                   HorizontalOptions="Start" />
+                            <Grid ColumnDefinitions="100,*" ColumnSpacing="12" RowDefinitions="Auto,Auto">
+                                <Image Source="{Binding ImageUrl}"
+                                    Grid.RowSpan="2"
+                                    WidthRequest="100"
+                                    HeightRequest="100"
+                                    Aspect="AspectFit"
+                                    VerticalOptions="Center"
+                                    HorizontalOptions="Center" />
 
                                 <Label Grid.Column="1"
-                   Grid.Row="1"
-                   Text="{Binding Price, StringFormat='${0:F2}'}"
-                   FontSize="14"
-                   TextColor="#6CD4FF"
-                   VerticalOptions="End"
-                   HorizontalOptions="Start" />
+                                    Text="{Binding Title}"
+                                    FontSize="16"
+                                    FontAttributes="Bold"
+                                    TextColor="White"
+                                    LineBreakMode="TailTruncation"
+                                    VerticalOptions="Start"
+                                    HorizontalOptions="Start" />
+                                <Label Grid.Column="1"
+                                    Grid.Row="1"
+                                    Text="{Binding Price, StringFormat='${0:F2}'}"
+                                    FontSize="14"
+                                    TextColor="#6CD4FF"
+                                    VerticalOptions="End"
+                                    HorizontalOptions="Start" />    
                             </Grid>
                         </Frame>
                     </SwipeView>
@@ -102,53 +98,50 @@
         <StackLayout Grid.Row="3" Spacing="10" Padding="0,15,0,0">
 
             <Label Text="Didn’t find your card? Search manually:"
-                   FontSize="16"
-                   TextColor="#A8EFFF"
-                   HorizontalOptions="Center" />
+                FontSize="16"
+                TextColor="#A8EFFF"
+                HorizontalOptions="Center" />
 
             <Entry x:Name="ManualSearchBox"
-                   Placeholder="Enter card details or keywords..."
-                   FontSize="14"
-                   BackgroundColor="#111418"
-                   TextColor="White"
-                   PlaceholderColor="#6CD4FF"
-                   HeightRequest="45"
-                   Margin="0,0,0,5"
-                   Keyboard="Text" />
+                Placeholder="Enter card details or keywords..."
+                FontSize="14"
+                BackgroundColor="#111418"
+                TextColor="White"
+                PlaceholderColor="#6CD4FF"
+                HeightRequest="45"
+                Margin="15,0,15,5"
+                Keyboard="Text" />
 
             <HorizontalStackLayout Spacing="8"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center">
-                <ImageButton Source="search_icon.png"
-                 BackgroundColor="#00B4FF"
-                 CornerRadius="10"
-                 HeightRequest="48"
-                 WidthRequest="48"
-                 Clicked="OnManualSearchClicked"
-                 Padding="10" />
-
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
                 <Button Text="SEARCH"
-                        Style="{StaticResource AccentButton}"
-                    BackgroundColor="#00B4FF"
-                    TextColor="White"
-                    FontAttributes="Bold"
-                    CornerRadius="10"
-                    HeightRequest="48"
-                    WidthRequest="120"
-                    Clicked="OnManualSearchClicked" />
+                     Style="{StaticResource AccentButton_AuroraBlue}"
+                      BackgroundColor="#001020"
+                        BorderColor="#00B4FF"
+                        BorderWidth="2"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="10"
+                        HeightRequest="48"
+                        WidthRequest="120"
+                        Clicked="OnManualSearchClicked" />
+                <Button Text="NEW"
+                         Style="{StaticResource AccentButton_AuroraBlue}"
+                         BackgroundColor="#001020"
+                         TextColor="White"
+                         BorderColor="#00B4FF"
+                         BorderWidth="2"
+                         CornerRadius="10"
+                         HeightRequest="48"
+                         WidthRequest="120"
+                         Clicked="Add_Manual_Button_Clicked" />
             </HorizontalStackLayout>
 
 
 
-            <Button Text="Add Manually to Collection"
-                    Style="{StaticResource AccentButton}"
-                    BackgroundColor="#001020"
-                    TextColor="#6CD4FF"
-                    BorderColor="#00B4FF"
-                    BorderWidth="2"
-                    CornerRadius="10"
-                    HeightRequest="48"
-                    Clicked="Add_Manual_Button_Clicked" />
+        
         </StackLayout>
+        <controls:FuturisticNavBar Grid.Row="4" Margin="0,12,0,0"/>
     </Grid>
 </ContentPage>
