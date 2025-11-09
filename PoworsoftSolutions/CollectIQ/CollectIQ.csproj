@@ -48,7 +48,9 @@
     <MauiAsset Include="eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </MauiAsset>
-    <MauiAsset Include="Resources\Raw\secure.json" LogicalName="secure.json" />
+    <MauiAsset Include="Resources\Raw\secure.json" LogicalName="secure.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </MauiAsset>
 	<None Update="Resources\Raw\secure.json">
 	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	</None>
@@ -61,6 +63,7 @@
     <!-- Core Dependencies -->
     <PackageReference Include="CommunityToolkit.Maui" Version="12.2.0" />
     <PackageReference Include="CommunityToolkit.Maui.Camera" Version="3.0.2" />
+    <PackageReference Include="FreakyControls" Version="0.6.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
@@ -107,6 +110,9 @@
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\CollectionPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Update="Views\ImageViewerPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\LandingPage.xaml">

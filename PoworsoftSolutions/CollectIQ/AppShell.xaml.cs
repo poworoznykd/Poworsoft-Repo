@@ -32,11 +32,12 @@ namespace CollectIQ
             // --- Page Route Registrations ---
             Routing.RegisterRoute(nameof(LandingPage), typeof(LandingPage));
             Routing.RegisterRoute(nameof(AuthSheet), typeof(AuthSheet));
-            Routing.RegisterRoute(nameof(DashboardPage), typeof(DashboardPage));
-            Routing.RegisterRoute(nameof(ScanPage), typeof(ScanPage));
-            Routing.RegisterRoute(nameof(EbaySearchPage), typeof(EbaySearchPage));
-            Routing.RegisterRoute(nameof(CollectionPage), typeof(CollectionPage));
+            //Routing.RegisterRoute(nameof(DashboardPage), typeof(DashboardPage));
+            //Routing.RegisterRoute(nameof(ScanPage), typeof(ScanPage));
+            //Routing.RegisterRoute(nameof(EbaySearchPage), typeof(EbaySearchPage));
+            //Routing.RegisterRoute(nameof(CollectionPage), typeof(CollectionPage));
             Routing.RegisterRoute(nameof(CardPage), typeof(CardPage));
+            Routing.RegisterRoute(nameof(ImageViewerPage), typeof(ImageViewerPage));
         }
     }
 }

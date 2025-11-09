@@ -12,6 +12,7 @@ using CollectIQ.Interfaces;
 using CollectIQ.Services;
 using CollectIQ.Views;
 using CommunityToolkit.Maui;
+using Maui.FreakyControls.Extensions;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
@@ -28,6 +29,7 @@ namespace CollectIQ
 
             builder
                 .UseMauiApp<App>()
+                .InitializeFreakyControls()
                 .UseMauiCommunityToolkit()
                 .UseMauiCommunityToolkitCamera()
                 .UseOcr()

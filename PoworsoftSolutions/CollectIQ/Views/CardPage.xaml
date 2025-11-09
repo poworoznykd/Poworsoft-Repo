@@ -37,7 +37,11 @@
                                    HorizontalOptions="Center"
                                    VerticalOptions="Center"
                                    WidthRequest="140"
-                                   HeightRequest="140" />
+                                   HeightRequest="140">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnFrontImageTapped" />
+                                </Image.GestureRecognizers>
+                            </Image>
                             <Label Text="Front"
                                    HorizontalOptions="Center"
                                    VerticalOptions="End"
@@ -63,7 +67,11 @@
                                    HorizontalOptions="Center"
                                    VerticalOptions="Center"
                                    WidthRequest="140"
-                                   HeightRequest="140" />
+                                   HeightRequest="140" >
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnBackImageTapped" />
+                                </Image.GestureRecognizers>
+                            </Image>
                             <Label Text="Back"
                                    HorizontalOptions="Center"
                                    VerticalOptions="End"

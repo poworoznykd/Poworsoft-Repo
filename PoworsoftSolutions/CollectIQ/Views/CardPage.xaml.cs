@@ -176,6 +176,19 @@ namespace CollectIQ.Views
             }
         }
 
+        private async void OnFrontImageTapped(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(frontPath))
+                await Navigation.PushModalAsync(new ImageViewerPage(frontPath));
+        }
+
+        private async void OnBackImageTapped(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(backPath))
+                await Navigation.PushModalAsync(new ImageViewerPage(backPath));
+        }
+
+
         /// <summary>
         /// Performs an eBay search using the current query field.
         /// </summary>

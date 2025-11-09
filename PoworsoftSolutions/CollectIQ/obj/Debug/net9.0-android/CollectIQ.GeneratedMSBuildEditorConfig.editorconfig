@@ -84,6 +84,12 @@ build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.EbaySearch
 build_metadata.AdditionalFiles.TargetPath = Views\EbaySearchPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\EbaySearchPage.xaml
 
+[C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/ImageViewerPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.ImageViewerPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\ImageViewerPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\ImageViewerPage.xaml
+
 [C:/src/Poworsoft-Repo/PoworsoftSolutions/CollectIQ/Views/LandingPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = CollectIQ.Views.LandingPage.xaml
