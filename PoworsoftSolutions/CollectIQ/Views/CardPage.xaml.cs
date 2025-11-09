@@ -203,7 +203,7 @@ namespace CollectIQ.Views
                     return;
                 }
 
-                await Shell.Current.GoToAsync($"{nameof(EbaySearchPage)}?query={Uri.EscapeDataString(query)}");
+                await Shell.Current.GoToAsync($"//{nameof(EbaySearchPage)}?query={Uri.EscapeDataString(query)}");
             }
             catch (Exception ex)
             {

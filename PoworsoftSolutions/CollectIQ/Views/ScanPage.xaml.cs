@@ -187,7 +187,7 @@ namespace CollectIQ.Views
                 else
                 {
                     await Shell.Current.GoToAsync(
-                        $"{nameof(EbaySearchPage)}?frontPath={Uri.EscapeDataString(frontImagePath)}&backPath={Uri.EscapeDataString(backImagePath)}");
+                        $"//{nameof(EbaySearchPage)}?frontPath={Uri.EscapeDataString(frontImagePath)}&backPath={Uri.EscapeDataString(backImagePath)}");
                 }
 
 

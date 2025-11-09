@@ -98,11 +98,28 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Navigates to the Scan Page to add a new card.
+        /// FUNCTION: OnAddCardClicked
+        /// DESCRIPTION:
+        ///     Switches to the ScanPage tab to allow the user to scan or add a new card.
+        /// PARAMETERS:
+        ///     sender – Source of the event.
+        ///     e – Event arguments.
+        /// RETURNS:
+        ///     None.
         /// </summary>
         private async void OnAddCardClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync(nameof(ScanPage));
+            try
+            {
+                // Switch tab to ScanPage (ShellContent route)
+                await Shell.Current.GoToAsync("//ScanPage");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CollectionPage] Tab navigation error: {ex.Message}");
+                await DisplayAlert("Navigation Error", "Unable to switch to Scan tab.", "OK");
+            }
         }
+
     }
 }
