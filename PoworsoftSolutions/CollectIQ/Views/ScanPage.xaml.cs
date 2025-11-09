@@ -3,17 +3,19 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-18
-* UPDATED: 2025-10-29
+* UPDATED: 2025-11-09
 * DESCRIPTION:
 *     Handles live camera scanning of card front and back,
 *     saves captured images, and returns to the appropriate page
 *     (CardPage or eBay search) depending on source.
+*     Includes safe camera cleanup on exit and double-tap prevention.
 */
 
 using CollectIQ.Utilities;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -21,11 +23,18 @@ using System.Threading.Tasks;
 
 namespace CollectIQ.Views
 {
+    /// <summary>
+    /// CLASS: ScanPage
+    /// PURPOSE:
+    ///     Provides front and back card capture via CameraView,
+    ///     manages scan-line animation, and controls navigation flow.
+    /// </summary>
     public partial class ScanPage : ContentPage
     {
         // === Fields ===
         private bool isScanning = false;
         private bool capturingBack = false;
+        private bool isCapturing = false;
         private string frontImagePath = string.Empty;
         private string backImagePath = string.Empty;
         private readonly string? returnPage;
@@ -33,7 +42,11 @@ namespace CollectIQ.Views
         // === Constructors ===
 
         /// <summary>
-        /// Default constructor for general scanning (eBay OCR workflow).
+        /// FUNCTION: ScanPage
+        /// DESCRIPTION:
+        ///     Default constructor for general scanning (eBay OCR workflow).
+        /// RETURNS:
+        ///     None.
         /// </summary>
         public ScanPage()
         {
@@ -41,9 +54,14 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Overloaded constructor that allows specifying a return page (e.g., CardPage).
+        /// FUNCTION: ScanPage
+        /// DESCRIPTION:
+        ///     Overloaded constructor that allows specifying a return page (e.g., CardPage).
+        /// PARAMETERS:
+        ///     returnPage – The page name to return to after both captures.
+        /// RETURNS:
+        ///     None.
         /// </summary>
-        /// <param name="returnPage">The page name to return to after both captures.</param>
         public ScanPage(string returnPage)
         {
             InitializeComponent();
@@ -53,8 +71,12 @@ namespace CollectIQ.Views
         // === Lifecycle ===
 
         /// <summary>
-        /// Called when the page becomes visible.
-        /// Starts the camera preview and begins the scan-line animation.
+        /// FUNCTION: OnAppearing
+        /// DESCRIPTION:
+        ///     Called when the page becomes visible.
+        ///     Starts the camera preview and begins the scan-line animation.
+        /// RETURNS:
+        ///     None.
         /// </summary>
         protected override async void OnAppearing()
         {
@@ -75,22 +97,18 @@ namespace CollectIQ.Views
             }
         }
 
-        /// <summary>
-        /// Stops scanning when the page is no longer visible.
-        /// </summary>
-        protected override void OnDisappearing()
-        {
-            base.OnDisappearing();
-            isScanning = false;
-        }
-
         // === Utility Methods ===
 
         /// <summary>
-        /// Waits until the specified element has been rendered
-        /// and has valid dimensions before continuing.
+        /// FUNCTION: WaitForElementToRender
+        /// DESCRIPTION:
+        ///     Waits until the specified element has been rendered
+        ///     and has valid dimensions before continuing.
+        /// PARAMETERS:
+        ///     element – The element to monitor for rendering.
+        /// RETURNS:
+        ///     Task.
         /// </summary>
-        /// <param name="element">The element to monitor for rendering.</param>
         private async Task WaitForElementToRender(VisualElement element)
         {
             int retries = 0;
@@ -99,7 +117,11 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Continuously animates the scan-line up and down while scanning is active.
+        /// FUNCTION: RunScanLineAnimationAsync
+        /// DESCRIPTION:
+        ///     Continuously animates the scan-line up and down while scanning is active.
+        /// RETURNS:
+        ///     Task.
         /// </summary>
         private async Task RunScanLineAnimationAsync()
         {
@@ -120,28 +142,41 @@ namespace CollectIQ.Views
         // === Event Handlers ===
 
         /// <summary>
-        /// Captures front and back card images using the device camera.
-        /// After both captures, navigates back to CardPage if invoked from there,
-        /// otherwise proceeds to eBaySearchPage for OCR/search workflow.
+        /// FUNCTION: OnScanClicked
+        /// DESCRIPTION:
+        ///     Captures front and back card images using CameraView,
+        ///     saves them locally, and navigates to the appropriate page
+        ///     (CardPage or EbaySearchPage) once both sides are complete.
+        /// PARAMETERS:
+        ///     sender – The button initiating the capture.
+        ///     e – Standard event arguments.
+        /// RETURNS:
+        ///     None.
         /// </summary>
-        /// <param name="sender">Button initiating the capture.</param>
-        /// <param name="e">Event arguments.</param>
         private async void OnScanClicked(object sender, EventArgs e)
         {
+            if (isCapturing)
+                return;
+
+            isCapturing = true;
+
             try
             {
                 isScanning = false;
 
-                var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                // --- 1. Capture image with timeout ---
+                using var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
                 using var imageStream = await CameraView.CaptureImage(captureCts.Token);
 
                 if (imageStream == null)
                 {
                     await DisplayAlert("Error", "No image captured.", "OK");
                     isScanning = true;
+                    isCapturing = false;
                     return;
                 }
 
+                // --- 2. Prepare save directory ---
                 string folder = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
                 Directory.CreateDirectory(folder);
 
@@ -150,23 +185,31 @@ namespace CollectIQ.Views
                     : $"card_front_{Guid.NewGuid()}.jpg";
 
                 string path = Path.Combine(folder, fileName);
-                using (var fs = File.Create(path))
-                    await imageStream.CopyToAsync(fs);
 
+                await using (FileStream fileStream = File.Create(path))
+                {
+                    await imageStream.CopyToAsync(fileStream);
+                }
+
+                // --- 3. Assign and continue workflow ---
                 if (!capturingBack)
                 {
                     frontImagePath = path;
                     capturingBack = true;
+
                     await DisplayAlert("Flip Card", "Now flip your card and capture the BACK side.", "OK");
                     isScanning = true;
+                    isCapturing = false;
                     return;
                 }
 
                 backImagePath = path;
                 capturingBack = false;
 
-                // Return path logic
-                // Return path logic
+                // --- 4. Delay to ensure camera surface cleanup ---
+                await Task.Delay(250);
+
+                // --- 5. Navigation logic ---
                 if (!string.IsNullOrEmpty(returnPage) &&
                     returnPage.Equals(nameof(CardPage), StringComparison.OrdinalIgnoreCase))
                 {
@@ -176,49 +219,79 @@ namespace CollectIQ.Views
                         { "BackPath", backImagePath }
                     };
 
-                    // Save temporarily for CardPage to read
                     NavigationCache.Set(nameof(CardPage), resultData);
 
                     await DisplayAlert("Captured", "Both sides captured successfully.", "OK");
-
-                    // Return to CardPage
                     await Shell.Current.GoToAsync("..");
                 }
                 else
                 {
+                    await DisplayAlert("Captured", "Both sides captured successfully.", "OK");
+
+                    // Use absolute Shell route because it's a tab page
                     await Shell.Current.GoToAsync(
                         $"//{nameof(EbaySearchPage)}?frontPath={Uri.EscapeDataString(frontImagePath)}&backPath={Uri.EscapeDataString(backImagePath)}");
                 }
-
-
-                await DisplayAlert("Captured", "Both sides captured successfully.", "OK");
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[ScanPage] Capture failed: {ex}");
                 await DisplayAlert("Error", $"Capture failed: {ex.Message}", "OK");
                 isScanning = true;
+            }
+            finally
+            {
+                isCapturing = false;
             }
         }
 
         /// <summary>
-        /// Navigates to the manual entry workflow for adding a card
-        /// without using the camera.
+        /// FUNCTION: OnAddManuallyClicked
+        /// DESCRIPTION:
+        ///     Navigates to the manual entry workflow for adding a card
+        ///     without using the camera.
+        /// PARAMETERS:
+        ///     sender – The initiating button.
+        ///     e – Event arguments.
+        /// RETURNS:
+        ///     None.
         /// </summary>
-        /// <param name="sender">Button initiating the manual entry.</param>
-        /// <param name="e">Event arguments.</param>
         private async void OnAddManuallyClicked(object sender, EventArgs e)
         {
             await Shell.Current.GoToAsync($"{nameof(CardPage)}");
         }
 
         /// <summary>
-        /// Logs a successful media capture from the camera.
+        /// FUNCTION: Camera_MediaCaptured
+        /// DESCRIPTION:
+        ///     Logs a successful media capture from the camera.
+        /// PARAMETERS:
+        ///     sender – CameraView source.
+        ///     e – Event arguments.
+        /// RETURNS:
+        ///     None.
         /// </summary>
-        /// <param name="sender">CameraView source.</param>
-        /// <param name="e">Event arguments.</param>
         private void Camera_MediaCaptured(object sender, EventArgs e)
         {
             Debug.WriteLine("[Camera] Media captured successfully.");
+        }
+
+        private void OnDisappearing(object sender, EventArgs e)
+        {
+            base.OnDisappearing();
+
+            isScanning = false;
+
+            try
+            {
+                CameraView?.StopCameraPreview();
+                CameraView?.Handler?.DisconnectHandler();
+                Debug.WriteLine("[Camera] Preview stopped and handler disconnected safely.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Camera] Cleanup failed: {ex.Message}");
+            }
         }
     }
 }

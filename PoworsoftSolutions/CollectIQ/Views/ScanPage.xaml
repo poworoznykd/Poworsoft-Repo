@@ -4,7 +4,7 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-18
-* UPDATED: 2025-10-28
+* UPDATED: 2025-11-09
 * DESCRIPTION:
 *     Defines the user interface for scanning a trading card’s front and back
 *     using the live camera feed. Includes visual scan line animation,
@@ -14,10 +14,11 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
              x:Class="CollectIQ.Views.ScanPage"
-               xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
              BackgroundColor="#05080D"
-             Title="Scan Card">
+             Title="Scan Card"
+             Disappearing="OnDisappearing">
 
     <!-- === Root Grid Layout === -->
     <Grid RowDefinitions="Auto,Auto,*,Auto,80" Padding="0" RowSpacing="15">
@@ -93,6 +94,7 @@
                    VerticalOptions="Center"
                    HorizontalOptions="End" />
         </Grid>
+
         <controls:FuturisticNavBar Grid.Row="4" Margin="0,12,0,0"/>
     </Grid>
 </ContentPage>
