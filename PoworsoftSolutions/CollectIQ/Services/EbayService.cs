@@ -235,6 +235,94 @@ namespace CollectIQ.Services
         }
 
         // -------------------------------------------------------
+        //  Search listings via eBay Browse API - search_by_image
+        // -------------------------------------------------------
+        public async Task<List<EbayListing>> SearchByImageAsync(string base64Image, int limit = 10)
+        {
+            var results = new List<EbayListing>();
+
+            if (string.IsNullOrWhiteSpace(base64Image))
+            {
+                System.Diagnostics.Debug.WriteLine("[eBay IMAGE] Empty base64 image.");
+                return results;
+            }
+
+            await InitializeAsync();
+            string? token = await RefreshAccessTokenAsync();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                System.Diagnostics.Debug.WriteLine("[eBay IMAGE] Token unavailable.");
+                return results;
+            }
+
+            // Endpoint per eBay docs – using limit and USD filter, similar to text search
+            string url =
+                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}&filter=priceCurrency:USD";
+
+            // Build JSON payload: { "image": "<BASE64 STRING>" }
+            var payload = new { image = base64Image };
+            string jsonBody = JsonSerializer.Serialize(payload);
+
+            var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            req.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
+            req.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+            try
+            {
+                var resp = await _httpClient.SendAsync(req);
+                string json = await resp.Content.ReadAsStringAsync();
+
+                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE STATUS] {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE BODY] {json}");
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[eBay IMAGE ERROR] {resp.StatusCode}: {json}");
+                    return results;
+                }
+
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("itemSummaries", out var items))
+                {
+                    System.Diagnostics.Debug.WriteLine("[eBay IMAGE] No itemSummaries found.");
+                    return results;
+                }
+
+                foreach (var item in items.EnumerateArray())
+                {
+                    string title = item.GetPropertyOrDefault("title", string.Empty);
+                    string imageUrl = item.GetPropertyOrDefault("image", "imageUrl");
+                    string currency = item.GetNestedProperty("price", "currency") ?? "USD";
+                    string priceStr = item.GetNestedProperty("price", "value") ?? "0";
+                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price);
+                    string urlWeb = item.GetPropertyOrDefault("itemWebUrl", string.Empty);
+                    string id = item.GetPropertyOrDefault("itemId", string.Empty);
+
+                    results.Add(new EbayListing
+                    {
+                        Title = title,
+                        ImageUrl = imageUrl,
+                        Currency = currency,
+                        Price = price,
+                        Url = urlWeb,
+                        ListingId = id
+                    });
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE] Found {results.Count} listings.");
+                return results;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE EXCEPTION] {ex.Message}");
+                return results;
+            }
+        }
+
+        // -------------------------------------------------------
         //  Best Match (first result)
         // -------------------------------------------------------
         public async Task<EbayListing?> GetBestMatchAsync(string query)
