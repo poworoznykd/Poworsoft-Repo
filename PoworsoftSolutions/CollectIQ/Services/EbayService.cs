@@ -3,12 +3,17 @@
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-11-03
+//  UPDATED         : 2025-11-18
 //  DESCRIPTION     :
 //      REST-based eBay Browse API service for CollectIQ.
 //      Loads credentials from Resources/Raw/secure.json,
 //      automatically refreshes OAuth2 access tokens,
-//      and retrieves live item summaries for card recognition.
+//      and retrieves live item summaries for both
+//      text-based and image-based card recognition.
+//      Supports filters for sold vs active listings and
+//      optional lastSoldDate ranges for comps analysis.
 //
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,35 +30,48 @@ using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Services
 {
+    /// <summary>
+    /// Provides methods for querying the eBay Browse API using either
+    /// manual text queries or the search_by_image endpoint.
+    /// </summary>
     public class EbayService : IEbayService
     {
-        private readonly HttpClient _httpClient;
-        private SecureConfig? _config;
-        private bool _initialized;
+        private readonly HttpClient httpClient;
+        private SecureConfig? secureConfig;
+        private bool isInitialized;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EbayService"/> class.
+        /// </summary>
+        /// <param name="client">An HTTP client used for outbound requests to eBay.</param>
         public EbayService(HttpClient client)
         {
-            _httpClient = client;
+            httpClient = client;
         }
 
-        // -------------------------------------------------------
-        //  Initialization: load secure.json from app package
-        // -------------------------------------------------------
+        #region Initialization
+
+        /// <summary>
+        /// Loads the secure configuration (client ID, secret, etc.) from
+        /// the packaged secure.json file on first use.
+        /// </summary>
         public async Task InitializeAsync()
         {
-            if (_initialized)
+            if (isInitialized)
+            {
                 return;
+            }
 
             try
             {
-                using var stream = await FileSystem.OpenAppPackageFileAsync("secure.json");
-                using var reader = new StreamReader(stream);
+                using Stream stream = await FileSystem.OpenAppPackageFileAsync("secure.json");
+                using StreamReader reader = new StreamReader(stream);
                 string json = await reader.ReadToEndAsync();
 
-                _config = JsonSerializer.Deserialize<SecureConfig>(json)
+                secureConfig = JsonSerializer.Deserialize<SecureConfig>(json)
                     ?? throw new InvalidOperationException("secure.json parse error");
 
-                _initialized = true;
+                isInitialized = true;
                 System.Diagnostics.Debug.WriteLine("[eBay INIT] Credentials loaded.");
             }
             catch (Exception ex)
@@ -63,44 +81,51 @@ namespace CollectIQ.Services
             }
         }
 
-        // -------------------------------------------------------
-        //  Refresh OAuth2 access token using the stored refresh token
-        // -------------------------------------------------------
+        /// <summary>
+        /// Requests a new OAuth2 application access token using client credentials.
+        /// </summary>
+        /// <returns>The bearer token string, or null if the request fails.</returns>
         private async Task<string?> RefreshAccessTokenAsync()
         {
             try
             {
-                if (!_initialized)
+                if (!isInitialized)
+                {
                     await InitializeAsync();
+                }
 
-                if (_config == null)
+                if (secureConfig == null)
+                {
                     throw new InvalidOperationException("Config not loaded.");
+                }
 
                 string credentials = Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes($"{_config.EBAY_CLIENT_ID}:{_config.EBAY_CLIENT_SECRET}")
-                );
+                    Encoding.UTF8.GetBytes($"{secureConfig.EBAY_CLIENT_ID}:{secureConfig.EBAY_CLIENT_SECRET}"));
 
-                var req = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
-                req.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-                req.Content = new FormUrlEncodedContent(new[]
+                HttpRequestMessage request =
+                    new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
+
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+                request.Content = new FormUrlEncodedContent(new[]
                 {
                     new KeyValuePair<string, string>("grant_type", "client_credentials"),
                     new KeyValuePair<string, string>("scope", "https://api.ebay.com/oauth/api_scope")
                 });
 
+                HttpResponseMessage response = await httpClient.SendAsync(request);
+                string content = await response.Content.ReadAsStringAsync();
 
-                var resp = await _httpClient.SendAsync(req);
-                string content = await resp.Content.ReadAsStringAsync();
-
-                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN] {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN] {(int)response.StatusCode} {response.ReasonPhrase}");
                 System.Diagnostics.Debug.WriteLine($"[eBay TOKEN BODY] {content}");
 
-                if (!resp.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
+                {
                     return null;
+                }
 
-                using var doc = JsonDocument.Parse(content);
-                return doc.RootElement.TryGetProperty("access_token", out var tokenEl)
-                    ? tokenEl.GetString()
+                using JsonDocument doc = JsonDocument.Parse(content);
+                return doc.RootElement.TryGetProperty("access_token", out JsonElement tokenElement)
+                    ? tokenElement.GetString()
                     : null;
             }
             catch (Exception ex)
@@ -110,53 +135,400 @@ namespace CollectIQ.Services
             }
         }
 
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Performs minimal cleanup of the user-entered query string.
+        /// OCR is no longer used; this simply trims whitespace.
+        /// </summary>
+        /// <param name="query">The raw user query.</param>
+        /// <returns>A trimmed query string safe to send to eBay.</returns>
         private string CleanQueryForEbay(string query)
         {
-            if (string.IsNullOrWhiteSpace(query))
-                return "";
+            return query?.Trim() ?? string.Empty;
+        }
 
-            // Lowercase and trim punctuation
-            query = Regex.Replace(query, @"[^A-Za-z0-9\s]", " ");
-            query = Regex.Replace(query, @"\s{2,}", " ").Trim();
-
-            // Split words
-            var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-
-            // Filter out noise: short or non-vowel words
-            tokens = tokens
-                .Where(t => t.Length > 2 && Regex.IsMatch(t, "[aeiouAEIOU]"))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            // Keep year + brand + player words only
-            var keepers = new List<string>();
-            foreach (var t in tokens)
+        /// <summary>
+        /// Builds the lastSoldDate filter fragment for the given number of days.
+        /// If days is less than or equal to zero, an empty string is returned.
+        /// </summary>
+        /// <param name="days">The number of days to look back from now.</param>
+        /// <returns>
+        /// A lastSoldDate filter string such as
+        /// "lastSoldDate:[2025-08-20T00:00:00Z..2025-11-18T23:59:59Z]",
+        /// or an empty string if the range is not applied.
+        /// </returns>
+        private static string BuildLastSoldDateFilter(int days)
+        {
+            if (days <= 0)
             {
-                if (Regex.IsMatch(t, @"^(19|20)\d{2}$") || // year
-                    Regex.IsMatch(t, @"(Panini|Donruss|Topps|Prizm|Select|Mosaic)", RegexOptions.IgnoreCase) ||
-                    char.IsUpper(t[0])) // likely player name
-                {
-                    keepers.Add(t);
-                }
+                return string.Empty;
             }
 
-            // Fallback: if filter too strict, revert to cleaned tokens
-            if (keepers.Count < 3)
-                keepers = tokens;
+            DateTime utcNow = DateTime.UtcNow;
+            DateTime startDate = utcNow.AddDays(-days);
 
-            return string.Join(" ", keepers);
+            string startString = startDate.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+            string endString = utcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+
+            return $"lastSoldDate:[{startString}..{endString}]";
+        }
+
+        /// <summary>
+        /// Builds the eBay Browse API filter string based on the selected listing type and date range.
+        /// Supports "sold", "active", and "both" (sold + active) filters.
+        /// </summary>
+        /// <param name="listingTypeFilter">"sold", "active", or "both".</param>
+        /// <param name="daysRange">Number of days (e.g., 90) to filter sold items within a time range.</param>
+        /// <returns>Properly formatted filter string for eBay Browse API.</returns>
+        private static string BuildFilterString(string listingTypeFilter, int daysRange)
+        {
+            DateTime endDate = DateTime.UtcNow;
+            DateTime startDate = endDate.AddDays(-daysRange);
+
+            string start = startDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string end = endDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+            switch (listingTypeFilter?.Trim().ToLowerInvariant())
+            {
+                case "sold":
+                    // Only sold items within the given range
+                    return $"lastSoldDate:[{start}..{end}]";
+
+                case "active":
+                    // Only currently active listings (fixed price or auction)
+                    return "buyingOptions:{\"FIXED_PRICE\"|\"AUCTION\"}";
+
+                case "both":
+                case "sold and active":
+                    // Combine sold and active filters
+                    return $"(lastSoldDate:[{start}..{end}],buyingOptions:{{\"FIXED_PRICE\"|\"AUCTION\"}})";
+
+                default:
+                    // Default fallback: sold items within range
+                    return $"lastSoldDate:[{start}..{end}]";
+            }
         }
 
 
-        // -------------------------------------------------------
-        //  Search listings via eBay Browse API
-        // -------------------------------------------------------
-        public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
+        #endregion
+
+        #region Text Search
+
+        public async Task<List<EbayListing>> SearchActiveAsync(string query, int limit = 20)
+        {
+            return await SearchListingsAsync(query, limit, "active", 0);
+        }
+
+        public async Task<List<EbayListing>> SearchActiveAndSoldAsync(string query, int limit = 20)
+        {
+            var active = await SearchActiveAsync(query, limit);
+            var sold = await SearchSoldAsync(query, limit);
+
+            var combined = new List<EbayListing>();
+            combined.AddRange(active);
+            combined.AddRange(sold);
+
+            // Remove duplicates based on ListingId
+            var unique = combined
+                .GroupBy(x => x.ListingId)
+                .Select(g => g.First())
+                .ToList();
+
+            // Sort Sold → Active, then by price
+            unique = unique
+                .OrderBy(x => x.Status == "Active" ? 1 : 0)
+                .ThenBy(x => x.Price)
+                .ToList();
+
+            return unique;
+        }
+
+        public async Task<List<EbayListing>> SearchSoldBrowseAsync(string query, int limit = 20, int days = 90)
+        {
+            List<EbayListing> results = new List<EbayListing>();
+
+            if (string.IsNullOrWhiteSpace(query))
+                return results;
+
+            await InitializeAsync();
+            string? token = await RefreshAccessTokenAsync();
+            if (string.IsNullOrEmpty(token))
+                return results;
+
+            // Build sold filter
+            DateTime end = DateTime.UtcNow;
+            DateTime start = end.AddDays(-days);
+            string startStr = start.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string endStr = end.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+            string soldFilter = Uri.EscapeDataString($"lastSoldDate:[{startStr}..{endStr}]");
+
+            string url =
+                "https://api.ebay.com/buy/browse/v1/item_summary/search" +
+                $"?q={Uri.EscapeDataString(query)}" +
+                $"&limit={limit}" +
+                $"&filter={soldFilter}" +
+                $"&fieldgroups=EXTENDED";
+
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            try
+            {
+                var response = await httpClient.SendAsync(request);
+                var json = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                    return results;
+
+                using JsonDocument doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("itemSummaries", out JsonElement items))
+                    return results;
+
+                foreach (JsonElement item in items.EnumerateArray())
+                {
+                    string title = item.GetPropertyOrDefault("title", "");
+                    string id = item.GetPropertyOrDefault("itemId", "");
+                    string urlWeb = item.GetPropertyOrDefault("itemWebUrl", "");
+
+                    string currency = item.GetNestedProperty("price", "currency") ?? "USD";
+                    string priceStr = item.GetNestedProperty("price", "value") ?? "0";
+
+                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price);
+
+                    // SOLD if itemEndDate is present
+                    string status = "Active";
+                    if (item.TryGetProperty("itemEndDate", out JsonElement endDate) &&
+                        endDate.ValueKind == JsonValueKind.String)
+                        status = "Sold";
+
+                    string imageUrl = item.GetNestedProperty("image", "imageUrl") ?? "";
+
+                    results.Add(new EbayListing
+                    {
+                        Title = title,
+                        Currency = currency,
+                        Price = price,
+                        ImageUrl = imageUrl,
+                        Url = urlWeb,
+                        ListingId = id,
+                        Status = status
+                    });
+                }
+
+                return results;
+            }
+            catch
+            {
+                return results;
+            }
+        }
+
+        public async Task<List<EbayListing>> SearchSoldByImageHybridAsync(
+            string base64Image,
+            int titleCount = 3,
+            int soldLimit = 20)
+        {
+            List<EbayListing> finalResults = new List<EbayListing>();
+
+            // 1) Get visual matches
+            var imageMatches = await SearchByImageAsync(base64Image, limit: 10, "active", 0);
+            if (imageMatches.Count == 0)
+                return finalResults;
+
+            // 2) Extract top N titles
+            var topTitles = imageMatches
+                .Where(x => !string.IsNullOrWhiteSpace(x.Title))
+                .Take(titleCount)
+                .Select(x => CleanQueryForEbay(x.Title))
+                .Distinct()
+                .ToList();
+
+            // 3) For each title, get sold comps
+            foreach (var title in topTitles)
+            {
+                var sold = await SearchSoldBrowseAsync(title, soldLimit);
+                finalResults.AddRange(sold);
+            }
+
+            // 4) Deduplicate and sort
+            var cleaned = finalResults
+                .GroupBy(x => x.ListingId)
+                .Select(g => g.First())
+                .OrderByDescending(x => x.Price)
+                .ToList();
+
+            return cleaned;
+        }
+        /// <summary>
+        /// Retrieves SOLD listings using the eBay Marketplace Insights API.
+        /// Uses the OAuth application access token instead of the legacy Finding API.
+        /// </summary>
+        /// <param name="query">Search keywords (typically a card title).</param>
+        /// <param name="limit">Maximum number of sold records to return.</param>
+        /// <param name="daysRange">Look-back window in days for lastSoldDate.</param>
+        public async Task<List<EbayListing>> SearchSoldAsync(
+            string query,
+            int limit = 20,
+            int daysRange = 90)
         {
             var results = new List<EbayListing>();
 
             if (string.IsNullOrWhiteSpace(query))
+            {
                 return results;
+            }
+
+            await InitializeAsync();
+            string? token = await RefreshAccessTokenAsync();
+            if (string.IsNullOrEmpty(token))
+            {
+                System.Diagnostics.Debug.WriteLine("[eBay SOLD] Token unavailable.");
+                return results;
+            }
+
+            // Clamp days range to eBay limits (Insights docs recommend <= 90 days)
+            if (daysRange <= 0 || daysRange > 90)
+            {
+                daysRange = 90;
+            }
+
+            string safeQuery = CleanQueryForEbay(query);
+            string lastSoldFilter = BuildLastSoldDateFilter(daysRange);
+            string encodedFilter = Uri.EscapeDataString(lastSoldFilter);
+
+            string url =
+                "https://api.ebay.com/buy/marketplace_insights/v1_beta/item_sales/search" +
+                $"?q={Uri.EscapeDataString(safeQuery)}" +
+                $"&limit={limit}" +
+                $"&filter={encodedFilter}";
+
+            System.Diagnostics.Debug.WriteLine($"[eBay SOLD URL] {url}");
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(
+                new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
+
+            try
+            {
+                var response = await httpClient.SendAsync(request);
+                string json = await response.Content.ReadAsStringAsync();
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[eBay SOLD STATUS] {(int)response.StatusCode} {response.ReasonPhrase}");
+                System.Diagnostics.Debug.WriteLine($"[eBay SOLD BODY] {json}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[eBay SOLD ERROR] {response.StatusCode}: {json}");
+                    return results;
+                }
+
+                using var doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("itemSales", out JsonElement salesArray) ||
+                    salesArray.ValueKind != JsonValueKind.Array)
+                {
+                    System.Diagnostics.Debug.WriteLine("[eBay SOLD] No itemSales array in response.");
+                    return results;
+                }
+
+                foreach (var sale in salesArray.EnumerateArray())
+                {
+                    string title = sale.GetPropertyOrDefault("title", string.Empty);
+                    string imageUrl = sale.GetNestedProperty("image", "imageUrl") ?? string.Empty;
+                    string currency = sale.GetNestedProperty("price", "currency") ?? "USD";
+                    string priceString = sale.GetNestedProperty("price", "value") ?? "0";
+
+                    decimal price = 0m;
+                    decimal.TryParse(
+                        priceString,
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out price);
+
+                    string urlWeb = sale.GetPropertyOrDefault("itemWebUrl", string.Empty);
+                    string id = sale.GetPropertyOrDefault("itemId", string.Empty);
+                    string soldDateString = sale.GetPropertyOrDefault("soldDate", string.Empty);
+
+                    var listing = new EbayListing
+                    {
+                        Title = title,
+                        ImageUrl = imageUrl,
+                        Currency = currency,
+                        Price = price,
+                        Url = urlWeb,
+                        ListingId = id,
+                        Status = "Sold"
+                    };
+
+                    // If I add SoldDateUtc (or similar) to EbayListing, I can wire it up here:
+                    // if (!string.IsNullOrWhiteSpace(soldDateString) &&
+                    //     DateTime.TryParse(soldDateString, null,
+                    //         DateTimeStyles.AdjustToUniversal, out var soldDt))
+                    // {
+                    //     listing.SoldDateUtc = soldDt;
+                    // }
+
+                    results.Add(listing);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[eBay SOLD] Parsed {results.Count} sold comps.");
+                return results;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[eBay SOLD EXCEPTION] {ex.Message}");
+                return results;
+            }
+        }
+
+
+        /// <summary>
+        /// Searches eBay listings using the text-based Browse API endpoint.
+        /// This overload preserves existing call sites and assumes active listings
+        /// with no lastSoldDate filter.
+        /// </summary>
+        /// <param name="query">The user-entered search query.</param>
+        /// <param name="limit">Maximum number of records to return.</param>
+        /// <returns>A list of eBay listings.</returns>
+        public async Task<List<EbayListing>> SearchListingsAsync(string query, int limit = 10)
+        {
+            return await SearchListingsAsync(query, limit, "active", 0);
+        }
+
+        /// <summary>
+        /// Searches eBay listings using the text-based Browse API endpoint with
+        /// explicit listing filter options.
+        /// </summary>
+        /// <param name="query">The user-entered search query.</param>
+        /// <param name="limit">Maximum number of records to return.</param>
+        /// <param name="listingTypeFilter">"sold" or "active".</param>
+        /// <param name="daysRange">
+        /// Number of days for lastSoldDate when listingTypeFilter is "sold".
+        /// Ignored for "active".
+        /// </param>
+        /// <returns>A list of eBay listings.</returns>
+        public async Task<List<EbayListing>> SearchListingsAsync(
+            string query,
+            int limit,
+            string listingTypeFilter,
+            int daysRange)
+        {
+            List<EbayListing> results = new List<EbayListing>();
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return results;
+            }
 
             await InitializeAsync();
             string? token = await RefreshAccessTokenAsync();
@@ -167,49 +539,60 @@ namespace CollectIQ.Services
                 return results;
             }
 
-            // Clean up query before sending to eBay
             string safeQuery = CleanQueryForEbay(query);
             System.Diagnostics.Debug.WriteLine($"[eBay CLEAN QUERY] {safeQuery}");
 
-            // Build final URL with extra filters
-            string url = "https://api.ebay.com/buy/browse/v1/item_summary/search" +
-                         $"?q={Uri.EscapeDataString(safeQuery)}" +
-                         $"&limit={limit}" +
-                         $"&fieldgroups=EXTENDED" +
-                         $"&filter=priceCurrency:USD";
+            string filterValue = BuildFilterString(listingTypeFilter, daysRange);
+            string encodedFilter = Uri.EscapeDataString(filterValue);
+
+            string url =
+                "https://api.ebay.com/buy/browse/v1/item_summary/search" +
+                $"?q={Uri.EscapeDataString(safeQuery)}" +
+                $"&limit={limit}" +
+                $"&fieldgroups=EXTENDED" +
+                $"&filter={encodedFilter}";
 
             System.Diagnostics.Debug.WriteLine($"[eBay SEARCH URL] {url}");
 
-
-            var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             try
             {
-                var resp = await _httpClient.SendAsync(req);
-                string json = await resp.Content.ReadAsStringAsync();
+                HttpResponseMessage response = await httpClient.SendAsync(request);
+                string json = await response.Content.ReadAsStringAsync();
 
-                if (!resp.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[eBay API ERROR] {resp.StatusCode}: {json}");
+                    System.Diagnostics.Debug.WriteLine($"[eBay API ERROR] {response.StatusCode}: {json}");
                     return results;
                 }
 
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("itemSummaries", out var items))
+                using JsonDocument doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("itemSummaries", out JsonElement items))
                 {
                     System.Diagnostics.Debug.WriteLine("[eBay SEARCH] No itemSummaries found.");
                     return results;
                 }
 
-                foreach (var item in items.EnumerateArray())
+                foreach (JsonElement item in items.EnumerateArray())
                 {
                     string title = item.GetPropertyOrDefault("title", string.Empty);
                     string imageUrl = item.GetPropertyOrDefault("image", "imageUrl");
                     string currency = item.GetNestedProperty("price", "currency") ?? "USD";
-                    string priceStr = item.GetNestedProperty("price", "value") ?? "0";
-                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price);
+                    string priceString = item.GetNestedProperty("price", "value") ?? "0";
+                    string status = "Active";
+                    if (item.TryGetProperty("itemEndDate", out JsonElement endDateElement) &&
+                        endDateElement.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrEmpty(endDateElement.GetString()))
+                    {
+                        status = "Sold";
+                    }
+
+                    decimal price = 0;
+                    decimal.TryParse(priceString, NumberStyles.Any, CultureInfo.InvariantCulture, out price);
+
                     string urlWeb = item.GetPropertyOrDefault("itemWebUrl", string.Empty);
                     string id = item.GetPropertyOrDefault("itemId", string.Empty);
 
@@ -220,7 +603,8 @@ namespace CollectIQ.Services
                         Currency = currency,
                         Price = price,
                         Url = urlWeb,
-                        ListingId = id
+                        ListingId = id,
+                        Status = status
                     });
                 }
 
@@ -234,13 +618,33 @@ namespace CollectIQ.Services
             }
         }
 
-        // -------------------------------------------------------
-        //  Search listings via eBay Browse API - search_by_image
-        // -------------------------------------------------------
-        public async Task<List<EbayListing>> SearchByImageAsync(string base64Image, int limit = 10)
-        {
-            var results = new List<EbayListing>();
+        #endregion
 
+        #region Image Search
+
+        /// <summary>
+        /// Uses the eBay search_by_image endpoint to find listings that
+        /// visually match the provided card image.
+        /// </summary>
+        /// <param name="base64Image">The base64-encoded image of the card.</param>
+        /// <param name="limit">Maximum number of records to return.</param>
+        /// <param name="listingTypeFilter">"sold", "active", or "both".</param>
+        /// <param name="daysRange">
+        /// Number of days for lastSoldDate when listingTypeFilter is "sold" or "both".
+        /// Ignored for "active".
+        /// </param>
+        /// <returns>A list of eBay listings matching the image and filters.</returns>
+        public async Task<List<EbayListing>> SearchByImageAsync(
+            string base64Image,
+            int limit,
+            string listingTypeFilter,
+            int daysRange)
+        {
+            List<EbayListing> results = new List<EbayListing>();
+
+            // ----------------------------------------------------------
+            // INPUT VALIDATION
+            // ----------------------------------------------------------
             if (string.IsNullOrWhiteSpace(base64Image))
             {
                 System.Diagnostics.Debug.WriteLine("[eBay IMAGE] Empty base64 image.");
@@ -256,50 +660,65 @@ namespace CollectIQ.Services
                 return results;
             }
 
-            // Endpoint per eBay docs – using limit and USD filter, similar to text search
-            string url =
-                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}&filter=priceCurrency:USD";
+            // ----------------------------------------------------------
+            // FILTER STRING CONSTRUCTION
+            // ----------------------------------------------------------
+            string filterValue = BuildFilterString(listingTypeFilter, daysRange);
+            string encodedFilter = Uri.EscapeDataString(filterValue);
 
-            // Build JSON payload: { "image": "<BASE64 STRING>" }
+            string url =
+                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}&filter={encodedFilter}";
+
             var payload = new { image = base64Image };
             string jsonBody = JsonSerializer.Serialize(payload);
 
-            var req = new HttpRequestMessage(HttpMethod.Post, url);
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            req.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
-            req.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
+            request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             try
             {
-                var resp = await _httpClient.SendAsync(req);
-                string json = await resp.Content.ReadAsStringAsync();
+                HttpResponseMessage response = await httpClient.SendAsync(request);
+                string json = await response.Content.ReadAsStringAsync();
 
-                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE STATUS] {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE STATUS] {(int)response.StatusCode} {response.ReasonPhrase}");
                 System.Diagnostics.Debug.WriteLine($"[eBay IMAGE BODY] {json}");
 
-                if (!resp.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[eBay IMAGE ERROR] {resp.StatusCode}: {json}");
+                    System.Diagnostics.Debug.WriteLine($"[eBay IMAGE ERROR] {response.StatusCode}: {json}");
                     return results;
                 }
 
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("itemSummaries", out var items))
+                // ----------------------------------------------------------
+                // PARSE RESULTS
+                // ----------------------------------------------------------
+                using JsonDocument doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("itemSummaries", out JsonElement items))
                 {
                     System.Diagnostics.Debug.WriteLine("[eBay IMAGE] No itemSummaries found.");
                     return results;
                 }
 
-                foreach (var item in items.EnumerateArray())
+                foreach (JsonElement item in items.EnumerateArray())
                 {
                     string title = item.GetPropertyOrDefault("title", string.Empty);
-                    string imageUrl = item.GetPropertyOrDefault("image", "imageUrl");
+                    string imageUrl = item.GetNestedProperty("image", "imageUrl") ?? string.Empty;
                     string currency = item.GetNestedProperty("price", "currency") ?? "USD";
-                    string priceStr = item.GetNestedProperty("price", "value") ?? "0";
-                    decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price);
+                    string priceString = item.GetNestedProperty("price", "value") ?? "0";
+                    decimal price = Convert.ToDecimal(priceString, CultureInfo.InvariantCulture);
+
                     string urlWeb = item.GetPropertyOrDefault("itemWebUrl", string.Empty);
                     string id = item.GetPropertyOrDefault("itemId", string.Empty);
+                    string status = "Active";
+                    if (item.TryGetProperty("itemEndDate", out JsonElement endDateElement) &&
+                        endDateElement.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrEmpty(endDateElement.GetString()))
+                    {
+                        status = "Sold";
+                    }
 
                     results.Add(new EbayListing
                     {
@@ -308,7 +727,8 @@ namespace CollectIQ.Services
                         Currency = currency,
                         Price = price,
                         Url = urlWeb,
-                        ListingId = id
+                        ListingId = id,
+                        Status = status
                     });
                 }
 
@@ -322,65 +742,151 @@ namespace CollectIQ.Services
             }
         }
 
-        // -------------------------------------------------------
-        //  Best Match (first result)
-        // -------------------------------------------------------
+        /// <summary>
+        /// Uses eBay's image recognition to identify a card, then automatically
+        /// searches for SOLD listings of the top N matched titles.
+        /// </summary>
+        public async Task<List<EbayListing>> SearchSoldByImageAsync(
+            string base64Image,
+            int topN = 3,
+            int soldLimit = 20)
+        {
+            var finalResults = new List<EbayListing>();
+
+            // Step 1: Get active results (image recognition only)
+            var imageResults = await SearchByImageAsync(
+                base64Image,
+                limit: 10,
+                listingTypeFilter: "active",
+                daysRange: 0);
+
+            if (imageResults == null || imageResults.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("[eBay SOLD-BY-IMAGE] No image results.");
+                return finalResults;
+            }
+
+            // Step 2: Extract top N unique titles
+            var topTitles = imageResults
+                .Select(r => r.Title)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct()
+                .Take(topN)
+                .ToList();
+
+            System.Diagnostics.Debug.WriteLine(
+                "[eBay SOLD-BY-IMAGE] Searching sold for titles: " +
+                string.Join(" | ", topTitles));
+
+            // Step 3: Search SOLD listings for each title
+            foreach (var title in topTitles)
+            {
+                var sold = await SearchSoldAsync(title, soldLimit);
+                finalResults.AddRange(sold);
+            }
+
+            // Step 4: Deduplicate by ListingId
+            var unique = finalResults
+                .GroupBy(x => x.ListingId)
+                .Select(g => g.First())
+                .ToList();
+
+            // Step 5: Sort (newest first OR highest price first)
+            unique = unique
+                .OrderByDescending(x => x.Price)
+                .ToList();
+
+            return unique;
+        }
+
+
+        #endregion
+
+        #region Convenience
+
+        /// <summary>
+        /// Convenience method that returns only the first result for a given
+        /// text-based query.
+        /// </summary>
+        /// <param name="query">The search query.</param>
+        /// <returns>The best match listing, or null if none are found.</returns>
         public async Task<EbayListing?> GetBestMatchAsync(string query)
         {
-            var list = await SearchListingsAsync(query, 1);
+            List<EbayListing> list = await SearchListingsAsync(query, 1);
             return list.Count > 0 ? list[0] : null;
         }
+
+        #endregion
     }
 
-    // -------------------------------------------------------
-    //  JSON helper extensions
-    // -------------------------------------------------------
+    /// <summary>
+    /// JSON helper extensions for safely reading properties from eBay responses.
+    /// </summary>
     internal static class JsonExtensions
     {
-        public static string GetPropertyOrDefault(this JsonElement el, string obj, string nested)
+        /// <summary>
+        /// Attempts to retrieve a nested property under the specified object
+        /// key and nested key, falling back to an empty string if the path
+        /// does not exist.
+        /// </summary>
+        public static string GetPropertyOrDefault(this JsonElement element, string obj, string nested)
         {
             try
             {
-                if (!el.TryGetProperty(obj, out JsonElement subObj))
-                    return "";
-
-                // If the property itself is a string, just return it
-                if (subObj.ValueKind == JsonValueKind.String)
-                    return subObj.GetString() ?? "";
-
-                // If it’s an object, look inside it
-                if (subObj.ValueKind == JsonValueKind.Object && subObj.TryGetProperty(nested, out JsonElement value))
-                    return value.GetString() ?? "";
-
-                // If it’s an array, grab the first element’s nested value
-                if (subObj.ValueKind == JsonValueKind.Array && subObj.GetArrayLength() > 0)
+                if (!element.TryGetProperty(obj, out JsonElement subElement))
                 {
-                    var first = subObj[0];
-                    if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty(nested, out JsonElement nestedVal))
-                        return nestedVal.GetString() ?? "";
+                    return string.Empty;
                 }
 
-                return "";
+                if (subElement.ValueKind == JsonValueKind.String)
+                {
+                    return subElement.GetString() ?? string.Empty;
+                }
+
+                if (subElement.ValueKind == JsonValueKind.Object &&
+                    subElement.TryGetProperty(nested, out JsonElement valueElement))
+                {
+                    return valueElement.GetString() ?? string.Empty;
+                }
+
+                if (subElement.ValueKind == JsonValueKind.Array &&
+                    subElement.GetArrayLength() > 0)
+                {
+                    JsonElement first = subElement[0];
+                    if (first.ValueKind == JsonValueKind.Object &&
+                        first.TryGetProperty(nested, out JsonElement nestedElement))
+                    {
+                        return nestedElement.GetString() ?? string.Empty;
+                    }
+                }
+
+                return string.Empty;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[JSON EXT ERROR] {ex.Message}");
-                return "";
+                return string.Empty;
             }
         }
 
-
-        public static string? GetNestedProperty(this JsonElement el, string parent, string child)
+        /// <summary>
+        /// Attempts to retrieve a simple child property from a given parent key.
+        /// </summary>
+        public static string? GetNestedProperty(this JsonElement element, string parent, string child)
         {
-            if (el.TryGetProperty(parent, out var p) && p.TryGetProperty(child, out var c))
-                return c.GetString();
+            if (element.TryGetProperty(parent, out JsonElement parentElement) &&
+                parentElement.TryGetProperty(child, out JsonElement childElement))
+            {
+                return childElement.GetString();
+            }
+
             return null;
         }
     }
 
-    // -------------------------------------------------------
-    //  Secure Config model
-    // -------------------------------------------------------
+    /// <summary>
+    /// Configuration model mapping directly to secure.json.
+    /// </summary>
     public class SecureConfig
     {
         public string EBAY_CLIENT_ID { get; set; } = string.Empty;

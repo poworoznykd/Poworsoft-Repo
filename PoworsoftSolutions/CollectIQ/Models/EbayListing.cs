@@ -1,53 +1,108 @@
-﻿/*
-* FILE: EbayListing.cs
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-18
-* DESCRIPTION:
-*     Represents a single eBay listing returned by the eBay Browse API.
-*     Used for displaying title, image, price, and item URL.
-*/
-
+﻿using System;
 using SQLite;
 
 namespace CollectIQ.Models
 {
     /// <summary>
-    /// Represents an eBay listing summary.
+    /// Represents a single eBay listing or sold item.
+    /// This is the ONLY model used by the app for eBay results.
     /// </summary>
-    public sealed class EbayListing
+    public class EbayListing
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
 
         /// <summary>
-        /// eBay item ID.
+        /// eBay itemId / itemSaleId.
         /// </summary>
         public string ListingId { get; set; } = string.Empty;
 
         /// <summary>
-        /// Listing title text.
+        /// Human-readable title from eBay.
         /// </summary>
         public string Title { get; set; } = string.Empty;
 
         /// <summary>
-        /// Item price (parsed to decimal where possible).
-        /// </summary>
-        public decimal? Price { get; set; }
-
-        /// <summary>
-        /// Currency code (e.g., USD, CAD).
-        /// </summary>
-        public string Currency { get; set; } = "USD";
-
-        /// <summary>
-        /// URL of the listing's main image.
+        /// Main image URL to show in the results list.
         /// </summary>
         public string ImageUrl { get; set; } = string.Empty;
 
         /// <summary>
-        /// Direct browser link to the eBay listing.
+        /// URL to open in the browser when user taps a card.
         /// </summary>
         public string Url { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Current or sold price value (numeric).
+        /// </summary>
+        public decimal? Price { get; set; }
+
+        /// <summary>
+        /// ISO currency code, e.g. USD, CAD, EUR.
+        /// </summary>
+        public string Currency { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Status: "ACTIVE", "SOLD", etc. 
+        /// Used for filtering/tabs.
+        /// </summary>
+        public string Status { get; set; } = "ACTIVE";
+
+        /// <summary>
+        /// When the item was sold/ended (if known).
+        /// </summary>
+        public DateTime? EndDateUtc { get; set; }
+
+        /// <summary>
+        /// Optional shipping cost if you want to show it later.
+        /// </summary>
+        public decimal? ShippingCost { get; set; }
+
+        /// <summary>
+        /// Helper: formatted "pretty" price (used by XAML bindings).
+        /// </summary>
+        public string FormattedPrice => FormatPrice(Price, Currency);
+
+        public string SoldDateDisplay =>
+        EndDateUtc.HasValue
+            ? EndDateUtc.Value.ToLocalTime().ToString("yyyy-MM-dd")
+            : string.Empty;
+
+
+        public bool IsSold =>
+            Status.Equals("SOLD", StringComparison.OrdinalIgnoreCase);
+
+        public override string ToString()
+        {
+            return string.IsNullOrWhiteSpace(Title)
+                ? base.ToString() ?? string.Empty
+                : $"{Title} - {FormattedPrice}";
+        }
+
+        /// <summary>
+        /// Utility that formats a price nicely for display.
+        /// </summary>
+        public static string FormatPrice(decimal? price, string currencyCode)
+        {
+            if (!price.HasValue)
+            {
+                return string.Empty;
+            }
+
+            string code = string.IsNullOrWhiteSpace(currencyCode)
+                ? "USD"
+                : currencyCode.Trim().ToUpperInvariant();
+
+            decimal value = price.Value;
+
+            return code switch
+            {
+                "USD" => $"${value:0.00}",
+                "CAD" => $"C${value:0.00}",
+                "EUR" => $"€{value:0.00}",
+                "GBP" => $"£{value:0.00}",
+                _ => $"{value:0.00} {code}"
+            };
+        }
     }
 }

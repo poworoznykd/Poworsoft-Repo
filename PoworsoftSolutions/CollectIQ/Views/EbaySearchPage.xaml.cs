@@ -1,263 +1,387 @@
-﻿/* 
-* FILE            : EbaySearchPage.xaml.cs
-* PROJECT         : CollectIQ (Mobile Application)
-* PROGRAMMER      : Darryl Poworoznyk
-* FIRST VERSION   : 2025-11-03
-* DESCRIPTION     :
-*      Displays eBay search results for sports cards.
-*      Supports:
-*          - Manual text-based search using the Browse API.
-*          - Image-based search using eBay's search_by_image endpoint
-*            when a front card image path is passed from ScanPage.
-*      Allows the user to view items on eBay and add matches to the
-*      local SQLite-backed collection.
-*/
+﻿//
+//  FILE            : EbaySearchPage.xaml.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-10-28
+//  UPDATED         : 2025-11-22
+//  DESCRIPTION     :
+//      Displays eBay search results for a scanned or manually
+//      entered card query. Supports search-by-image, manual search,
+//      swipe actions for "View on eBay" and "Add to Collection",
+//      a futuristic bottom-sheet filter panel, and a floating
+//      sold-comps overlay (with a simple price graph) that appears
+//      when a result is swiped open.
+//
 
-using CollectIQ.Models;
-using CollectIQ.Services;
-using CollectIQ.Utilities;
-using Microsoft.Maui.Controls;
-using Plugin.Maui.OCR;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using CollectIQ.Models;
+using CollectIQ.Services;
+using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
-    [QueryProperty(nameof(FrontPath), "frontPath")]
-    [QueryProperty(nameof(BackPath), "backPath")]
+    /// <summary>
+    /// Interaction logic for the eBay search results page.
+    /// </summary>
+    [QueryProperty(nameof(FrontImagePath), "frontPath")]
     public partial class EbaySearchPage : ContentPage
     {
-        // ====================================================================
-        // Fields
-        // ====================================================================
-
         /// <summary>
-        /// The currently selected eBay listing from the results list.
+        /// Represents the type of search that last ran.
         /// </summary>
-        private EbayListing? selectedEbayListing;
-
-        /// <summary>
-        /// Indicates whether a swipe gesture is in progress so that 
-        /// selection taps do not double-fire.
-        /// </summary>
-        private bool isSwipeInProgress = false;
-
-        /// <summary>
-        /// Service responsible for calling the eBay Browse API.
-        /// </summary>
-        private readonly EbayService ebayService = new(new HttpClient());
-
-        /// <summary>
-        /// Collection of listings displayed in the results view.
-        /// </summary>
-        public ObservableCollection<EbayListing> Listings { get; } = new();
-
-        /// <summary>
-        /// OCR service used to process text from the back of the card image.
-        /// </summary>
-        private readonly IOcrService ocrService;
-
-        /// <summary>
-        /// Local backing field for the front image path passed from ScanPage.
-        /// </summary>
-        private string frontImagePath = string.Empty;
-
-        /// <summary>
-        /// Local backing field for the back image path passed from ScanPage.
-        /// </summary>
-        private string backImagePath = string.Empty;
-
-        // ====================================================================
-        // Properties (used by Shell query navigation)
-        // ====================================================================
-
-        /// <summary>
-        /// Gets or sets the path to the front card image.
-        /// When set via Shell navigation (frontPath), this will automatically
-        /// trigger an image-based search against eBay's search_by_image API.
-        /// </summary>
-        public string FrontPath
+        private enum SearchMode
         {
-            get => frontImagePath;
-            set
-            {
-                frontImagePath = value;
-
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    // Fire-and-forget image search when the card front path is supplied.
-                    _ = PerformImageSearchAsync(value);
-                }
-            }
+            None,
+            Image,
+            Text
         }
 
+        private readonly EbayService ebayService;
+        private readonly ObservableCollection<EbayListing> listings;
+        private readonly ObservableCollection<EbayListing> compsListings;
+
+        private EbayListing? selectedListing;
+        private bool isSwipeInProgress;
+        private SearchMode lastSearchMode;
+
+        private string listingTypeFilter;
+        private int daysRangeFilter;
+        private int averageCountFilter;
+
+        private string lastImageBase64;
+        private string lastManualQuery;
+        private string frontImagePathInternal;
+
         /// <summary>
-        /// Gets or sets the path to the back card image.
-        /// When set via Shell navigation (backPath), this triggers OCR, sanitizes
-        /// the text for eBay, and performs a text-based search.
+        /// Gets or sets the path to the scanned front image passed in via Shell.
         /// </summary>
-        public string BackPath
+        public string FrontImagePath
         {
-            get => backImagePath;
-            set
-            {
-                backImagePath = value;
-
-                if (!string.IsNullOrEmpty(value))
-                {
-                    // Fire-and-forget OCR + text search on the back image.
-                    _ = ProcessBackImageAsync(value);
-                }
-            }
+            get => frontImagePathInternal;
+            set => frontImagePathInternal = Uri.UnescapeDataString(value ?? string.Empty);
         }
-
-        // ====================================================================
-        // Constructor
-        // ====================================================================
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EbaySearchPage"/> class.
         /// </summary>
-        /// <param name="ocrServiceParameter">
-        /// The OCR service used to recognize text from the back of the card.
-        /// </param>
-        public EbaySearchPage(IOcrService ocrServiceParameter)
+        public EbaySearchPage()
         {
-            ocrService = ocrServiceParameter;
-
             InitializeComponent();
-            BindingContext = this;
+
+            ebayService = new EbayService(new HttpClient());
+            listings = new ObservableCollection<EbayListing>();
+            compsListings = new ObservableCollection<EbayListing>();
+
+            EbayResultsView.ItemsSource = listings;
+            CompsListView.ItemsSource = compsListings;
+
+            // Default filter: sold, last 90 days, top 10 comps
+            listingTypeFilter = "sold";
+            daysRangeFilter = 90;
+            averageCountFilter = 10;
+
+            lastSearchMode = SearchMode.None;
+            lastImageBase64 = string.Empty;
+            lastManualQuery = string.Empty;
+            frontImagePathInternal = string.Empty;
+
+            CompsPanel.IsVisible = false;
+            CompsScrim.IsVisible = false;
+
+            InitializeFilterPickers();
+            UpdateFilterSummaryLabel();
         }
 
-        // ====================================================================
-        // OCR Helpers (Back-Of-Card Text Search)
-        // ====================================================================
+        #region Lifecycle
 
         /// <summary>
-        /// Performs OCR on the provided image path and returns detected text.
+        /// On navigation to this page, if a front image path was provided,
+        /// automatically perform a search-by-image using the current filters.
         /// </summary>
-        /// <param name="imagePath">The full path to the card image file.</param>
-        /// <returns>
-        /// The recognized text from the image, or null if OCR fails or the
-        /// file cannot be read.
-        /// </returns>
-        private async Task<string?> RecognizeTextFromImageAsync(string imagePath)
+        /// <param name="args">Navigation arguments.</param>
+        protected override async void OnNavigatedTo(NavigatedToEventArgs args)
         {
+            base.OnNavigatedTo(args);
+
             try
             {
-                if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
+                if (!string.IsNullOrWhiteSpace(FrontImagePath) &&
+                    File.Exists(FrontImagePath))
                 {
-                    return null;
+                    await PerformImageSearchAsync(FrontImagePath);
                 }
-
-                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
-                var ocrResult = await ocrService.RecognizeTextAsync(imageBytes);
-
-                Debug.WriteLine($"[OCR] Detected Text: {ocrResult.AllText}");
-
-                return ocrResult.AllText.Trim();
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                Debug.WriteLine($"[OCR ERROR]: {exception.Message}");
-                await DisplayAlert("OCR Error", exception.Message, "OK");
-                return null;
+                Debug.WriteLine($"[EbaySearchPage] OnNavigatedTo error: {ex.Message}");
             }
         }
 
+        #endregion
+
+        #region Filter Initialization
+
         /// <summary>
-        /// Uses the back image to perform OCR, sanitizes the text for eBay,
-        /// updates the manual search box, and performs a text-based search.
+        /// Populates the filter pickers with default options.
         /// </summary>
-        /// <param name="imagePath">The full path to the back card image.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        private async Task ProcessBackImageAsync(string imagePath)
+        private void InitializeFilterPickers()
         {
-            try
+            // Listing type options
+            ListingTypePicker.Items.Clear();
+            ListingTypePicker.Items.Add("Sold (last sold)");
+            ListingTypePicker.Items.Add("Active (for sale)");
+            ListingTypePicker.SelectedIndex = 0;
+
+            // Days range options (used only for sold)
+            DaysRangePicker.Items.Clear();
+            DaysRangePicker.Items.Add("30");
+            DaysRangePicker.Items.Add("90");
+            DaysRangePicker.Items.Add("180");
+            DaysRangePicker.Items.Add("365");
+            DaysRangePicker.SelectedIndex = 1; // 90 by default
+
+            // Average count (top N results)
+            AverageCountPicker.Items.Clear();
+            AverageCountPicker.Items.Add("5");
+            AverageCountPicker.Items.Add("10");
+            AverageCountPicker.Items.Add("20");
+            AverageCountPicker.Items.Add("50");
+            AverageCountPicker.SelectedIndex = 1; // 10 by default
+        }
+
+        /// <summary>
+        /// Updates the small filter summary label under the manual search controls.
+        /// </summary>
+        private void UpdateFilterSummaryLabel()
+        {
+            string typeLabel = string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
+                ? "Sold"
+                : "Active";
+
+            if (string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase))
             {
-                string? rawText = await RecognizeTextFromImageAsync(imagePath);
-                string sanitizedText = await OCRUtility.SanitizeForEbay(rawText) ?? string.Empty;
-
-                ManualSearchBox.Text = sanitizedText;
-
-                if (string.IsNullOrWhiteSpace(sanitizedText))
-                {
-                    await DisplayAlert("No Text Found", "Could not extract text from the back image.", "OK");
-                    return;
-                }
-
-                StatusLabel.Text = $"Searching eBay for: {sanitizedText}";
-                await PerformSearchAsync(sanitizedText);
+                FilterSummaryLabel.Text =
+                    $"Filters: {typeLabel}, last {daysRangeFilter} days, avg top {averageCountFilter}";
             }
-            catch (Exception exception)
+            else
             {
-                await DisplayAlert("Error", $"OCR or search failed: {exception.Message}", "OK");
+                FilterSummaryLabel.Text =
+                    $"Filters: {typeLabel}, avg top {averageCountFilter}";
             }
         }
 
-        // ====================================================================
-        // Image-Based Search (Front-Of-Card)
-        // ====================================================================
+        #endregion
+
+        #region Search Helpers
 
         /// <summary>
-        /// Executes an image-based search using eBay's search_by_image endpoint.
-        /// The front card image is loaded, converted to Base64, and sent to the
-        /// Browse API via <see cref="EbayService.SearchByImageAsync(string, int)"/>.
+        /// Enables or disables the search spinner and sets status text.
         /// </summary>
-        /// <param name="imagePath">The full path to the front card image.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
+        private void SetSearchingState(bool isSearching, string statusText = "")
+        {
+            SearchActivityIndicator.IsVisible = isSearching;
+            SearchActivityIndicator.IsRunning = isSearching;
+
+            if (!string.IsNullOrEmpty(statusText))
+            {
+                StatusLabel.Text = statusText;
+            }
+        }
+
+        /// <summary>
+        /// Calculates the average price from the current results based on
+        /// the configured top N averageCountFilter.
+        /// </summary>
+        private decimal CalculateAveragePrice(List<EbayListing> results)
+        {
+            if (results == null || results.Count == 0)
+            {
+                return 0m;
+            }
+
+            var pricedItems = results
+                .Where(r => r.Price.HasValue && r.Price.Value > 0m)
+                .OrderBy(r => r.Price!.Value)
+                .Take(averageCountFilter)
+                .ToList();
+
+            if (pricedItems.Count == 0)
+            {
+                return 0m;
+            }
+
+            return pricedItems.Average(r => r.Price!.Value);
+        }
+
+        /// <summary>
+        /// Updates the StatusLabel after a search using the given results.
+        /// </summary>
+        private void UpdateStatusForResults(List<EbayListing> results)
+        {
+            if (results == null || results.Count == 0)
+            {
+                StatusLabel.Text = "No results found.";
+                return;
+            }
+
+            decimal averagePrice = CalculateAveragePrice(results);
+
+            string typeLabel = string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
+                ? "Sold comps"
+                : "Active listings";
+
+            if (averagePrice <= 0m)
+            {
+                StatusLabel.Text =
+                    $"{typeLabel}: {results.Count} results (no valid prices for average).";
+            }
+            else
+            {
+                StatusLabel.Text =
+                    $"{typeLabel}: {results.Count} results, avg top {averageCountFilter}: {averagePrice:C2}";
+            }
+        }
+
+        /// <summary>
+        /// Applies the new results to the observable collection.
+        /// </summary>
+        private void ApplyResultsToCollection(List<EbayListing> results)
+        {
+            listings.Clear();
+
+            if (results == null)
+            {
+                return;
+            }
+
+            foreach (EbayListing listing in results)
+            {
+                listings.Add(listing);
+            }
+        }
+
+        #endregion
+
+        #region Image Search
+
+        /// <summary>
+        /// Performs a search-by-image using the front card image path.
+        /// For "Sold" mode, we:
+        ///   1) Identify the card by image (active listings),
+        ///   2) Use the top titles to fetch sold comps by text.
+        /// </summary>
         private async Task PerformImageSearchAsync(string imagePath)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
                 {
-                    await DisplayAlert("Image Error", "Front image not found on device.", "OK");
                     return;
                 }
 
-                // Read image bytes and convert to Base64 as required by eBay.
-                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
-                string base64Image = Convert.ToBase64String(imageBytes);
-
-                StatusLabel.Text = "Searching eBay by image...";
-                Listings.Clear();
-
-                var searchResults = await ebayService.SearchByImageAsync(base64Image, 10);
-
-                if (searchResults != null && searchResults.Count > 0)
+                int lookbackDays = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
+                if (lookbackDays > 90)
                 {
-                    foreach (EbayListing ebayListing in searchResults)
+                    lookbackDays = 90;
+                }
+
+                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
+                lastImageBase64 = Convert.ToBase64String(imageBytes);
+                lastSearchMode = SearchMode.Image;
+
+                var results = new List<EbayListing>();
+
+                if (string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase))
+                {
+                    SetSearchingState(true, "Identifying card and retrieving sold comps...");
+
+                    // Step 1: identify card using active listings via image search.
+                    var identified = await ebayService.SearchByImageAsync(
+                        lastImageBase64,
+                        limit: 5,
+                        listingTypeFilter: "active",
+                        daysRange: lookbackDays);
+
+                    if (identified == null || identified.Count == 0)
                     {
-                        Listings.Add(ebayListing);
+                        await DisplayAlert(
+                            "No matches",
+                            "Could not identify this card from the image.",
+                            "OK");
+                    }
+                    else
+                    {
+                        // Step 2: take top distinct titles and search sold comps by text.
+                        var topTitles = identified
+                            .Where(r => !string.IsNullOrWhiteSpace(r.Title))
+                            .Select(r => r.Title!)
+                            .Distinct()
+                            .Take(3)
+                            .ToList();
+
+                        foreach (string title in topTitles)
+                        {
+                            var soldForTitle = await ebayService.SearchSoldAsync(
+                                title,
+                                limit: Math.Max(averageCountFilter * 3, 30));
+
+                            if (soldForTitle != null && soldForTitle.Count > 0)
+                            {
+                                results.AddRange(soldForTitle);
+                            }
+                        }
+
+                        if (results.Count == 0)
+                        {
+                            await DisplayAlert(
+                                "No sold comps",
+                                $"No sold results found in the last {lookbackDays} days for the identified card title(s). Showing active listings instead.",
+                                "OK");
+
+                            listingTypeFilter = "active";
+                            UpdateFilterSummaryLabel();
+                            results = identified;
+                        }
                     }
                 }
                 else
                 {
-                    await DisplayAlert("No Results", "No eBay matches found for this image.", "OK");
+                    SetSearchingState(true, "Identifying card and retrieving listings...");
+
+                    results = await ebayService.SearchByImageAsync(
+                        lastImageBase64,
+                        limit: Math.Max(averageCountFilter, 25),
+                        listingTypeFilter: listingTypeFilter,
+                        daysRange: lookbackDays);
                 }
 
-                EbayResultsView.ItemsSource = Listings;
+                ApplyResultsToCollection(results);
+                UpdateStatusForResults(results);
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                await DisplayAlert("Error", $"eBay image search failed: {exception.Message}", "OK");
+                await DisplayAlert("Error", $"Image search failed: {ex.Message}", "OK");
+            }
+            finally
+            {
+                SetSearchingState(false);
             }
         }
 
-        // ====================================================================
-        // Text-Based Search (Manual or OCR-Derived)
-        // ====================================================================
+        #endregion
+
+        #region Manual Search
 
         /// <summary>
-        /// Performs a text-based search using the eBay Browse API's search endpoint.
+        /// Performs a manual text-based search using the configured filters.
         /// </summary>
-        /// <param name="query">The text query to send to eBay.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        private async Task PerformSearchAsync(string query)
+        private async Task PerformManualSearchAsync(string query)
         {
             try
             {
@@ -266,42 +390,210 @@ namespace CollectIQ.Views
                     return;
                 }
 
-                string cleanedQuery = query.Trim();
-                StatusLabel.Text = $"Searching eBay for: {cleanedQuery}";
-                Listings.Clear();
+                lastManualQuery = query.Trim();
+                lastSearchMode = SearchMode.Text;
 
-                var searchResults = await ebayService.SearchListingsAsync(cleanedQuery, 10);
+                SetSearchingState(true, $"Searching eBay for: {lastManualQuery}");
 
-                if (searchResults != null && searchResults.Count > 0)
-                {
-                    foreach (EbayListing ebayListing in searchResults)
-                    {
-                        Listings.Add(ebayListing);
-                    }
-                }
-                else
-                {
-                    await DisplayAlert("No Results", "No eBay matches found.", "OK");
-                }
+                var results = await ebayService.SearchListingsAsync(
+                    lastManualQuery,
+                    limit: Math.Max(averageCountFilter, 25),
+                    listingTypeFilter: listingTypeFilter,
+                    daysRange: daysRangeFilter);
 
-                EbayResultsView.ItemsSource = Listings;
+                ApplyResultsToCollection(results);
+                UpdateStatusForResults(results);
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                await DisplayAlert("Error", $"eBay search failed: {exception.Message}", "OK");
+                await DisplayAlert("Error", $"eBay search failed: {ex.Message}", "OK");
+            }
+            finally
+            {
+                SetSearchingState(false);
             }
         }
 
-        // ====================================================================
-        // Event Handlers
-        // ====================================================================
+        #endregion
+
+        #region Comps Overlay
 
         /// <summary>
-        /// Handles the click event for the manual search button.
-        /// Uses the text in the manual search box as the query.
+        /// Loads sold comps for the selected listing and displays the overlay with graph.
         /// </summary>
-        /// <param name="sender">The source of the click event.</param>
-        /// <param name="e">The event data.</param>
+        private async Task LoadAndShowCompsAsync(EbayListing listing)
+        {
+            try
+            {
+                if (listing == null || string.IsNullOrWhiteSpace(listing.Title))
+                {
+                    return;
+                }
+
+                SetSearchingState(true, $"Loading sold comps for: {listing.Title}");
+
+                var soldComps = await ebayService.SearchSoldAsync(
+                    listing.Title,
+                    limit: Math.Max(averageCountFilter * 3, 30));
+
+                compsListings.Clear();
+                if (soldComps != null)
+                {
+                    foreach (var comp in soldComps)
+                    {
+                        compsListings.Add(comp);
+                    }
+                }
+
+                UpdateCompsSummaryAndGraph(soldComps, listing.Title);
+
+                await ShowCompsOverlayAsync();
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert(
+                    "Comps Error",
+                    $"Unable to load sold comps: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                SetSearchingState(false);
+            }
+        }
+
+        /// <summary>
+        /// Updates summary labels and builds a simple bar graph of prices over time.
+        /// </summary>
+        private void UpdateCompsSummaryAndGraph(
+            List<EbayListing>? soldComps,
+            string title)
+        {
+            CompsTitleLabel.Text = title;
+            CompsGraphLayout.Children.Clear();
+
+            if (soldComps == null || soldComps.Count == 0)
+            {
+                CompsStatsLabel.Text = "No sold comps found.";
+                CompsRangeLabel.Text = string.Empty;
+                return;
+            }
+
+            var priced = soldComps
+                .Where(c => c.Price.HasValue && c.Price.Value > 0m)
+                .ToList();
+
+            if (priced.Count == 0)
+            {
+                CompsStatsLabel.Text = "No valid prices.";
+                CompsRangeLabel.Text = string.Empty;
+                return;
+            }
+
+            decimal min = priced.Min(c => c.Price!.Value);
+            decimal max = priced.Max(c => c.Price!.Value);
+            decimal avg = priced.Average(c => c.Price!.Value);
+
+            CompsStatsLabel.Text =
+                $"Count: {priced.Count}, Avg: {avg:C2}, Min: {min:C2}, Max: {max:C2}";
+
+            var ordered = priced
+                .OrderBy(c => c.EndDateUtc ?? DateTime.UtcNow)
+                .ToList();
+
+            DateTime? firstDate = ordered.First().EndDateUtc;
+            DateTime? lastDate = ordered.Last().EndDateUtc;
+
+            if (firstDate.HasValue && lastDate.HasValue)
+            {
+                CompsRangeLabel.Text =
+                    $"{firstDate.Value:yyyy-MM-dd} → {lastDate.Value:yyyy-MM-dd}";
+            }
+            else
+            {
+                CompsRangeLabel.Text = string.Empty;
+            }
+
+            // Simple bar graph of price over time.
+            const double maxBarHeight = 60;
+
+            if (max <= 0m)
+            {
+                return;
+            }
+
+            CompsGraphLayout.Children.Clear();
+
+            foreach (var comp in ordered)
+            {
+                decimal price = comp.Price ?? 0m;
+                double normalized = (double)(price / max);
+                if (normalized < 0) normalized = 0;
+                if (normalized > 1) normalized = 1;
+
+                var bar = new BoxView
+                {
+                    WidthRequest = 8,
+                    HeightRequest = Math.Max(6, maxBarHeight * normalized),
+                    BackgroundColor = Color.FromArgb("#6CD4FF"),
+                    CornerRadius = 3,
+                    VerticalOptions = LayoutOptions.End,
+                    HorizontalOptions = LayoutOptions.Center
+                };
+
+                CompsGraphLayout.Children.Add(bar);
+            }
+        }
+
+        private async Task ShowCompsOverlayAsync()
+        {
+            if (CompsPanel.IsVisible)
+                return;
+
+            CompsPanel.IsVisible = true;
+            CompsScrim.IsVisible = true;
+
+            CompsPanel.Opacity = 0;
+            CompsPanel.TranslationY = 80;
+            CompsScrim.Opacity = 0;
+
+            await Task.WhenAll(
+                CompsPanel.FadeTo(1, 180, Easing.CubicOut),
+                CompsPanel.TranslateTo(0, 0, 180, Easing.CubicOut),
+                CompsScrim.FadeTo(1, 200, Easing.CubicOut));
+        }
+
+        private async Task HideCompsOverlayAsync()
+        {
+            if (!CompsPanel.IsVisible)
+                return;
+
+            await Task.WhenAll(
+                CompsPanel.FadeTo(0, 160, Easing.CubicIn),
+                CompsPanel.TranslateTo(0, 80, 160, Easing.CubicIn),
+                CompsScrim.FadeTo(0, 160, Easing.CubicIn));
+
+            CompsPanel.IsVisible = false;
+            CompsScrim.IsVisible = false;
+        }
+
+        private async void OnCompsScrimTapped(object sender, TappedEventArgs e)
+        {
+            await HideCompsOverlayAsync();
+        }
+
+        private async void OnCloseCompsTapped(object sender, TappedEventArgs e)
+        {
+            await HideCompsOverlayAsync();
+        }
+
+        #endregion
+
+        #region Event Handlers - Manual Search and Filters
+
+        /// <summary>
+        /// Handles the manual SEARCH button click.
+        /// </summary>
         private async void OnManualSearchClicked(object sender, EventArgs e)
         {
             string query = ManualSearchBox?.Text?.Trim() ?? string.Empty;
@@ -312,118 +604,230 @@ namespace CollectIQ.Views
                 return;
             }
 
-            await PerformSearchAsync(query);
+            await PerformManualSearchAsync(query);
         }
 
         /// <summary>
-        /// Handles result selection from the eBay results list.
-        /// If no swipe operation is in progress, opens the item in the system browser.
+        /// Opens the CardPage for adding a new card manually.
         /// </summary>
-        /// <param name="sender">The CollectionView raising the event.</param>
-        /// <param name="e">The selection changed event data.</param>
-        private async void OnResultSelected(object sender, SelectionChangedEventArgs e)
-        {
-            if (e.CurrentSelection.Count == 0)
-            {
-                return;
-            }
-
-            if (e.CurrentSelection[0] is EbayListing listing &&
-                !string.IsNullOrEmpty(listing.Url))
-            {
-                selectedEbayListing = listing;
-
-                if (!isSwipeInProgress)
-                {
-                    await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
-                }
-            }
-
-            // Clear selection so the same item can be tapped again.
-            ((CollectionView)sender).SelectedItem = null;
-        }
-
-        /// <summary>
-        /// Handles the "Add" swipe action to add the selected eBay listing
-        /// to the local card collection.
-        /// </summary>
-        /// <param name="sender">The SwipeItem raising the event.</param>
-        /// <param name="e">The event data.</param>
-        private async void OnAddToCollectionSwipe(object sender, EventArgs e)
-        {
-            if (selectedEbayListing is EbayListing ebayListing)
-            {
-                try
-                {
-                    var card = new Card
-                    {
-                        Name = ebayListing.Title,
-                        EstimatedValue = ebayListing.Price,
-                        CollectionId = "Default",
-                        FrontImagePath = ebayListing.ImageUrl,
-                        BackImagePath = ebayListing.ImageUrl,
-                        Set = "eBay Import",
-                        GradeCompany = "Raw"
-                    };
-
-                    await App.Database.AddCardAsync(card);
-
-                    await DisplayAlert("Added", $"{ebayListing.Title} added to your collection.", "OK");
-                }
-                catch (Exception exception)
-                {
-                    await DisplayAlert("Error", $"Could not add card: {exception.Message}", "OK");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Handles the "View on eBay" swipe action and opens the selected listing
-        /// in the system browser.
-        /// </summary>
-        /// <param name="sender">The SwipeItem raising the event.</param>
-        /// <param name="e">The event data.</param>
-        private async void OnViewOnEbaySwipe(object sender, EventArgs e)
-        {
-            if (selectedEbayListing == null)
-            {
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(selectedEbayListing.Url))
-            {
-                await Browser.Default.OpenAsync(selectedEbayListing.Url, BrowserLaunchMode.SystemPreferred);
-            }
-        }
-
-        /// <summary>
-        /// Navigates to the card entry page for manual card creation.
-        /// </summary>
-        /// <param name="sender">The button raising the event.</param>
-        /// <param name="e">The event data.</param>
         private async void Add_Manual_Button_Clicked(object sender, EventArgs e)
         {
             await Navigation.PushAsync(new CardPage());
         }
 
         /// <summary>
-        /// Marks that a swipe operation has started so that taps do not fire concurrently.
+        /// Displays the bottom-sheet filter overlay.
         /// </summary>
-        /// <param name="sender">The SwipeView raising the event.</param>
-        /// <param name="e">The event data.</param>
-        private void SwipeView_SwipeStarted(object sender, SwipeStartedEventArgs e)
+        private void OnFilterButtonClicked(object sender, EventArgs e)
         {
-            isSwipeInProgress = true;
+            FilterOverlay.IsVisible = true;
         }
 
         /// <summary>
-        /// Marks that a swipe operation has ended and re-enables tap actions.
+        /// Applies selected filters and re-runs the last search.
         /// </summary>
-        /// <param name="sender">The SwipeView raising the event.</param>
-        /// <param name="e">The event data.</param>
+        private async void OnApplyFiltersClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                // Listing type
+                if (ListingTypePicker.SelectedIndex == 0)
+                {
+                    listingTypeFilter = "sold";
+                }
+                else
+                {
+                    listingTypeFilter = "active";
+                }
+
+                // Days range (only really used for sold)
+                int selectedDays = daysRangeFilter;
+                if (DaysRangePicker.SelectedItem is string daysText &&
+                    int.TryParse(daysText, out int parsedDays))
+                {
+                    selectedDays = parsedDays;
+                }
+
+                daysRangeFilter = selectedDays;
+
+                // Average count (top N)
+                int selectedAverageCount = averageCountFilter;
+                if (AverageCountPicker.SelectedItem is string avgText &&
+                    int.TryParse(avgText, out int parsedAvg))
+                {
+                    selectedAverageCount = Math.Max(1, parsedAvg);
+                }
+
+                averageCountFilter = selectedAverageCount;
+
+                UpdateFilterSummaryLabel();
+                FilterOverlay.IsVisible = false;
+
+                // Re-run the last search with updated filters
+                if (lastSearchMode == SearchMode.Image && !string.IsNullOrEmpty(lastImageBase64))
+                {
+                    SetSearchingState(true, "Updating image search with new filters...");
+
+                    // Reuse existing base64 rather than re-reading from disk
+                    var results = await ebayService.SearchByImageAsync(
+                        lastImageBase64,
+                        limit: Math.Max(averageCountFilter, 25),
+                        listingTypeFilter: listingTypeFilter,
+                        daysRange: daysRangeFilter);
+
+                    ApplyResultsToCollection(results);
+                    UpdateStatusForResults(results);
+                }
+                else if (lastSearchMode == SearchMode.Text && !string.IsNullOrEmpty(lastManualQuery))
+                {
+                    await PerformManualSearchAsync(lastManualQuery);
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to apply filters: {ex.Message}", "OK");
+            }
+            finally
+            {
+                SetSearchingState(false);
+            }
+        }
+
+        /// <summary>
+        /// Hides the filter overlay without applying changes.
+        /// </summary>
+        private void OnCancelFiltersClicked(object sender, EventArgs e)
+        {
+            FilterOverlay.IsVisible = false;
+        }
+
+        #endregion
+
+        #region Event Handlers - Result Selection and Swipes
+
+        /// <summary>
+        /// When a result is tapped, copy its title into the manual search box
+        /// so the user can refine and run a new text search.
+        /// </summary>
+        private void OnResultSelected(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.CurrentSelection == null || e.CurrentSelection.Count == 0)
+            {
+                return;
+            }
+
+            if (e.CurrentSelection[0] is EbayListing listing)
+            {
+                selectedListing = listing;
+                ManualSearchBox.Text = listing.Title;
+            }
+
+            if (sender is CollectionView collectionView)
+            {
+                collectionView.SelectedItem = null;
+            }
+        }
+
+        /// <summary>
+        /// Swipe start handler – track that a swipe is in progress and show comps for this item.
+        /// </summary>
+        private async void SwipeView_SwipeStarted(object sender, SwipeStartedEventArgs e)
+        {
+            isSwipeInProgress = true;
+
+            if (sender is SwipeView swipe &&
+                swipe.BindingContext is EbayListing listing)
+            {
+                selectedListing = listing;
+                await LoadAndShowCompsAsync(listing);
+            }
+        }
+
+        /// <summary>
+        /// Swipe end handler to clear the swipe-in-progress flag.
+        /// </summary>
         private void SwipeView_SwipeEnded(object sender, SwipeEndedEventArgs e)
         {
             isSwipeInProgress = false;
         }
+
+        /// <summary>
+        /// Handles the "Add" swipe action and adds the selected card
+        /// to the user's collection.
+        /// </summary>
+        private async void OnAddToCollectionSwipe(object sender, EventArgs e)
+        {
+            try
+            {
+                EbayListing? listing = null;
+
+                if (sender is SwipeItem swipeItem &&
+                    swipeItem.CommandParameter is EbayListing paramListing)
+                {
+                    listing = paramListing;
+                }
+                else if (selectedListing != null)
+                {
+                    listing = selectedListing;
+                }
+
+                if (listing == null)
+                {
+                    return;
+                }
+
+                Card card = new Card
+                {
+                    Name = listing.Title,
+                    EstimatedValue = listing.Price,
+                    CollectionId = "Default",
+                    FrontImagePath = listing.ImageUrl,
+                    BackImagePath = listing.ImageUrl,
+                    Set = "eBay Import",
+                    GradeCompany = "Raw"
+                };
+
+                await App.Database.AddCardAsync(card);
+                await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Could not add card: {ex.Message}", "OK");
+            }
+        }
+
+        /// <summary>
+        /// Handles the "Ebay" swipe action and opens the listing in the browser.
+        /// </summary>
+        private async void OnViewOnEbaySwipe(object sender, EventArgs e)
+        {
+            try
+            {
+                EbayListing? listing = null;
+
+                if (sender is SwipeItem swipeItem &&
+                    swipeItem.CommandParameter is EbayListing paramListing)
+                {
+                    listing = paramListing;
+                }
+                else if (selectedListing != null)
+                {
+                    listing = selectedListing;
+                }
+
+                if (listing == null || string.IsNullOrWhiteSpace(listing.Url))
+                {
+                    return;
+                }
+
+                await Browser.Default.OpenAsync(listing.Url, BrowserLaunchMode.SystemPreferred);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Unable to open eBay: {ex.Message}", "OK");
+            }
+        }
+
+        #endregion
     }
 }
