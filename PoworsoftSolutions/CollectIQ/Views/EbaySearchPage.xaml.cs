@@ -105,23 +105,23 @@ namespace CollectIQ.Views
         /// automatically perform a search-by-image using the current filters.
         /// </summary>
         /// <param name="args">Navigation arguments.</param>
-        protected override async void OnNavigatedTo(NavigatedToEventArgs args)
+        protected override void OnNavigatedTo(NavigatedToEventArgs args)
         {
             base.OnNavigatedTo(args);
 
-            try
+            MainThread.BeginInvokeOnMainThread(async () =>
             {
+                // Give Shell enough time to apply query params the first time
+                await Task.Delay(50);
+
                 if (!string.IsNullOrWhiteSpace(FrontImagePath) &&
                     File.Exists(FrontImagePath))
                 {
                     await PerformImageSearchAsync(FrontImagePath);
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[EbaySearchPage] OnNavigatedTo error: {ex.Message}");
-            }
+            });
         }
+
 
         #endregion
 

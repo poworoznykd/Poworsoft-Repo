@@ -116,7 +116,6 @@ namespace CollectIQ.Views
         {
             base.OnAppearing();
 
-            // Reset state each time the page becomes visible
             isScanning = true;
             isCaptureInProgress = false;
 
@@ -125,7 +124,11 @@ namespace CollectIQ.Views
                 var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 await CameraView.StartCameraPreview(cancellationTokenSource.Token);
 
-                await WaitForElementToRender(ScanLine);
+                // WAIT for CameraView to actually measure.
+                await WaitForValidHeightAsync(CameraView);
+                await WaitForValidHeightAsync(ScanLine);
+
+                // Start animation once the heights are actually valid.
                 _ = RunScanLineAnimationAsync();
             }
             catch (Exception ex)
@@ -133,6 +136,23 @@ namespace CollectIQ.Views
                 Debug.WriteLine($"[Camera] Failed to start: {ex.Message}");
             }
         }
+
+        private async Task WaitForValidHeightAsync(VisualElement element)
+        {
+            int retries = 0;
+
+            while (retries++ < 30)
+            {
+                if (element?.Height > 0)
+                    return;
+
+                await Task.Delay(100);
+            }
+
+            Debug.WriteLine($"[Layout] Warning: {element} did not get valid height after retries.");
+        }
+
+
 
         /// <summary>
         /// FUNCTION: OnDisappearing
