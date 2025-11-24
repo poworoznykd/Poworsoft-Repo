@@ -46,11 +46,11 @@
             <!-- RESULTS -->
             <CollectionView x:Name="EbayResultsView"
                             Grid.Row="2"
-                            SelectionMode="Single"
-                            SelectionChanged="OnResultSelected"
-                            VerticalOptions="FillAndExpand"
-                            BackgroundColor="Transparent">
-
+                            SelectionMode="None"
+                            SelectedItem="{x:Null}"
+                            SelectionChangedCommand="{x:Null}"
+                            BackgroundColor="Transparent"
+                            ItemsSource="{Binding Listings}">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <SwipeView SwipeStarted="SwipeView_SwipeStarted"
@@ -73,56 +73,122 @@
                                 </SwipeItems>
                             </SwipeView.RightItems>
 
-                            <Frame CornerRadius="12"
-                                   Padding="10"
-                                   Margin="0,8,0,0"
-                                   BackgroundColor="#14181C"
-                                   BorderColor="#00B4D8"
-                                   HasShadow="True">
+                            <Border
+                                Stroke="#00B4D8"
+                                StrokeThickness="2"
+                                Background="#14181C"
+                                Padding="10"
+                                Margin="0,5,0,5"
+                                StrokeShape="RoundRectangle 12">
 
-                                <Grid ColumnDefinitions="100,*"
+                                <!-- SELECTION TRIGGERS -->
+                                <Border.Triggers>
+                                    <!-- WHEN SELECTED -->
+                                    <DataTrigger
+                                        TargetType="Border"
+                                        Binding="{Binding IsSelected}"
+                                        Value="True">
+                                        <Setter Property="Stroke" Value="LimeGreen" />
+                                        <Setter Property="StrokeThickness" Value="3" />
+                                        <Setter Property="Background" Value="#001a00" />
+                                        <Setter Property="Shadow">
+                                            <Setter.Value>
+                                                <Shadow Brush="LimeGreen"
+                                                    Radius="25"
+                                                    Opacity="0.8"
+                                                    Offset="0,0" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+
+                                    <!-- WHEN NOT SELECTED -->
+                                    <DataTrigger
+                                        TargetType="Border"
+                                        Binding="{Binding IsSelected}"
+                                        Value="False">
+                                        <Setter Property="Stroke" Value="#00B4D8" />
+                                        <Setter Property="StrokeThickness" Value="2" />
+                                        <Setter Property="Background" Value="#14181C" />
+                                        <Setter Property="Shadow">
+                                            <Setter.Value>
+                                                <Shadow Brush="#00000000"
+                                                    Radius="0"
+                                                    Opacity="0"
+                                                    Offset="0,0" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Border.Triggers>
+
+                                <!-- MAIN CONTENT -->
+                                <Grid ColumnDefinitions="100,*,60"
                                       ColumnSpacing="12"
                                       RowDefinitions="Auto,Auto,Auto">
 
-                                    <!-- IMAGE -->
+                                    <!-- TAP ANYWHERE TO SELECT -->
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Tapped="OnItemTapped"
+                                            CommandParameter="{Binding .}" />
+                                    </Grid.GestureRecognizers>
+
+                                    <!-- INSIGHTS BUTTON (NO NAMES INSIDE TEMPLATES) -->
+                                    <Grid Grid.Column="2" Grid.Row="2">
+                                        <VerticalStackLayout HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Image
+                                                Source="insights_icon.png"
+                                                WidthRequest="32"
+                                                HeightRequest="32"
+                                                StyleClass="InsightsIcon">
+                                                <Image.GestureRecognizers>
+                                                    <TapGestureRecognizer 
+                                                        Tapped="OnInsightsIconTapped"
+                                                        CommandParameter="{Binding .}" />
+                                                </Image.GestureRecognizers>
+                                            </Image>
+
+
+                                            <Label Text="INSIGHTS"
+                                               FontSize="10"
+                                               TextColor="LimeGreen"
+                                               HorizontalTextAlignment="Center" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                    <!-- ITEM IMAGE -->
                                     <Image Grid.RowSpan="3"
-                                           Source="{Binding ImageUrl}"
-                                           WidthRequest="100"
-                                           HeightRequest="100"
-                                           Aspect="AspectFit"
-                                           VerticalOptions="Center"
-                                           HorizontalOptions="Center" />
+                                       Source="{Binding ImageUrl}"
+                                       WidthRequest="100"
+                                       HeightRequest="100"
+                                       Aspect="AspectFit"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="Center" />
 
                                     <!-- TITLE -->
                                     <Label Grid.Column="1"
-                                           Text="{Binding Title}"
-                                           FontSize="15"
-                                           FontAttributes="Bold"
-                                           TextColor="White"
-                                           LineBreakMode="WordWrap"
-                                           MaxLines="2"
-                                           VerticalOptions="Start"
-                                           HorizontalOptions="Start" />
+                                       Text="{Binding Title}"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       LineBreakMode="WordWrap"
+                                       MaxLines="2" />
 
                                     <!-- PRICE -->
                                     <Label Grid.Column="1"
-                                           Grid.Row="1"
-                                           Text="{Binding Price, StringFormat='${0:F2}'}"
-                                           FontSize="14"
-                                           TextColor="#6CD4FF"
-                                           VerticalOptions="Start"
-                                           HorizontalOptions="Start" />
+                                       Grid.Row="1"
+                                       Text="{Binding Price, StringFormat='${0:F2}'}"
+                                       FontSize="14"
+                                       TextColor="#6CD4FF" />
 
                                     <!-- STATUS -->
                                     <Label Grid.Column="1"
-                                           Grid.Row="2"
-                                           Text="{Binding Status}"
-                                           FontSize="13"
-                                           TextColor="#FFCB6B"
-                                           VerticalOptions="Start"
-                                           HorizontalOptions="Start" />
+                                       Grid.Row="2"
+                                       Text="{Binding Status}"
+                                       FontSize="13"
+                                       TextColor="#FFCB6B" />
                                 </Grid>
-                            </Frame>
+                            </Border>
+
                         </SwipeView>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
@@ -280,143 +346,145 @@
                 </Frame>
             </Grid>
         </Grid>
-
         <!-- ===================================== -->
-        <!-- SCRIM + FLOATING SOLD COMPS OVERLAY  -->
+        <!-- INSIGHTS OVERLAY (REPLACES COMPS PANEL) -->
         <!-- ===================================== -->
 
-        <!-- Semi-transparent scrim to dismiss overlay -->
-        <BoxView x:Name="CompsScrim"
-                 BackgroundColor="#66000000"
-                 IsVisible="False"
-                 Opacity="0">
+        <!-- Background scrim -->
+        <BoxView x:Name="InsightsScrim"
+              IsVisible="False"
+              Opacity="0"
+              BackgroundColor="#66000000">  
             <BoxView.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnCompsScrimTapped" />
+                <TapGestureRecognizer Tapped="OnInsightsScrimTapped" />
             </BoxView.GestureRecognizers>
         </BoxView>
 
-        <!-- Floating panel with comps + mini graph -->
-        <Frame x:Name="CompsPanel"
-               IsVisible="False"
-               BackgroundColor="#CC101820"
-               BorderColor="#00B4FF"
-               CornerRadius="18"
-               Padding="12"
-               HasShadow="True"
-               Opacity="0"
-               TranslationY="80"
-               Margin="16"
-               HorizontalOptions="FillAndExpand"
-               VerticalOptions="End">
+        <!-- Floating Insights Panel -->
+        <Frame x:Name="InsightsOverlay"
+            IsVisible="False"
+            BackgroundColor="#CC102030"
+            BorderColor="#00B4D8"
+            CornerRadius="18"
+            Padding="14"
+            HasShadow="True"
+            Opacity="0"
+            TranslationY="60"
+            Margin="16"
+            HorizontalOptions="FillAndExpand"
+            VerticalOptions="End">
 
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,*"
-                  ColumnDefinitions="*,Auto">
+                ColumnDefinitions="*,Auto">
 
                 <!-- Header -->
                 <Label Grid.Row="0"
-                       Grid.Column="0"
-                       Text="Sold Comps"
-                       TextColor="#A8EFFF"
-                       FontSize="18"
-                       FontAttributes="Bold" />
+                    Grid.Column="0"
+                    Text="Market Insights"
+                    TextColor="#4be7f2"
+                    FontSize="20"
+                    FontAttributes="Bold" />
 
+                <!-- Close icon -->
                 <Image Grid.Row="0"
-                       Grid.Column="1"
-                       Source="close_icon.png"
-                       HeightRequest="22"
-                       WidthRequest="22"
-                       HorizontalOptions="End">
+                    Grid.Column="1"
+                    Source="close_icon.png"
+                    HeightRequest="22"
+                    WidthRequest="22"
+                    HorizontalOptions="End">
                     <Image.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnCloseCompsTapped" />
+                        <TapGestureRecognizer Tapped="OnCloseInsightsTapped" />
                     </Image.GestureRecognizers>
                 </Image>
 
-                <!-- Selected card title -->
-                <Label x:Name="CompsTitleLabel"
-                       Grid.Row="1"
-                       Grid.ColumnSpan="2"
-                       Text="Card title"
-                       TextColor="#6CD4FF"
-                       FontSize="14"
-                       LineBreakMode="TailTruncation" />
+                <!-- Title -->
+                <Label x:Name="InsightsTitleLabel"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="2"
+                    Text="Card Title"
+                    TextColor="#00B4D8"
+                    FontSize="14"
+                    LineBreakMode="TailTruncation" />
 
-                <!-- Summary stats -->
+                <!-- Stat line -->
                 <StackLayout Grid.Row="2"
-                             Grid.ColumnSpan="2"
-                             Orientation="Horizontal"
-                             Spacing="16">
-                    <Label x:Name="CompsStatsLabel"
-                           Text="Count / Avg / Min / Max"
-                           TextColor="White"
-                           FontSize="13" />
-                    <Label x:Name="CompsRangeLabel"
-                           Text="Date range"
-                           TextColor="#A8EFFF"
-                           FontSize="12"
-                           HorizontalOptions="EndAndExpand" />
+                  Grid.ColumnSpan="2"
+                  Orientation="Horizontal"
+                  Spacing="16">
+                    <Label x:Name="InsightsStatsLabel"
+                        Text="Count / Avg / Min / Max"
+                        TextColor="White"
+                        FontSize="13" />
+
+                    <Label x:Name="InsightsRangeLabel"
+                        Text="Date range"
+                        TextColor="#4be7f2"
+                        FontSize="12"
+                        HorizontalOptions="EndAndExpand" />
                 </StackLayout>
 
-                <!-- Simple price graph -->
-                <FlexLayout x:Name="CompsGraphLayout"
-                            Grid.Row="3"
-                            Grid.ColumnSpan="2"
-                            HeightRequest="70"
-                            Margin="0,8,0,4"
-                            AlignItems="End"
-                            JustifyContent="SpaceEvenly">
+                <!-- Price trend graph -->
+                <FlexLayout x:Name="InsightsGraphLayout"
+                     Grid.Row="3"
+                     Grid.ColumnSpan="2"
+                     HeightRequest="70"
+                     Margin="0,8,0,4"
+                     AlignItems="End"
+                     JustifyContent="SpaceEvenly">
                 </FlexLayout>
 
-                <!-- Comps list -->
-                <CollectionView x:Name="CompsListView"
-                                Grid.Row="4"
-                                Grid.ColumnSpan="2"
-                                HeightRequest="220">
+                <!-- Sold comps list -->
+                <CollectionView x:Name="InsightsListView"
+                     Grid.Row="4"
+                     Grid.ColumnSpan="2"
+                     HeightRequest="240">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <Frame BackgroundColor="#14181C"
-                                   BorderColor="#00B4FF"
-                                   CornerRadius="12"
-                                   Padding="8"
-                                   Margin="0,4">
+                                BorderColor="#00B4D8"
+                                CornerRadius="12"
+                                Padding="8"
+                                Margin="0,4">
                                 <Grid ColumnDefinitions="*,Auto"
-                                      RowDefinitions="Auto,Auto">
+                                    RowDefinitions="Auto,Auto">
                                     <Label Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="{Binding Title}"
-                                           TextColor="White"
-                                           FontSize="13"
-                                           LineBreakMode="TailTruncation"
-                                           MaxLines="2" />
+                                        Grid.Column="0"
+                                        Text="{Binding Title}"
+                                        TextColor="White"
+                                        FontSize="13"
+                                        LineBreakMode="TailTruncation"
+                                        MaxLines="2" />
+
                                     <Label Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="{Binding SoldDateDisplay}"
-                                           TextColor="#A8EFFF"
-                                           FontSize="11" />
+                                        Grid.Column="0"
+                                        Text="{Binding SoldDateDisplay}"
+                                        TextColor="#4be7f2"
+                                        FontSize="11" />
+
                                     <StackLayout Grid.Row="0"
-                                                 Grid.Column="1"
-                                                 Grid.RowSpan="2"
-                                                 Orientation="Vertical"
-                                                 Spacing="2"
-                                                 HorizontalOptions="End"
-                                                 VerticalOptions="Center">
+                                          Grid.Column="1"
+                                          Grid.RowSpan="2"
+                                          Orientation="Vertical"
+                                          Spacing="2"
+                                          HorizontalOptions="End"
+                                          VerticalOptions="Center">
                                         <Label Text="{Binding Price, StringFormat='${0:F2}'}"
-                                               TextColor="#6CD4FF"
-                                               FontSize="14"
-                                               FontAttributes="Bold"
-                                               HorizontalTextAlignment="End" />
+                                            TextColor="#00B4D8"
+                                            FontSize="14"
+                                            FontAttributes="Bold"
+                                            HorizontalTextAlignment="End" />
+
                                         <Label Text="{Binding Status}"
-                                               TextColor="#FFCB6B"
-                                               FontSize="11"
-                                               HorizontalTextAlignment="End" />
+                                            TextColor="#FFCB6B"
+                                            FontSize="11"
+                                            HorizontalTextAlignment="End" />
                                     </StackLayout>
                                 </Grid>
                             </Frame>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-
             </Grid>
         </Frame>
-
     </Grid>
 </ContentPage>

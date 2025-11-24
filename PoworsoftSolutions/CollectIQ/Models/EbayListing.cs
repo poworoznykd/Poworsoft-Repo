@@ -1,5 +1,7 @@
-﻿using System;
-using SQLite;
+﻿using SQLite;
+using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace CollectIQ.Models
 {
@@ -7,8 +9,35 @@ namespace CollectIQ.Models
     /// Represents a single eBay listing or sold item.
     /// This is the ONLY model used by the app for eBay results.
     /// </summary>
-    public class EbayListing
+    public class EbayListing : INotifyPropertyChanged
     {
+        // IMPORTANT: implement INotifyPropertyChanged
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private bool isSelected;
+
+        /// <summary>
+        /// Indicates whether this listing is currently selected in the UI.
+        /// Used to drive Border highlight.
+        /// </summary>
+        public bool IsSelected
+        {
+            get => isSelected;
+            set
+            {
+                if (isSelected != value)
+                {
+                    isSelected = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
 

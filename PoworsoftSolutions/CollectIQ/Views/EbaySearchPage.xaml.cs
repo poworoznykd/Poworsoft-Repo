@@ -44,7 +44,8 @@ namespace CollectIQ.Views
 
         private readonly EbayService ebayService;
         private readonly ObservableCollection<EbayListing> listings;
-        private readonly ObservableCollection<EbayListing> compsListings;
+        // Insights (sold comps) list
+        private readonly ObservableCollection<EbayListing> insightsListings;
 
         private EbayListing? selectedListing;
         private bool isSwipeInProgress;
@@ -76,11 +77,10 @@ namespace CollectIQ.Views
 
             ebayService = new EbayService(new HttpClient());
             listings = new ObservableCollection<EbayListing>();
-            compsListings = new ObservableCollection<EbayListing>();
+            insightsListings = new ObservableCollection<EbayListing>();
 
             EbayResultsView.ItemsSource = listings;
-            CompsListView.ItemsSource = compsListings;
-
+            InsightsListView.ItemsSource = insightsListings;
             // Default filter: sold, last 90 days, top 10 comps
             listingTypeFilter = "sold";
             daysRangeFilter = 90;
@@ -90,9 +90,6 @@ namespace CollectIQ.Views
             lastImageBase64 = string.Empty;
             lastManualQuery = string.Empty;
             frontImagePathInternal = string.Empty;
-
-            CompsPanel.IsVisible = false;
-            CompsScrim.IsVisible = false;
 
             InitializeFilterPickers();
             UpdateFilterSummaryLabel();
@@ -416,45 +413,47 @@ namespace CollectIQ.Views
 
         #endregion
 
-        #region Comps Overlay
+        #region Insights Overlay
 
-        /// <summary>
-        /// Loads sold comps for the selected listing and displays the overlay with graph.
-        /// </summary>
-        private async Task LoadAndShowCompsAsync(EbayListing listing)
+        // ============================================================
+        // INSIGHTS OVERLAY (REPLACES ALL OLD COMPS PANEL)
+        // ============================================================
+        private async Task LoadAndShowInsightsAsync(EbayListing listing)
         {
             try
             {
                 if (listing == null || string.IsNullOrWhiteSpace(listing.Title))
-                {
                     return;
-                }
 
-                SetSearchingState(true, $"Loading sold comps for: {listing.Title}");
-
-                var soldComps = await ebayService.SearchSoldAsync(
-                    listing.Title,
-                    limit: Math.Max(averageCountFilter * 3, 30));
-
-                compsListings.Clear();
-                if (soldComps != null)
+                SetSearchingState(true, $"Loading insights...");
+                List<EbayListing> cardComps = new List<EbayListing>();
+                if (listing.IsSold)
                 {
-                    foreach (var comp in soldComps)
-                    {
-                        compsListings.Add(comp);
-                    }
+                    cardComps = await ebayService.SearchSoldAsync(
+                       listing.Title,
+                       limit: Math.Max(averageCountFilter * 3, 30));
+                }
+                else
+                {
+                    cardComps = await ebayService.SearchActiveAsync(
+                      listing.Title,
+                      limit: Math.Max(averageCountFilter * 3, 30));
+                }
+                insightsListings.Clear();
+
+                if (cardComps != null)
+                {
+                    foreach (var comp in cardComps)
+                        insightsListings.Add(comp);
                 }
 
-                UpdateCompsSummaryAndGraph(soldComps, listing.Title);
+                UpdateInsightsHeaderAndGraph(cardComps, listing.Title);
 
-                await ShowCompsOverlayAsync();
+                await ShowInsightsOverlayAsync();
             }
             catch (Exception ex)
             {
-                await DisplayAlert(
-                    "Comps Error",
-                    $"Unable to load sold comps: {ex.Message}",
-                    "OK");
+                await DisplayAlert("Insights Error", ex.Message, "OK");
             }
             finally
             {
@@ -462,31 +461,26 @@ namespace CollectIQ.Views
             }
         }
 
-        /// <summary>
-        /// Updates summary labels and builds a simple bar graph of prices over time.
-        /// </summary>
-        private void UpdateCompsSummaryAndGraph(
-            List<EbayListing>? soldComps,
-            string title)
+        private void UpdateInsightsHeaderAndGraph(List<EbayListing>? cardComps, string title)
         {
-            CompsTitleLabel.Text = title;
-            CompsGraphLayout.Children.Clear();
+            InsightsTitleLabel.Text = title;
+            InsightsGraphLayout.Children.Clear();
 
-            if (soldComps == null || soldComps.Count == 0)
+            if (cardComps == null || cardComps.Count == 0)
             {
-                CompsStatsLabel.Text = "No sold comps found.";
-                CompsRangeLabel.Text = string.Empty;
+                InsightsStatsLabel.Text = "No sold comps.";
+                InsightsRangeLabel.Text = "";
                 return;
             }
 
-            var priced = soldComps
+            var priced = cardComps
                 .Where(c => c.Price.HasValue && c.Price.Value > 0m)
                 .ToList();
 
             if (priced.Count == 0)
             {
-                CompsStatsLabel.Text = "No valid prices.";
-                CompsRangeLabel.Text = string.Empty;
+                InsightsStatsLabel.Text = "No valid prices.";
+                InsightsRangeLabel.Text = "";
                 return;
             }
 
@@ -494,97 +488,85 @@ namespace CollectIQ.Views
             decimal max = priced.Max(c => c.Price!.Value);
             decimal avg = priced.Average(c => c.Price!.Value);
 
-            CompsStatsLabel.Text =
-                $"Count: {priced.Count}, Avg: {avg:C2}, Min: {min:C2}, Max: {max:C2}";
+            InsightsStatsLabel.Text = $"Count: {priced.Count}, Avg: {avg:C2}, Min: {min:C2}, Max: {max:C2}";
 
-            var ordered = priced
-                .OrderBy(c => c.EndDateUtc ?? DateTime.UtcNow)
-                .ToList();
+            var ordered = priced.OrderBy(c => c.EndDateUtc ?? DateTime.UtcNow).ToList();
+            DateTime? first = ordered.First().EndDateUtc;
+            DateTime? last = ordered.Last().EndDateUtc;
 
-            DateTime? firstDate = ordered.First().EndDateUtc;
-            DateTime? lastDate = ordered.Last().EndDateUtc;
-
-            if (firstDate.HasValue && lastDate.HasValue)
-            {
-                CompsRangeLabel.Text =
-                    $"{firstDate.Value:yyyy-MM-dd} → {lastDate.Value:yyyy-MM-dd}";
-            }
+            if (first.HasValue && last.HasValue)
+                InsightsRangeLabel.Text = $"{first.Value:yyyy-MM-dd} → {last.Value:yyyy-MM-dd}";
             else
-            {
-                CompsRangeLabel.Text = string.Empty;
-            }
+                InsightsRangeLabel.Text = "";
 
-            // Simple bar graph of price over time.
-            const double maxBarHeight = 60;
+            // Build graph
+            InsightsGraphLayout.Children.Clear();
+            const double maxHeight = 70;
 
-            if (max <= 0m)
-            {
-                return;
-            }
-
-            CompsGraphLayout.Children.Clear();
+            if (max <= 0) return;
 
             foreach (var comp in ordered)
             {
-                decimal price = comp.Price ?? 0m;
-                double normalized = (double)(price / max);
+                decimal p = comp.Price ?? 0m;
+                double normalized = (double)(p / max);
                 if (normalized < 0) normalized = 0;
                 if (normalized > 1) normalized = 1;
 
-                var bar = new BoxView
-                {
-                    WidthRequest = 8,
-                    HeightRequest = Math.Max(6, maxBarHeight * normalized),
-                    BackgroundColor = Color.FromArgb("#6CD4FF"),
-                    CornerRadius = 3,
-                    VerticalOptions = LayoutOptions.End,
-                    HorizontalOptions = LayoutOptions.Center
-                };
-
-                CompsGraphLayout.Children.Add(bar);
+                InsightsGraphLayout.Children.Add(
+                    new BoxView
+                    {
+                        WidthRequest = 8,
+                        HeightRequest = Math.Max(6, maxHeight * normalized),
+                        BackgroundColor = Color.FromArgb("#33D6FF"),
+                        CornerRadius = 3,
+                        VerticalOptions = LayoutOptions.End,
+                        HorizontalOptions = LayoutOptions.Center
+                    });
             }
         }
 
-        private async Task ShowCompsOverlayAsync()
+        private async Task ShowInsightsOverlayAsync()
         {
-            if (CompsPanel.IsVisible)
+            if (InsightsOverlay.IsVisible)
                 return;
 
-            CompsPanel.IsVisible = true;
-            CompsScrim.IsVisible = true;
+            InsightsOverlay.IsVisible = true;
 
-            CompsPanel.Opacity = 0;
-            CompsPanel.TranslationY = 80;
-            CompsScrim.Opacity = 0;
+            InsightsOverlay.Opacity = 0;
+            InsightsOverlay.TranslationY = 40;
+            InsightsScrim.IsVisible = true;
+            InsightsScrim.Opacity = 0;
 
             await Task.WhenAll(
-                CompsPanel.FadeTo(1, 180, Easing.CubicOut),
-                CompsPanel.TranslateTo(0, 0, 180, Easing.CubicOut),
-                CompsScrim.FadeTo(1, 200, Easing.CubicOut));
+                InsightsOverlay.FadeTo(1, 180, Easing.CubicOut),
+                InsightsOverlay.TranslateTo(0, 0, 180, Easing.CubicOut),
+                InsightsScrim.FadeTo(1, 180, Easing.CubicOut)
+            );
         }
 
-        private async Task HideCompsOverlayAsync()
+        private async Task HideInsightsOverlayAsync()
         {
-            if (!CompsPanel.IsVisible)
+            if (!InsightsOverlay.IsVisible)
                 return;
 
             await Task.WhenAll(
-                CompsPanel.FadeTo(0, 160, Easing.CubicIn),
-                CompsPanel.TranslateTo(0, 80, 160, Easing.CubicIn),
-                CompsScrim.FadeTo(0, 160, Easing.CubicIn));
+                InsightsOverlay.FadeTo(0, 150, Easing.CubicIn),
+                InsightsOverlay.TranslateTo(0, 40, 150, Easing.CubicIn),
+                InsightsScrim.FadeTo(0, 150, Easing.CubicIn)
+            );
 
-            CompsPanel.IsVisible = false;
-            CompsScrim.IsVisible = false;
+            InsightsOverlay.IsVisible = false;
+            InsightsScrim.IsVisible = false;
         }
 
-        private async void OnCompsScrimTapped(object sender, TappedEventArgs e)
+        private async void OnCloseInsightsTapped(object sender, EventArgs e)
         {
-            await HideCompsOverlayAsync();
+            await HideInsightsOverlayAsync();
         }
 
-        private async void OnCloseCompsTapped(object sender, TappedEventArgs e)
+        private async void OnInsightsScrimTapped(object sender, TappedEventArgs e)
         {
-            await HideCompsOverlayAsync();
+            await HideInsightsOverlayAsync();
         }
 
         #endregion
@@ -705,27 +687,63 @@ namespace CollectIQ.Views
 
         #region Event Handlers - Result Selection and Swipes
 
-        /// <summary>
-        /// When a result is tapped, copy its title into the manual search box
-        /// so the user can refine and run a new text search.
-        /// </summary>
-        private void OnResultSelected(object sender, SelectionChangedEventArgs e)
+        private async Task AnimateInsightsIconAsync(View icon)
         {
-            if (e.CurrentSelection == null || e.CurrentSelection.Count == 0)
+            try
             {
+                await icon.ScaleTo(1.15, 120, Easing.CubicOut);
+                await icon.ScaleTo(1.0, 120, Easing.CubicIn);
+            }
+            catch { /* ignore */ }
+        }
+
+        private void OnItemTapped(object sender, TappedEventArgs e)
+        {
+            if (e.Parameter is not EbayListing tapped)
                 return;
+
+            foreach (var item in listings)
+                item.IsSelected = false;
+
+            tapped.IsSelected = true;
+            selectedListing = tapped;
+
+            ManualSearchBox.Text = tapped.Title;
+        }
+
+        /// <summary>
+        /// Called when the INSIGHTS icon is tapped in a row.
+        /// Pulses the icon, selects the row, and shows insights.
+        /// </summary>
+        private async void OnInsightsIconTapped(object sender, TappedEventArgs e)
+        {
+            if (e.Parameter is not EbayListing listing)
+                return;
+
+            // Pulse the icon itself
+            if (sender is Image icon)
+            {
+                try
+                {
+                    await icon.ScaleTo(1.15, 120, Easing.CubicOut);
+                    await icon.ScaleTo(1.0, 120, Easing.CubicIn);
+                }
+                catch
+                {
+                    // Ignore animation errors
+                }
             }
 
-            if (e.CurrentSelection[0] is EbayListing listing)
-            {
-                selectedListing = listing;
-                ManualSearchBox.Text = listing.Title;
-            }
+            // Mark selection for highlight
+            foreach (var item in listings)
+                item.IsSelected = false;
 
-            if (sender is CollectionView collectionView)
-            {
-                collectionView.SelectedItem = null;
-            }
+            listing.IsSelected = true;
+            selectedListing = listing;
+            ManualSearchBox.Text = listing.Title;
+
+            // Use your existing insights loader
+            await LoadAndShowInsightsAsync(listing);
         }
 
         /// <summary>
@@ -739,7 +757,6 @@ namespace CollectIQ.Views
                 swipe.BindingContext is EbayListing listing)
             {
                 selectedListing = listing;
-                await LoadAndShowCompsAsync(listing);
             }
         }
 
@@ -829,5 +846,6 @@ namespace CollectIQ.Views
         }
 
         #endregion
+
     }
 }
