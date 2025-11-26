@@ -13,6 +13,10 @@
 //      when a result is swiped open.
 //
 
+using CollectIQ.Models;
+using CollectIQ.Services;
+using FreakyKit.Utils;
+using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -20,9 +24,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using CollectIQ.Models;
-using CollectIQ.Services;
-using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
@@ -418,6 +419,326 @@ namespace CollectIQ.Views
         // ============================================================
         // INSIGHTS OVERLAY (REPLACES ALL OLD COMPS PANEL)
         // ============================================================
+
+        // ============================
+        //  INSIGHTS OVERLAY HANDLERS
+        // ============================
+        private async void OnInsightsIconTapped(object sender, TappedEventArgs e)
+        {
+            if (e?.Parameter is not EbayListing listing)
+            {
+                return;
+            }
+
+            try
+            {
+                BuildInsightsForListing(listing);
+
+                // Animate overlay in
+                InsightsScrim.IsVisible = true;
+                InsightsOverlay.IsVisible = true;
+                InsightsOverlay.Opacity = 0;
+                InsightsOverlay.TranslationY = 60;
+
+                await Task.WhenAll(
+                    InsightsScrim.FadeTo(1, 150),
+                    InsightsOverlay.FadeTo(1, 180),
+                    InsightsOverlay.TranslateTo(0, 0, 180, Easing.CubicOut)
+                );
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Insights Error", ex.Message, "OK");
+            }
+        }
+
+        private async void OnCloseInsightsTapped(object sender, EventArgs e)
+        {
+            await HideInsightsOverlayAsync();
+        }
+
+        private async void OnInsightsScrimTapped(object sender, EventArgs e)
+        {
+            await HideInsightsOverlayAsync();
+        }
+
+        private async Task HideInsightsOverlayAsync()
+        {
+            if (!InsightsOverlay.IsVisible && !InsightsScrim.IsVisible)
+            {
+                return;
+            }
+
+            await Task.WhenAll(
+                InsightsScrim.FadeTo(0, 150),
+                InsightsOverlay.FadeTo(0, 150),
+                InsightsOverlay.TranslateTo(0, 60, 150, Easing.CubicIn)
+            );
+
+            InsightsOverlay.IsVisible = false;
+            InsightsScrim.IsVisible = false;
+        }
+
+        // Build insights from whatever is currently shown in the results list
+        private void BuildInsightsForListing(EbayListing selected)
+        {
+            // Use the CollectionView's ItemsSource so we don't depend on a "Listings" property.
+            var items = EbayResultsView?.ItemsSource as IEnumerable<EbayListing>;
+            if (items == null)
+            {
+                InsightsSummaryLabel.Text = "No market data available.";
+                InsightsListView.ItemsSource = null;
+                InsightsGraphLayout.Children.Clear();
+                return;
+            }
+
+            var listingList = items.ToList();
+            if (listingList.Count == 0)
+            {
+                InsightsSummaryLabel.Text = "No market data available.";
+                InsightsListView.ItemsSource = null;
+                InsightsGraphLayout.Children.Clear();
+                return;
+            }
+
+            // Handle nullable prices safely (decimal?)
+            var prices = listingList
+                .Where(l => l != null && l.Price.HasValue && l.Price.Value > 0m)
+                .Select(l => l.Price.Value)
+                .OrderBy(p => p)
+                .ToList();
+
+            if (prices.Count == 0)
+            {
+                InsightsSummaryLabel.Text = "No valid price data available.";
+                InsightsListView.ItemsSource = null;
+                InsightsGraphLayout.Children.Clear();
+                return;
+            }
+
+            int count = prices.Count;
+            decimal min = prices.First();
+            decimal max = prices.Last();
+            decimal avg = prices.Average();
+            decimal median = ComputeMedian(prices);
+
+            // Quartiles
+            decimal q25 = Percentile(prices, 0.25);
+            decimal q75 = Percentile(prices, 0.75);
+
+            // Suggested list price (tweak factor if you want)
+            decimal suggested = Math.Round(median * 0.95m, 2);
+
+            // Volatility based on spread vs average
+            decimal spread = max - min;
+            string volatility;
+            if (avg <= 0 || spread <= 0)
+            {
+                volatility = "No volatility data.";
+            }
+            else
+            {
+                decimal ratio = spread / avg;
+                if (ratio < 0.3m)
+                {
+                    volatility = "Tight, consistent pricing.";
+                }
+                else if (ratio < 0.7m)
+                {
+                    volatility = "Moderate price spread.";
+                }
+                else
+                {
+                    volatility = "Highly volatile market.";
+                }
+            }
+
+            // Where the selected listing sits in the market
+            string positionText = "";
+            if (selected.Price.HasValue && selected.Price.Value > 0 && prices.Count > 0)
+            {
+                if (selected.Price.Value <= q25)
+                {
+                    positionText = "This listing is in the lowest 25% of prices (potential bargain).";
+                }
+                else if (selected.Price.Value >= q75)
+                {
+                    positionText = "This listing is in the highest 25% of prices (top-end or overpriced).";
+                }
+                else
+                {
+                    positionText = "This listing is in the mid-range of current prices (fair market).";
+                }
+            }
+
+            // ==========================
+            // Fill overlay labels
+            // ==========================
+            InsightsTitleLabel.Text = selected.Title ?? "Selected Card";
+
+            InsightsCountValue.Text = count.ToString();
+            InsightsMinValue.Text = $"${min:F2}";
+            InsightsMaxValue.Text = $"${max:F2}";
+            InsightsAvgValue.Text = $"${avg:F2}";
+            InsightsMedianValue.Text = $"${median:F2}";
+            InsightsSuggestedValue.Text = $"${suggested:F2}";
+
+            InsightsSummaryLabel.Text =
+                $"Median around ${median:F2}. Range ${min:F2} – ${max:F2}. {volatility} {positionText}";
+
+            // Keep these so any existing code using them still works
+            InsightsStatsLabel.Text = $"Count: {count}  Avg: ${avg:F2}  Min: ${min:F2}  Max: ${max:F2}";
+            InsightsRangeLabel.Text = "Active listings only";  // later: "Sold over last N days"
+
+            // Show the same set (active, sold, or both) in the list
+            InsightsListView.ItemsSource = listingList;
+
+            // Build the bar "trend" chart, styled like your screenshot
+            BuildInsightsPriceChart(selected, prices, min, max, median, q25, q75);
+        }
+
+
+        private static decimal ComputeMedian(List<decimal> sortedPrices)
+        {
+            int n = sortedPrices.Count;
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            if (n % 2 == 1)
+            {
+                return sortedPrices[n / 2];
+            }
+
+            decimal a = sortedPrices[(n / 2) - 1];
+            decimal b = sortedPrices[n / 2];
+            return (a + b) / 2m;
+        }
+
+        private static decimal Percentile(List<decimal> sortedPrices, double percentile)
+        {
+            if (sortedPrices.Count == 0)
+            {
+                return 0;
+            }
+
+            if (percentile <= 0)
+            {
+                return sortedPrices.First();
+            }
+
+            if (percentile >= 1)
+            {
+                return sortedPrices.Last();
+            }
+
+            double index = (sortedPrices.Count - 1) * percentile;
+            int lower = (int)Math.Floor(index);
+            int upper = (int)Math.Ceiling(index);
+
+            if (lower == upper)
+            {
+                return sortedPrices[lower];
+            }
+
+            decimal lowerVal = sortedPrices[lower];
+            decimal upperVal = sortedPrices[upper];
+            double frac = index - lower;
+
+            return lowerVal + (decimal)frac * (upperVal - lowerVal);
+        }
+
+        private void BuildInsightsPriceChart(
+     EbayListing selected,
+     List<decimal> sortedPrices,
+     decimal min,
+     decimal max,
+     decimal median,
+     decimal q25,
+     decimal q75)
+        {
+            InsightsGraphLayout.Children.Clear();
+
+            // Safety checks
+            if (sortedPrices.Count == 0 || max <= min)
+            {
+                return;
+            }
+
+            // Heights for the bars
+            double minHeight = 18;   // short "blip" bars
+            double maxHeight = 60;   // tall bar
+
+            decimal? selectedPrice = selected.Price;
+
+            // Helper to add a labeled bar
+            void AddBar(string labelText, decimal price, string colorHex)
+            {
+                if (price <= 0)
+                {
+                    return;
+                }
+
+                double ratio = (double)((price - min) / (max - min));
+                double height = minHeight + ratio * (maxHeight - minHeight);
+
+                var bar = new BoxView
+                {
+                    WidthRequest = 14,
+                    HeightRequest = height,
+                    Margin = new Thickness(3, 0, 3, 0),
+                    CornerRadius = 4,
+                    Color = Color.FromArgb(colorHex),
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.End
+                };
+
+                var priceLabel = new Label
+                {
+                    Text = $"${price:F0}",
+                    FontSize = 10,
+                    TextColor = Color.FromArgb(colorHex),
+                    HorizontalTextAlignment = TextAlignment.Center
+                };
+
+                var nameLabel = new Label
+                {
+                    Text = labelText,
+                    FontSize = 10,
+                    TextColor = Colors.White,
+                    HorizontalTextAlignment = TextAlignment.Center
+                };
+
+                var stack = new VerticalStackLayout
+                {
+                    Spacing = 2,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.End
+                };
+
+                stack.Children.Add(bar);
+                stack.Children.Add(priceLabel);
+                stack.Children.Add(nameLabel);
+
+                InsightsGraphLayout.Children.Add(stack);
+            }
+
+            // Build the summary bars in a fixed, readable order
+            AddBar("Min", min, "#7CFC7C"); // green
+            AddBar("Q1", q25, "#66FFAA"); // lighter green
+            AddBar("Median", median, "#00E5FF"); // bright cyan
+
+            if (selectedPrice.HasValue)
+            {
+                AddBar("Selected", selectedPrice.Value, "#FF4B4B"); // hot red
+            }
+
+            AddBar("Q3", q75, "#FFD966"); // yellow-ish
+            AddBar("Max", max, "#FFB347"); // orange
+        }
+
+
         private async Task LoadAndShowInsightsAsync(EbayListing listing)
         {
             try
@@ -524,7 +845,7 @@ namespace CollectIQ.Views
                     });
             }
         }
-
+ 
         private async Task ShowInsightsOverlayAsync()
         {
             if (InsightsOverlay.IsVisible)
@@ -542,26 +863,6 @@ namespace CollectIQ.Views
                 InsightsOverlay.TranslateTo(0, 0, 180, Easing.CubicOut),
                 InsightsScrim.FadeTo(1, 180, Easing.CubicOut)
             );
-        }
-
-        private async Task HideInsightsOverlayAsync()
-        {
-            if (!InsightsOverlay.IsVisible)
-                return;
-
-            await Task.WhenAll(
-                InsightsOverlay.FadeTo(0, 150, Easing.CubicIn),
-                InsightsOverlay.TranslateTo(0, 40, 150, Easing.CubicIn),
-                InsightsScrim.FadeTo(0, 150, Easing.CubicIn)
-            );
-
-            InsightsOverlay.IsVisible = false;
-            InsightsScrim.IsVisible = false;
-        }
-
-        private async void OnCloseInsightsTapped(object sender, EventArgs e)
-        {
-            await HideInsightsOverlayAsync();
         }
 
         private async void OnInsightsScrimTapped(object sender, TappedEventArgs e)
@@ -709,41 +1010,6 @@ namespace CollectIQ.Views
             selectedListing = tapped;
 
             ManualSearchBox.Text = tapped.Title;
-        }
-
-        /// <summary>
-        /// Called when the INSIGHTS icon is tapped in a row.
-        /// Pulses the icon, selects the row, and shows insights.
-        /// </summary>
-        private async void OnInsightsIconTapped(object sender, TappedEventArgs e)
-        {
-            if (e.Parameter is not EbayListing listing)
-                return;
-
-            // Pulse the icon itself
-            if (sender is Image icon)
-            {
-                try
-                {
-                    await icon.ScaleTo(1.15, 120, Easing.CubicOut);
-                    await icon.ScaleTo(1.0, 120, Easing.CubicIn);
-                }
-                catch
-                {
-                    // Ignore animation errors
-                }
-            }
-
-            // Mark selection for highlight
-            foreach (var item in listings)
-                item.IsSelected = false;
-
-            listing.IsSelected = true;
-            selectedListing = listing;
-            ManualSearchBox.Text = listing.Title;
-
-            // Use your existing insights loader
-            await LoadAndShowInsightsAsync(listing);
         }
 
         /// <summary>
