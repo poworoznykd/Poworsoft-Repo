@@ -53,8 +53,8 @@
 
                     <Border.Stroke>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#00F0FF" Offset="0.0" />
-                            <GradientStop Color="#00FFA3" Offset="1.0" />
+                            <GradientStop Color="#0ACAF9" Offset="0.0" />
+                            <GradientStop Color="#39FF14" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Stroke>
 
@@ -73,7 +73,7 @@
 
                             <Label Text="{Binding LastUpdatedLabel}"
                                    FontSize="11"
-                                   TextColor="#7FA6FF" />
+                                   TextColor="#0ACAF9" />
 
                             <!-- card + value row -->
                             <Grid ColumnDefinitions="*,Auto"
@@ -84,7 +84,7 @@
                                                      Spacing="3">
                                     <Label Text="CARDS OWNED"
                                            FontSize="10"
-                                           TextColor="#7FA6FF" />
+                                           TextColor="#0ACAF9" />
                                     <Label Text="{Binding CardsOwned}"
                                            FontSize="22"
                                            FontAttributes="Bold"
@@ -97,12 +97,12 @@
                                                      Margin="18,0,0,0">
                                     <Label Text="EST. VALUE"
                                            FontSize="10"
-                                           TextColor="#7FA6FF" />
+                                           TextColor="#0ACAF9" />
                                     <!-- slightly smaller so it never clips -->
                                     <Label Text="{Binding CollectionValue, StringFormat='${0:N2}'}"
                                            FontSize="20"
                                            FontAttributes="Bold"
-                                           TextColor="#33FFB5" />
+                                           TextColor="#39FF14" />
                                 </VerticalStackLayout>
                             </Grid>
 
@@ -111,7 +111,7 @@
                                 <BoxView WidthRequest="6"
                                          HeightRequest="6"
                                          CornerRadius="3"
-                                         BackgroundColor="#33FFB5"
+                                         BackgroundColor="#39FF14"
                                          VerticalOptions="Center" />
                                 <Label Text="Card matrix online · tracking your collection value"
                                        FontSize="11"
@@ -160,16 +160,16 @@
                                     VerticalOptions="Center">
                                     <Label Text="COLLECT"
                                            FontSize="10"
-                                           TextColor="#A8EFFF"
+                                           TextColor="#0ACAF9"
                                            HorizontalTextAlignment="Center" />
                                     <Label Text="IQ"
                                            FontSize="28"
                                            FontAttributes="Bold"
-                                           TextColor="#33FFB5"
+                                           TextColor="#39FF14"
                                            HorizontalTextAlignment="Center" />
                                     <Label Text="PROFILE"
                                            FontSize="10"
-                                           TextColor="#7FA6FF"
+                                           TextColor="#0ACAF9"
                                            HorizontalTextAlignment="Center" />
                                 </VerticalStackLayout>
                             </Border>
@@ -190,7 +190,7 @@
 
                         <!-- Avg Value / Card -->
                         <Border
-                            Stroke="#33FFB5"
+                            Stroke="#39FF14"
                             StrokeThickness="1.7"
                             Background="#05131F"
                             StrokeShape="RoundRectangle 18"
@@ -203,13 +203,13 @@
                                 <Label Text="{Binding AverageCardValue, StringFormat='${0:N2}'}"
                                        FontSize="18"
                                        FontAttributes="Bold"
-                                       TextColor="#33FFB5" />
+                                       TextColor="#39FF14" />
                             </VerticalStackLayout>
                         </Border>
 
                         <!-- Highest value placeholder -->
                         <Border
-                            Stroke="#00B4FF"
+                            Stroke="#0ACAF9"
                             StrokeThickness="1.7"
                             Background="#050C1C"
                             StrokeShape="RoundRectangle 18"
@@ -218,11 +218,11 @@
                             <VerticalStackLayout Spacing="3">
                                 <Label Text="Highest Recorded Value"
                                        FontSize="11"
-                                       TextColor="#8FD7FF" />
+                                       TextColor="#0ACAF9" />
                                 <Label Text="Coming soon"
                                        FontSize="15"
                                        FontAttributes="Bold"
-                                       TextColor="#6CD4FF" />
+                                       TextColor="#0ACAF9" />
                             </VerticalStackLayout>
                         </Border>
                     </HorizontalStackLayout>
@@ -242,7 +242,7 @@
 
                     <Label Text="Tap a sport to jump into active eBay deals for that lane."
                            FontSize="11"
-                           TextColor="#8BA5D8" />
+                           TextColor="#0ACAF9" />
 
                     <!-- SPORT STRIP NEAR BOTTOM -->
                     <ScrollView Orientation="Horizontal">
@@ -275,7 +275,7 @@
 
                                     <!-- embossed logo plate -->
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -319,7 +319,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -363,7 +363,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -407,7 +407,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -451,7 +451,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -495,7 +495,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
@@ -539,7 +539,7 @@
                                 <VerticalStackLayout Spacing="6"
                                                      HorizontalOptions="Center">
                                     <Border Stroke="#0B2A3F"
-                                            Background="#020910"
+                                            Background="White"
                                             StrokeShape="RoundRectangle 14"
                                             Padding="6"
                                             WidthRequest="96"
