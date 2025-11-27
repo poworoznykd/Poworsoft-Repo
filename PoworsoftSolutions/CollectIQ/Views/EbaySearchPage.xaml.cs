@@ -3,7 +3,7 @@
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-10-28
-//  UPDATED         : 2025-11-22
+//  UPDATED         : 2025-11-23
 //  DESCRIPTION     :
 //      Displays eBay search results for a scanned or manually
 //      entered card query. Supports search-by-image, manual search,
@@ -42,6 +42,15 @@ namespace CollectIQ.Views
             Image,
             Text
         }
+
+        /// <summary>
+        /// Holds the listing that the current Insights overlay is anchored to.
+        /// This is used when recalculating insights (for example, after the
+        /// user removes comps from the Insights list).
+        /// </summary>
+        private EbayListing? currentInsightAnchor;
+
+
 
         private readonly EbayService ebayService;
         private readonly ObservableCollection<EbayListing> listings;
@@ -95,33 +104,6 @@ namespace CollectIQ.Views
             InitializeFilterPickers();
             UpdateFilterSummaryLabel();
         }
-
-        #region Lifecycle
-
-        /// <summary>
-        /// On navigation to this page, if a front image path was provided,
-        /// automatically perform a search-by-image using the current filters.
-        /// </summary>
-        /// <param name="args">Navigation arguments.</param>
-        protected override void OnNavigatedTo(NavigatedToEventArgs args)
-        {
-            base.OnNavigatedTo(args);
-
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                // Give Shell enough time to apply query params the first time
-                await Task.Delay(50);
-
-                if (!string.IsNullOrWhiteSpace(FrontImagePath) &&
-                    File.Exists(FrontImagePath))
-                {
-                    await PerformImageSearchAsync(FrontImagePath);
-                }
-            });
-        }
-
-
-        #endregion
 
         #region Filter Initialization
 
@@ -325,9 +307,10 @@ namespace CollectIQ.Views
 
                         foreach (string title in topTitles)
                         {
-                            var soldForTitle = await ebayService.SearchSoldAsync(
+                            var soldForTitle = await EbayService.SearchSoldAsync(
                                 title,
-                                limit: Math.Max(averageCountFilter * 3, 30));
+                                limit: Math.Max(averageCountFilter * 3, 30),
+                                daysRange: lookbackDays);
 
                             if (soldForTitle != null && soldForTitle.Count > 0)
                             {
@@ -379,7 +362,8 @@ namespace CollectIQ.Views
         /// <summary>
         /// Performs a manual text-based search using the configured filters.
         /// </summary>
-        private async Task PerformManualSearchAsync(string query)
+        private async Task PerformManualSearchAsync(string query
+        )
         {
             try
             {
@@ -432,6 +416,8 @@ namespace CollectIQ.Views
 
             try
             {
+                // Track which listing this Insights session is anchored to
+                currentInsightAnchor = listing;
                 BuildInsightsForListing(listing);
 
                 // Animate overlay in
@@ -480,9 +466,17 @@ namespace CollectIQ.Views
         }
 
         // Build insights from whatever is currently shown in the results list
+        /// <summary>
+        /// Builds the initial Insights view for the selected listing using
+        /// the currently displayed search results as the comps set.
+        /// </summary>
+        /// <param name="selected">Listing the user tapped Insights on.</param>
         private void BuildInsightsForListing(EbayListing selected)
         {
-            // Use the CollectionView's ItemsSource so we don't depend on a "Listings" property.
+            // Treat this listing as the anchor for position/summary text.
+            currentInsightAnchor = selected;
+
+            // Use whatever the CollectionView is currently showing as the base comps set.
             var items = EbayResultsView?.ItemsSource as IEnumerable<EbayListing>;
             if (items == null)
             {
@@ -492,19 +486,49 @@ namespace CollectIQ.Views
                 return;
             }
 
-            var listingList = items.ToList();
+            insightsListings.Clear();
+            foreach (EbayListing? item in items)
+            {
+                if (item != null)
+                {
+                    insightsListings.Add(item);
+                }
+            }
+
+            RecalculateInsightsFromCurrentComps();
+        }
+
+        /// <summary>
+        /// Recomputes all Insights metrics (count, min, max, avg, median,
+        /// suggested price and volatility) from the current contents of
+        /// <see cref="insightsListings"/> and updates the overlay UI.
+        /// Call this after any add/remove operation on the comps list.
+        /// </summary>
+        private void RecalculateInsightsFromCurrentComps()
+        {
+            var listingList = insightsListings.ToList();
             if (listingList.Count == 0)
             {
+                InsightsTitleLabel.Text = currentInsightAnchor?.Title ?? "Selected Card";
                 InsightsSummaryLabel.Text = "No market data available.";
+                InsightsCountValue.Text = "0";
+                InsightsMinValue.Text = "$0.00";
+                InsightsMaxValue.Text = "$0.00";
+                InsightsAvgValue.Text = "$0.00";
+                InsightsMedianValue.Text = "$0.00";
+                InsightsSuggestedValue.Text = "$0.00";
+
+                InsightsStatsLabel.Text = "No comps.";
+                InsightsRangeLabel.Text = string.Empty;
                 InsightsListView.ItemsSource = null;
                 InsightsGraphLayout.Children.Clear();
                 return;
             }
 
-            // Handle nullable prices safely (decimal?)
+            // Safely extract prices
             var prices = listingList
                 .Where(l => l != null && l.Price.HasValue && l.Price.Value > 0m)
-                .Select(l => l.Price.Value)
+                .Select(l => l.Price!.Value)
                 .OrderBy(p => p)
                 .ToList();
 
@@ -522,14 +546,12 @@ namespace CollectIQ.Views
             decimal avg = prices.Average();
             decimal median = ComputeMedian(prices);
 
-            // Quartiles
             decimal q25 = Percentile(prices, 0.25);
             decimal q75 = Percentile(prices, 0.75);
 
-            // Suggested list price (tweak factor if you want)
             decimal suggested = Math.Round(median * 0.95m, 2);
 
-            // Volatility based on spread vs average
+            // Volatility description
             decimal spread = max - min;
             string volatility;
             if (avg <= 0 || spread <= 0)
@@ -553,15 +575,20 @@ namespace CollectIQ.Views
                 }
             }
 
-            // Where the selected listing sits in the market
-            string positionText = "";
-            if (selected.Price.HasValue && selected.Price.Value > 0 && prices.Count > 0)
+            // Where anchor listing sits, if we know it
+            string positionText = string.Empty;
+            if (currentInsightAnchor != null &&
+                currentInsightAnchor.Price.HasValue &&
+                currentInsightAnchor.Price.Value > 0m &&
+                prices.Count > 0)
             {
-                if (selected.Price.Value <= q25)
+                decimal anchorPrice = currentInsightAnchor.Price.Value;
+
+                if (anchorPrice <= q25)
                 {
                     positionText = "This listing is in the lowest 25% of prices (potential bargain).";
                 }
-                else if (selected.Price.Value >= q75)
+                else if (anchorPrice >= q75)
                 {
                     positionText = "This listing is in the highest 25% of prices (top-end or overpriced).";
                 }
@@ -571,10 +598,8 @@ namespace CollectIQ.Views
                 }
             }
 
-            // ==========================
-            // Fill overlay labels
-            // ==========================
-            InsightsTitleLabel.Text = selected.Title ?? "Selected Card";
+            // Update overlay labels
+            InsightsTitleLabel.Text = currentInsightAnchor?.Title ?? "Selected Card";
 
             InsightsCountValue.Text = count.ToString();
             InsightsMinValue.Text = $"${min:F2}";
@@ -586,16 +611,61 @@ namespace CollectIQ.Views
             InsightsSummaryLabel.Text =
                 $"Median around ${median:F2}. Range ${min:F2} – ${max:F2}. {volatility} {positionText}";
 
-            // Keep these so any existing code using them still works
             InsightsStatsLabel.Text = $"Count: {count}  Avg: ${avg:F2}  Min: ${min:F2}  Max: ${max:F2}";
-            InsightsRangeLabel.Text = "Active listings only";  // later: "Sold over last N days"
 
-            // Show the same set (active, sold, or both) in the list
-            InsightsListView.ItemsSource = listingList;
+            InsightsRangeLabel.Text = string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
+                ? $"Sold comps over last {daysRangeFilter} days"
+                : "Active listings only";
 
-            // Build the bar "trend" chart, styled like your screenshot
-            BuildInsightsPriceChart(selected, prices, min, max, median, q25, q75);
+            // Bind the current comps collection
+            InsightsListView.ItemsSource = insightsListings;
+
+            // Rebuild chart
+            BuildInsightsPriceChart(
+                currentInsightAnchor ?? new EbayListing { Price = median },
+                prices,
+                min,
+                max,
+                median,
+                q25,
+                q75);
         }
+
+        /// <summary>
+        /// Handles the swipe "Remove" action on a single comp row in the
+        /// Insights list. Removes it from the comps collection and triggers
+        /// a full Insights recalculation so stats and chart update live.
+        /// </summary>
+        private void OnRemoveCompSwipe(object sender, EventArgs e)
+        {
+            try
+            {
+                EbayListing? comp = null;
+
+                if (sender is SwipeItem swipeItem &&
+                    swipeItem.CommandParameter is EbayListing parameterListing)
+                {
+                    comp = parameterListing;
+                }
+
+                if (comp == null)
+                {
+                    return;
+                }
+
+                if (insightsListings.Contains(comp))
+                {
+                    insightsListings.Remove(comp);
+                }
+
+                RecalculateInsightsFromCurrentComps();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[INSIGHTS REMOVE ERROR] {ex.Message}");
+            }
+        }
+
 
 
         private static decimal ComputeMedian(List<decimal> sortedPrices)
@@ -650,13 +720,13 @@ namespace CollectIQ.Views
         }
 
         private void BuildInsightsPriceChart(
-     EbayListing selected,
-     List<decimal> sortedPrices,
-     decimal min,
-     decimal max,
-     decimal median,
-     decimal q25,
-     decimal q75)
+             EbayListing selected,
+             List<decimal> sortedPrices,
+             decimal min,
+             decimal max,
+             decimal median,
+             decimal q25,
+             decimal q75)
         {
             InsightsGraphLayout.Children.Clear();
 
@@ -750,15 +820,18 @@ namespace CollectIQ.Views
                 List<EbayListing> cardComps = new List<EbayListing>();
                 if (listing.IsSold)
                 {
-                    cardComps = await ebayService.SearchSoldAsync(
+                    cardComps = await EbayService.SearchSoldAsync(
                        listing.Title,
-                       limit: Math.Max(averageCountFilter * 3, 30));
+                       limit: Math.Max(averageCountFilter * 3, 30),
+                       daysRange: 90);
                 }
                 else
                 {
-                    cardComps = await ebayService.SearchActiveAsync(
+                    cardComps = await ebayService.SearchListingsAsync(
                       listing.Title,
-                      limit: Math.Max(averageCountFilter * 3, 30));
+                      limit: Math.Max(averageCountFilter * 3, 30),
+                      "active",
+                      90);
                 }
                 insightsListings.Clear();
 
@@ -906,6 +979,29 @@ namespace CollectIQ.Views
             FilterOverlay.IsVisible = true;
         }
 
+        #region Begin Searching
+        /// <summary>
+        /// On navigation to this page, if a front image path was provided,
+        /// automatically perform a search-by-image using the current filters.
+        /// </summary>
+        /// <param name="args">Navigation arguments.</param>
+        protected override void OnNavigatedTo(NavigatedToEventArgs args)
+        {
+            base.OnNavigatedTo(args);
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                // Give Shell enough time to apply query params the first time
+                await Task.Delay(50);
+
+                if (!string.IsNullOrWhiteSpace(FrontImagePath) &&
+                    File.Exists(FrontImagePath))
+                {
+                    await PerformImageSearchAsync(FrontImagePath);
+                }
+            });
+        }
+
         /// <summary>
         /// Applies selected filters and re-runs the last search.
         /// </summary>
@@ -957,7 +1053,7 @@ namespace CollectIQ.Views
                         limit: Math.Max(averageCountFilter, 25),
                         listingTypeFilter: listingTypeFilter,
                         daysRange: daysRangeFilter);
-
+                    
                     ApplyResultsToCollection(results);
                     UpdateStatusForResults(results);
                 }
@@ -975,6 +1071,8 @@ namespace CollectIQ.Views
                 SetSearchingState(false);
             }
         }
+
+        #endregion
 
         /// <summary>
         /// Hides the filter overlay without applying changes.

@@ -545,55 +545,68 @@
 
                 <!-- COMPS LIST (active or sold or mixed) -->
                 <CollectionView x:Name="InsightsListView"
-                                Grid.Row="5"
-                                Grid.ColumnSpan="2"
-                                HeightRequest="240">
+                Grid.Row="5"
+                Grid.ColumnSpan="2"
+                HeightRequest="240">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <Frame BackgroundColor="#14181C"
-                                   BorderColor="#00B4D8"
-                                   CornerRadius="12"
-                                   Padding="8"
-                                   Margin="0,4">
-                                <Grid ColumnDefinitions="*,Auto"
-                                      RowDefinitions="Auto,Auto">
-                                    <Label Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="{Binding Title}"
-                                           TextColor="White"
-                                           FontSize="13"
-                                           LineBreakMode="TailTruncation"
-                                           MaxLines="2" />
+                            <SwipeView>
+                                <SwipeView.RightItems>
+                                    <SwipeItems Mode="Reveal">
+                                        <SwipeItem Text="Remove"
+                                   BackgroundColor="#8B0000"
+                                   CommandParameter="{Binding .}"
+                                   Invoked="OnRemoveCompSwipe" />
+                                    </SwipeItems>
+                                </SwipeView.RightItems>
 
-                                    <Label Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="{Binding SoldDateDisplay}"
-                                           TextColor="#4be7f2"
-                                           FontSize="11" />
+                                <Frame BackgroundColor="#14181C"
+                       BorderColor="#00B4D8"
+                       CornerRadius="12"
+                       Padding="8"
+                       Margin="0,4">
+                                    <Grid ColumnDefinitions="*,Auto"
+                          RowDefinitions="Auto,Auto">
+                                        <Label Grid.Row="0"
+                               Grid.Column="0"
+                               Text="{Binding Title}"
+                               TextColor="White"
+                               FontSize="13"
+                               LineBreakMode="TailTruncation"
+                               MaxLines="2" />
 
-                                    <StackLayout Grid.Row="0"
-                                                 Grid.Column="1"
-                                                 Grid.RowSpan="2"
-                                                 Orientation="Vertical"
-                                                 Spacing="2"
-                                                 HorizontalOptions="End"
-                                                 VerticalOptions="Center">
-                                        <Label Text="{Binding Price, StringFormat='${0:F2}'}"
-                                               TextColor="#00B4D8"
-                                               FontSize="14"
-                                               FontAttributes="Bold"
-                                               HorizontalTextAlignment="End" />
+                                        <Label Grid.Row="1"
+                               Grid.Column="0"
+                               Text="{Binding SoldDateDisplay}"
+                               TextColor="#4be7f2"
+                               FontSize="11" />
 
-                                        <Label Text="{Binding Status}"
-                                               TextColor="#FFCB6B"
-                                               FontSize="11"
-                                               HorizontalTextAlignment="End" />
-                                    </StackLayout>
-                                </Grid>
-                            </Frame>
+                                        <StackLayout Grid.Row="0"
+                                     Grid.Column="1"
+                                     Grid.RowSpan="2"
+                                     Orientation="Vertical"
+                                     Spacing="2"
+                                     HorizontalOptions="End"
+                                     VerticalOptions="Center">
+                                            <Label Text="{Binding Price, StringFormat='${0:F2}'}"
+                                   TextColor="#00B4D8"
+                                   FontSize="14"
+                                   FontAttributes="Bold"
+                                   HorizontalTextAlignment="End" />
+
+                                            <Label Text="{Binding Status}"
+                                   TextColor="#FFCB6B"
+                                   FontSize="11"
+                                   HorizontalTextAlignment="End" />
+                                        </StackLayout>
+                                    </Grid>
+                                </Frame>
+                            </SwipeView>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
+
+
             </Grid>
         </Frame>
 
