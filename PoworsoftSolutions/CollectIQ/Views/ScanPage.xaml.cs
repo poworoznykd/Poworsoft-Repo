@@ -62,7 +62,7 @@ namespace CollectIQ.Views
         private string backImagePath = string.Empty;
 
         /// <summary>
-        /// Name of the page that initiated this scan (e.g., CardPage).
+        /// Title of the page that initiated this scan (e.g., CardPage).
         /// Used to decide if we capture front+back or front-only.
         /// </summary>
         private readonly string? returnPageName;
@@ -93,7 +93,7 @@ namespace CollectIQ.Views
         /// RETURNS:
         ///     None.
         /// </summary>
-        /// <param name="returnPageNameParam">Name of the page to return to.</param>
+        /// <param name="returnPageNameParam">Title of the page to return to.</param>
         public ScanPage(string returnPageNameParam)
         {
             InitializeComponent();

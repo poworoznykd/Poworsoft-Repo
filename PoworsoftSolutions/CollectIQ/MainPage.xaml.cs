@@ -1,7 +1,7 @@
 ﻿//
 //  FILE            : MainPage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : <Your Name>
+//  PROGRAMMER      : <Your Title>
 //  FIRST VERSION   : 2025-10-18
 //  DESCRIPTION     :
 //      Landing page with gradient, logo, and CTA to navigate into the app.

@@ -240,68 +240,76 @@ namespace CollectIQ.Views
         /// </summary>
         private async void OnSaveOverlayClicked(object sender, EventArgs e)
         {
-            // If nothing new was drawn, no need to save again
-            if (completedStrokes.Count == 0)
+            try
             {
-                await DisplayAlert("No New Overlay", "No new drawing to save.", "OK");
-                return;
-            }
-
-            int width = (int)Math.Max(OverlayCanvas.Width, 1.0f);
-            int height = (int)Math.Max(OverlayCanvas.Height, 1.0f);
-
-            // Create an RGBA surface with full transparency support
-            SKImageInfo imageInfo = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using SKSurface surface = SKSurface.Create(imageInfo);
-            SKCanvas skCanvas = surface.Canvas;
-            skCanvas.Clear(SKColors.Transparent);
-
-            // === STEP 1: Draw the existing overlay image (if one already exists) ===
-            if (File.Exists(overlayFilePath))
-            {
-                try
+                // If nothing new was drawn, no need to save again
+                if (completedStrokes.Count == 0)
                 {
-                    using FileStream stream = File.OpenRead(overlayFilePath);
-                    using SKBitmap existingBitmap = SKBitmap.Decode(stream);
-                    if (existingBitmap != null)
+                    await DisplayAlert("No New Overlay", "No new drawing to save.", "OK");
+                    return;
+                }
+
+                int width = (int)Math.Max(OverlayCanvas.Width, 1.0f);
+                int height = (int)Math.Max(OverlayCanvas.Height, 1.0f);
+
+                // Create an RGBA surface with full transparency support
+                SKImageInfo imageInfo = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+                using SKSurface surface = SKSurface.Create(imageInfo);
+                SKCanvas skCanvas = surface.Canvas;
+                skCanvas.Clear(SKColors.Transparent);
+
+                // === STEP 1: Draw the existing overlay image (if one already exists) ===
+                if (File.Exists(overlayFilePath))
+                {
+                    try
                     {
-                        skCanvas.DrawBitmap(existingBitmap, 0, 0);
+                        using FileStream stream = File.OpenRead(overlayFilePath);
+                        using SKBitmap existingBitmap = SKBitmap.Decode(stream);
+                        if (existingBitmap != null)
+                        {
+                            skCanvas.DrawBitmap(existingBitmap, 0, 0);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[ImageViewerPage] Warning: Could not load previous overlay – {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[ImageViewerPage] Warning: Could not load previous overlay – {ex.Message}");
-                }
-            }
 
-            // === STEP 2: Draw all newly completed strokes ===
-            foreach (var (points, color) in completedStrokes)
+                // === STEP 2: Draw all newly completed strokes ===
+                foreach (var (points, color) in completedStrokes)
+                {
+                    using SKPaint paint = new SKPaint
+                    {
+                        Color = color.ToSKColor(),
+                        Style = SKPaintStyle.Stroke,
+                        StrokeWidth = STROKE_WIDTH,
+                        IsAntialias = true
+                    };
+
+                    for (int i = 1; i < points.Count; i++)
+                    {
+                        skCanvas.DrawLine(points[i - 1].X, points[i - 1].Y,
+                                          points[i].X, points[i].Y, paint);
+                    }
+                }
+
+                // === STEP 3: Save the combined result back to the same file ===
+                using SKImage image = surface.Snapshot();
+                using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+                await File.WriteAllBytesAsync(overlayFilePath, data.ToArray());
+
+                // Clear only the in-memory strokes (they're now part of the saved overlay)
+                completedStrokes.Clear();
+                OverlayCanvas.Invalidate();
+                await DisplayAlert("Overlay Updated", "Your drawings have been merged and saved.", "OK");
+            }
+            catch (Exception)
             {
-                using SKPaint paint = new SKPaint
-                {
-                    Color = color.ToSKColor(),
-                    Style = SKPaintStyle.Stroke,
-                    StrokeWidth = STROKE_WIDTH,
-                    IsAntialias = true
-                };
-
-                for (int i = 1; i < points.Count; i++)
-                {
-                    skCanvas.DrawLine(points[i - 1].X, points[i - 1].Y,
-                                      points[i].X, points[i].Y, paint);
-                }
+                await DisplayAlert("Unable to save overlay", "Administration has been notified.", "OK");
             }
 
-            // === STEP 3: Save the combined result back to the same file ===
-            using SKImage image = surface.Snapshot();
-            using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
-            await File.WriteAllBytesAsync(overlayFilePath, data.ToArray());
-
-            // Clear only the in-memory strokes (they're now part of the saved overlay)
-            completedStrokes.Clear();
-            OverlayCanvas.Invalidate();
-
-            await DisplayAlert("Overlay Updated", "Your drawings have been merged and saved.", "OK");
+           
         }
 
 

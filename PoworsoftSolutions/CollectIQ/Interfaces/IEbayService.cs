@@ -1,7 +1,7 @@
 ﻿//
 //  FILE            : IEbayService.cs
 //  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : <Your Name>
+//  PROGRAMMER      : <Your Title>
 //  FIRST VERSION   : 2025-10-18
 //  DESCRIPTION     :
 //      Abstraction for querying marketplace data (eBay).

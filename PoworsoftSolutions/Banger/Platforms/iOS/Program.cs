@@ -1,7 +1,7 @@
 ﻿using ObjCRuntime;
 using UIKit;
 
-namespace CollectIQ
+namespace Banger
 {
     public class Program
     {

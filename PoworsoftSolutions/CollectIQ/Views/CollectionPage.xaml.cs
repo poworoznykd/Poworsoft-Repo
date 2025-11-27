@@ -67,7 +67,7 @@ namespace CollectIQ.Views
             if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
             {
                 bool confirm = await DisplayAlert("Confirm Delete",
-                    $"Are you sure you want to delete '{card.Name}'?", "Delete", "Cancel");
+                    $"Are you sure you want to delete '{card.Title}'?", "Delete", "Cancel");
 
                 if (!confirm) return;
 

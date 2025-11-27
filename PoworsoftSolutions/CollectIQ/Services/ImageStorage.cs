@@ -1,7 +1,7 @@
 ﻿//
 //  FILE            : ImageStorage.cs
 //  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : <Your Name>
+//  PROGRAMMER      : <Your Title>
 //  FIRST VERSION   : 2025-10-18
 //  DESCRIPTION     :
 //      Saves images to the app's local storage directory.

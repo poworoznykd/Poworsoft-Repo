@@ -968,7 +968,7 @@ namespace CollectIQ.Views
         /// </summary>
         private async void Add_Manual_Button_Clicked(object sender, EventArgs e)
         {
-            await Navigation.PushAsync(new CardPage());
+            await Navigation.PushAsync(new CardPage(new Card()));
         }
 
         /// <summary>
@@ -1156,16 +1156,17 @@ namespace CollectIQ.Views
                 {
                     return;
                 }
-
+                //TODO: Improve mapping from EbayListing to Card
                 Card card = new Card
                 {
-                    Name = listing.Title,
+                    Title = listing.Title,
                     EstimatedValue = listing.Price,
                     CollectionId = "Default",
                     FrontImagePath = listing.ImageUrl,
                     BackImagePath = listing.ImageUrl,
                     Set = "eBay Import",
-                    GradeCompany = "Raw"
+                    GradeCompany = "Raw",
+                    InsightsJson = $"{{ \"EbayListingId\": \"{listing.ListingId}\", \"EbayUrl\": \"{listing.Url}\" }}"
                 };
 
                 await App.Database.AddCardAsync(card);

@@ -25,7 +25,7 @@ namespace CollectIQ.Models
 
         // === Identification ===
         [Indexed]
-        public string Name { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
 
         [Indexed]
         public string Player { get; set; } = string.Empty;
@@ -33,16 +33,16 @@ namespace CollectIQ.Models
         [Indexed]
         public string Team { get; set; } = string.Empty;
 
-        public int Year { get; set; }
+        public int? Year { get; set; }
 
         public string Set { get; set; } = string.Empty;
 
         public string Number { get; set; } = string.Empty;
 
         // === Grading ===
-        public string GradeCompany { get; set; } = "Raw";
+        public string GradeCompany { get; set; } = "None";
 
-        public double? Grade { get; set; }
+        public double? Grade { get; set; } = null;
 
         // === Financial ===
         public decimal? PurchasePrice { get; set; }   // currency-safe
@@ -58,5 +58,9 @@ namespace CollectIQ.Models
         /// Path to the back image of the card (secondary photo).
         /// </summary>
         public string BackImagePath { get; set; } = string.Empty;
+
+        // === Insights (JSON serialized) ===
+        public string InsightsJson { get; set; } = "{}";
+
     }
 }

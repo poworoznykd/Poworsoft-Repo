@@ -106,7 +106,7 @@ namespace CollectIQ.ViewModels
         /// <summary>
         /// Raises PropertyChanged for the specified property.
         /// </summary>
-        /// <param name="propertyName">Name of the property changed</param>
+        /// <param name="propertyName">Title of the property changed</param>
         protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
