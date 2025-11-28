@@ -19,6 +19,9 @@ namespace CollectIQ.Views
 {
     public partial class CardPage : ContentPage
     {
+        private readonly List<decimal> lastInsightPrices = new();
+
+
         private readonly SqliteDatabase database = new();
         private readonly EbayService ebayService;
 
@@ -313,79 +316,6 @@ namespace CollectIQ.Views
         // INSIGHTS (EBAY)
         // ---------------------------------------------------------------------
 
-        private async void OnRefreshInsightsClicked(object sender, EventArgs e)
-        {
-            if (isBusy)
-            {
-                return;
-            }
-
-            string query = EbayQueryEntry.Text?.Trim();
-
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                // If no manual query, build a best-guess from the card fields
-                query = BuildDefaultQueryFromCard();
-                EbayQueryEntry.Text = query;
-            }
-
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                await DisplayAlert("Missing query", "Please enter a phrase to search on eBay (for example: '2020 Prizm Joe Burrow Silver #307').", "OK");
-                return;
-            }
-
-            try
-            {
-                isBusy = true;
-                EbayResultLabel.Text = "Searching eBay for comps…";
-
-                // Use same pattern as EbaySearchPage: text search, recent listings
-                var listings = await ebayService.SearchListingsAsync(query, 60, "ALL", 90);
-
-                var prices = listings
-                    .Select(l => (double)l.Price)
-                    .Where(p => p > 0)
-                    .OrderBy(p => p)
-                    .ToList();
-
-                if (prices.Count == 0)
-                {
-                    EbayResultLabel.Text = "No priced listings found for this query.";
-                    currentInsights = new CardInsights
-                    {
-                        ListingCount = 0,
-                        QueryUsed = query,
-                        Summary = "No recent comps were found."
-                    };
-                }
-                else
-                {
-                    currentInsights = BuildInsightsFromPrices(prices, "USD", query);
-                }
-
-                ApplyInsightsToUi(currentInsights);
-
-                // Push estimated value back onto the card so it shows up in header
-                if (currentInsights.SuggestedPrice.HasValue)
-                {
-                    currentCard.EstimatedValue = (decimal?)currentInsights.SuggestedPrice.Value;
-                    EstimatedValueLabel.Text = FormatCurrency((decimal)currentInsights.SuggestedPrice.Value, currentInsights.Currency);
-                }
-
-                EbayResultLabel.Text = $"Found {currentInsights.ListingCount} listings. Insights updated.";
-            }
-            catch (Exception ex)
-            {
-                EbayResultLabel.Text = "Error while fetching insights.";
-                await DisplayAlert("Error", $"Failed to refresh insights: {ex.Message}", "OK");
-            }
-            finally
-            {
-                isBusy = false;
-            }
-        }
-
         private CardInsights BuildInsightsFromPrices(IReadOnlyList<double> prices, string currency, string query)
         {
             if (prices == null || prices.Count == 0)
@@ -533,6 +463,219 @@ namespace CollectIQ.Views
             }
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        }
+
+        // ============================================================
+        // eBay Insights (per-card) - text + graph
+        // ============================================================
+
+        private async void OnRefreshInsightsClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                // Build a query: use typed query if present; otherwise build from card fields
+                string query = string.IsNullOrWhiteSpace(EbayQueryEntry.Text)
+                    ? BuildDefaultEbayQueryFromForm()
+                    : EbayQueryEntry.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(query))
+                {
+                    await DisplayAlert("eBay Insights",
+                        "Enter a search phrase (player, year, set, #, grade) before refreshing.",
+                        "OK");
+                    return;
+                }
+
+                EbayQueryEntry.Text = query;
+                EbayResultLabel.Text = $"Searching sold listings for \"{query}\"...";
+                InsightsGraphLayout.Children.Clear();
+
+                // Use the same API as your EbaySearch insights
+                var comps = await EbayService.SearchSoldAsync(
+                    query,
+                    limit: 80,
+                    daysRange: 90);
+
+                UpdateInsightsFromListings(comps, query);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("eBay Insights Error", ex.Message, "OK");
+            }
+        }
+
+        private string BuildDefaultEbayQueryFromForm()
+        {
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(PlayerEntry.Text))
+                parts.Add(PlayerEntry.Text.Trim());
+
+            if (!string.IsNullOrWhiteSpace(YearEntry.Text))
+                parts.Add(YearEntry.Text.Trim());
+
+            if (!string.IsNullOrWhiteSpace(TeamEntry.Text))
+                parts.Add(TeamEntry.Text.Trim());
+
+            if (!string.IsNullOrWhiteSpace(SetEntry.Text))
+                parts.Add(SetEntry.Text.Trim());
+
+            if (!string.IsNullOrWhiteSpace(NumberEntry.Text))
+                parts.Add("#" + NumberEntry.Text.Trim());
+
+            if (!string.IsNullOrWhiteSpace(GradeCoEntry.Text) &&
+                !string.IsNullOrWhiteSpace(GradeEntry.Text))
+            {
+                parts.Add($"{GradeCoEntry.Text.Trim()} {GradeEntry.Text.Trim()}");
+            }
+
+            // "Josh Allen 2018 Prizm #205 PSA 10"
+            return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        }
+
+        private void UpdateInsightsFromListings(List<EbayListing>? comps, string query)
+        {
+            InsightsGraphLayout.Children.Clear();
+
+            if (comps == null || comps.Count == 0)
+            {
+                EbayResultLabel.Text = $"No sold listings found for \"{query}\".";
+                InsightsCountLabelCard.Text = "0";
+                InsightsRangeLabelCard.Text = "$0 - $0";
+                InsightsMinLabelCard.Text = "$0";
+                InsightsMaxLabelCard.Text = "$0";
+                InsightsMedianLabelCard.Text = "$0";
+                InsightsEstimatedValueLabel.Text = "$0";
+                EstimatedValueLabel.Text = "$0.00";
+                InsightsSummaryLabelCard.Text = "No insights yet.";
+                InsightsLastUpdatedLabel.Text = "(never)";
+                return;
+            }
+
+            var priced = comps
+                .Where(c => c.Price.HasValue && c.Price.Value > 0m)
+                .ToList();
+
+            if (priced.Count == 0)
+            {
+                EbayResultLabel.Text = $"No valid prices found for \"{query}\".";
+                InsightsCountLabelCard.Text = "0";
+                InsightsRangeLabelCard.Text = "$0 - $0";
+                InsightsMinLabelCard.Text = "$0";
+                InsightsMaxLabelCard.Text = "$0";
+                InsightsMedianLabelCard.Text = "$0";
+                InsightsEstimatedValueLabel.Text = "$0";
+                EstimatedValueLabel.Text = "$0.00";
+                InsightsSummaryLabelCard.Text = "No insights yet.";
+                InsightsLastUpdatedLabel.Text = "(never)";
+                return;
+            }
+
+            var prices = priced
+                .Select(c => c.Price!.Value)
+                .OrderBy(p => p)
+                .ToList();
+
+            int count = prices.Count;
+            decimal min = prices.First();
+            decimal max = prices.Last();
+            decimal avg = prices.Average();
+            decimal median = ComputeMedian(prices);
+
+            // Basic labels
+            InsightsCountLabelCard.Text = count.ToString();
+            InsightsRangeLabelCard.Text = $"{min:C0} - {max:C0}";
+            InsightsMinLabelCard.Text = $"{min:C0}";
+            InsightsMaxLabelCard.Text = $"{max:C0}";
+            InsightsMedianLabelCard.Text = $"{median:C0}";
+            InsightsEstimatedValueLabel.Text = $"{median:C0}";
+
+            // Also update the big header chip
+            EstimatedValueLabel.Text = $"{median:C0}";
+
+            // Save onto card so it persists with the record
+            if (currentCard != null)
+            {
+                currentCard.EstimatedValue = median;
+            }
+
+            // Date range for summary
+            var withDates = priced
+                .Where(c => c.EndDateUtc.HasValue)
+                .OrderBy(c => c.EndDateUtc)
+                .ToList();
+
+            string dateRange;
+            if (withDates.Count >= 2)
+            {
+                var first = withDates.First().EndDateUtc!.Value;
+                var last = withDates.Last().EndDateUtc!.Value;
+                dateRange = $"{first:yyyy-MM-dd} → {last:yyyy-MM-dd}";
+            }
+            else
+            {
+                dateRange = "date range unknown";
+            }
+
+            InsightsSummaryLabelCard.Text =
+                $"Based on {count} sold comps from {dateRange}. Median around {median:C2} (avg {avg:C2}).";
+
+            InsightsLastUpdatedLabel.Text = $"(updated {DateTime.Now:MMM d, h:mm tt})";
+            EbayResultLabel.Text = $"Found {count} sold comps for \"{query}\".";
+
+            // Build sparkline-style bar graph like EbaySearchPage
+            var ordered = priced
+                .OrderBy(c => c.EndDateUtc ?? DateTime.UtcNow)
+                .ToList();
+
+            BuildInsightsGraph(ordered, max);
+        }
+
+        private static decimal ComputeMedian(List<decimal> sortedPrices)
+        {
+            int n = sortedPrices.Count;
+            if (n == 0)
+                return 0m;
+
+            if (n % 2 == 1)
+                return sortedPrices[n / 2];
+
+            decimal a = sortedPrices[(n / 2) - 1];
+            decimal b = sortedPrices[n / 2];
+            return (a + b) / 2m;
+        }
+
+        private void BuildInsightsGraph(List<EbayListing> ordered, decimal maxPrice)
+        {
+            InsightsGraphLayout.Children.Clear();
+
+            const double maxHeight = 70;
+
+            if (ordered.Count == 0 || maxPrice <= 0m)
+                return;
+
+            foreach (var comp in ordered)
+            {
+                decimal price = comp.Price ?? 0m;
+                if (price <= 0m)
+                    continue;
+
+                double normalized = (double)(price / maxPrice);
+                if (normalized < 0) normalized = 0;
+                if (normalized > 1) normalized = 1;
+
+                InsightsGraphLayout.Children.Add(
+                    new BoxView
+                    {
+                        WidthRequest = 8,
+                        HeightRequest = Math.Max(6, maxHeight * normalized),
+                        Color = Color.FromArgb("#33D6FF"),
+                        CornerRadius = 3,
+                        VerticalOptions = LayoutOptions.End,
+                        HorizontalOptions = LayoutOptions.Center,
+                        Margin = new Thickness(1, 0)
+                    });
+            }
         }
 
         // ---------------------------------------------------------------------

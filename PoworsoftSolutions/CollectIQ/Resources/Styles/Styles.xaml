@@ -680,9 +680,42 @@
                 </VisualStateGroup>
             </VisualStateGroupList>
         </Setter>
+     </Style>
+
+        <!-- Futuristic glass-card background -->
+        <Style x:Key="GlassCardBorder" TargetType="Border">
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Stroke" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#151525" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Shadow">
+                <Setter.Value>
+                    <Shadow Brush="#80000000" Radius="18" Offset="0,6" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Est. Value pill-style border (for the right-hand chip) -->
+    <Style x:Key="EstValueChipBorder" TargetType="Border">
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush EndPoint="1,1">
+                    <GradientStop Color="#00B4D8" Offset="0.0" />
+                    <GradientStop Color="#0077B6" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00B4D880" Radius="12" Offset="0,3" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="18" />
+            </Setter.Value>
+        </Setter>
     </Style>
-
-
-
-
 </ResourceDictionary>
