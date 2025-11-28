@@ -45,19 +45,12 @@
                 <!-- MY COLLECTION HERO CARD   -->
                 <!-- ========================= -->
                 <Border
+                    Style="{StaticResource AuroraGlassBorder}"
                     StrokeThickness="2.2"
                     StrokeShape="RoundRectangle 26"
                     Padding="18,16"
                     Background="#050914"
                     Margin="0,0,0,4">
-
-                    <Border.Stroke>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#0ACAF9" Offset="0.0" />
-                            <GradientStop Color="#39FF14" Offset="1.0" />
-                        </LinearGradientBrush>
-                    </Border.Stroke>
-
                     <Grid ColumnDefinitions="*,Auto"
                           RowDefinitions="Auto,Auto,Auto,Auto">
 
@@ -138,20 +131,8 @@
                             <!-- glowing chip -->
                             <Border StrokeShape="RoundRectangle 18"
                                     WidthRequest="82"
-                                    HeightRequest="112">
-                                <Border.Stroke>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#00E5FF" Offset="0.0" />
-                                        <GradientStop Color="#00FFB0" Offset="1.0" />
-                                    </LinearGradientBrush>
-                                </Border.Stroke>
-                                <Border.Background>
-                                    <RadialGradientBrush Center="0.5,0.3"
-                                                         Radius="0.7">
-                                        <GradientStop Color="#021427" Offset="0.0" />
-                                        <GradientStop Color="#020916" Offset="1.0" />
-                                    </RadialGradientBrush>
-                                </Border.Background>
+                                    HeightRequest="112"
+                                    Style="{StaticResource AuroraGlassBorder}">
 
                                 <VerticalStackLayout
                                     Padding="6"
@@ -195,7 +176,7 @@
                             Background="#05131F"
                             StrokeShape="RoundRectangle 18"
                             Padding="12"
-                            HorizontalOptions="FillAndExpand">
+                            Style="{StaticResource AuroraGlassBorder}">
                             <VerticalStackLayout Spacing="3">
                                 <Label Text="Avg Value / Card"
                                        FontSize="11"
@@ -214,7 +195,7 @@
                             Background="#050C1C"
                             StrokeShape="RoundRectangle 18"
                             Padding="12"
-                            HorizontalOptions="FillAndExpand">
+                            Style="{StaticResource AuroraGlassBorder}">
                             <VerticalStackLayout Spacing="3">
                                 <Label Text="Highest Recorded Value"
                                        FontSize="11"
@@ -257,13 +238,8 @@
                                     Background="#04101B"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001F3F"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -303,13 +279,8 @@
                                     Background="#040F1A"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001C3A"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -347,13 +318,8 @@
                                     Background="#040F19"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001D33"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -391,13 +357,8 @@
                                     Background="#040F1A"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001C3A"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -435,13 +396,8 @@
                                     Background="#041119"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001D33"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -479,13 +435,8 @@
                                     Background="#041019"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001C3A"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"
@@ -523,13 +474,8 @@
                                     Background="#041218"
                                     StrokeShape="RoundRectangle 22"
                                     Padding="10"
-                                    WidthRequest="132">
-                                <Border.Shadow>
-                                    <Shadow Brush="#001D33"
-                                            Radius="18"
-                                            Opacity="0.6"
-                                            Offset="0,4" />
-                                </Border.Shadow>
+                                    WidthRequest="132"
+                                    Style="{StaticResource AuroraGlassBorder}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Tapped="OnSportDealsTapped"

@@ -116,7 +116,7 @@
                     Padding="6"
                     Margin="0,4,4,0"
                     TextColor="White"
-                    Style="{StaticResource AccentButton_AuroraBlue}"
+                    Style="{StaticResource AuroraNeonButton}"
                     Grid.Column="2"
                     Clicked="OnCloseClicked" />
         </Grid>
@@ -183,7 +183,7 @@
                         CornerRadius="15"
                         Padding="6"
                         TextColor="White"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Style="{StaticResource AuroraNeonButton}"
                         Clicked="OnSaveOverlayClicked" />
 
                 <Button Text="DELETE"
@@ -191,7 +191,7 @@
                         CornerRadius="15"
                         Padding="6"
                         TextColor="White"
-                        Style="{StaticResource AccentButton_AuroraBlue}"
+                        Style="{StaticResource AuroraNeonButton}"
                         Clicked="OnDeleteOverlayClicked" />
             </HorizontalStackLayout>
         </VerticalStackLayout>

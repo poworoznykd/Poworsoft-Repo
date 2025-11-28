@@ -718,4 +718,391 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Aurora Green Glass Border -->
+    <Style x:Key="AuroraGlassBorder_Green" TargetType="Border">
+
+        <!-- Neon green rim -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#8800FFB3" />
+
+        <!-- Crystal glass + Aurora green tint -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1A0A3F2A" Offset="0.0" />
+                    <!-- Dark glass -->
+                    <GradientStop Color="#3344E6CC" Offset="0.5" />
+                    <!-- Aurora green tint -->
+                    <GradientStop Color="#5580FFCC" Offset="1.0" />
+                    <!-- Glow fade -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora green glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00FFB3" Radius="30" Offset="0,10" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <!-- Aurora Red Glass Border -->
+    <Style x:Key="AuroraGlassBorder_Red" TargetType="Border">
+
+        <!-- Neon red rim -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#CCFF4F4F" />
+
+        <!-- Crystal red aurora glass -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1A3F0A0A" Offset="0.0" />
+                    <!-- Dark smoky glass -->
+                    <GradientStop Color="#33E66666" Offset="0.5" />
+                    <!-- Red tint -->
+                    <GradientStop Color="#55FF8080" Offset="1.0" />
+                    <!-- Glow fade -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora red glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#DDFF4F4F" Radius="30" Offset="0,12" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+
+    <!-- Aurora Glass Border (Glass + Aurora Glow + Neon Tint) -->
+    <Style x:Key="AuroraGlassBorder" TargetType="Border">
+
+        <!-- Aurora neon edge -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#8800E0FF" />
+        <!-- Bright aurora neon -->
+
+        <!-- Translucent aurora glass background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Glass crystal blue -->
+                    <GradientStop Color="#1A0D3A4F" Offset="0.0" />
+                    <!-- Aurora frost blue -->
+                    <GradientStop Color="#3344B6D6" Offset="0.5" />
+                    <!-- Ice-glow -->
+                    <GradientStop Color="#5580EFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Slight transparency for glass effect -->
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora glow shadow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00B4D8" Radius="30" Offset="0,10" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Smooth futuristic corners -->
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+
+    </Style>
+
+
+    <!-- Aurora Green Neon Button -->
+    <Style x:Key="AuroraNeonButton_Green" TargetType="Button">
+
+        <!-- Aurora green gradient -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#00FFB3" Offset="0.0" />
+                    <!-- Bright mint -->
+                    <GradientStop Color="#00B36A" Offset="0.7" />
+                    <!-- Deep aurora green -->
+                    <GradientStop Color="#80FFE6" Offset="1.0" />
+                    <!-- Ice-green glow -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Neon emerald border -->
+        <Setter Property="BorderColor" Value="#99FFEECC" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- High-intensity green glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00FFB3" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#F0FFF9" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Behavior -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="BorderColor" Value="#CCFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CC00FFB3" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#DDFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DD55FFCC" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+    <!-- Aurora Red Neon Button -->
+    <Style x:Key="AuroraNeonButton_Red" TargetType="Button">
+
+        <!-- Aurora red gradient -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF4F4F" Offset="0.0" />
+                    <!-- Bright red -->
+                    <GradientStop Color="#B30000" Offset="0.7" />
+                    <!-- Deep crimson -->
+                    <GradientStop Color="#FFB3B3" Offset="1.0" />
+                    <!-- Ice-red glow -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Neon red border -->
+        <Setter Property="BorderColor" Value="#FFFFCCCC" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- Intense red glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#CCFF4F4F" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#FFF7F7" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Behavior -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="BorderColor" Value="#FFFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#FFDD4444" Radius="45" Offset="0,15" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#FFFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#FFFF6A6A" Radius="48" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+
+    <!-- Aurora Neon Holographic Button -->
+    <Style x:Key="AuroraNeonButton" TargetType="Button">
+
+        <!-- Aurora-gradient neon background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Aurora bright blue -->
+                    <GradientStop Color="#00E0FF" Offset="0.0" />
+                    <!-- Deep aurora ocean blue -->
+                    <GradientStop Color="#0077B6" Offset="0.7" />
+                    <!-- Aurora ice-glow -->
+                    <GradientStop Color="#80E6FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Strong aurora glow border -->
+        <Setter Property="BorderColor" Value="#AA00E0FF" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- High-intensity Aurora neon glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00B4D8" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#F0FCFFFF" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Pressed/hover visual states -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <!-- Normal -->
+                        <VisualState x:Name="Normal" />
+
+                        <!-- Pressed: deeper aurora pulse -->
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#CC66FFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CC00E0FF" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <!-- Hover: glowing aurora rim (desktop) -->
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#D9FFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DD44CCFF" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+    <Style x:Key="AuroraLabel_Blue" TargetType="Label">
+        <Setter Property="TextColor" Value="#4BE7F2" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533E6FF" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Green" TargetType="Label">
+        <Setter Property="TextColor" Value="#00FFB3" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533FFCC" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Red" TargetType="Label">
+        <Setter Property="TextColor" Value="#FF4F4F" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Shadow Brush="#55FF5A5A" Radius="8" Offset="0,1" />
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

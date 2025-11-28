@@ -8,21 +8,6 @@
     Title="Card Detail"
     Appearing="OnAppearing">
 
-    <ContentPage.Resources>
-        <!-- Futuristic glass-card background -->
-        <Style x:Key="GlassCardBorder" TargetType="Border">
-            <Setter Property="StrokeThickness" Value="1" />
-            <Setter Property="Stroke" Value="#33FFFFFF" />
-            <Setter Property="Background" Value="#151525" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Shadow">
-                <Setter.Value>
-                    <Shadow Brush="#80000000" Radius="18" Offset="0,6" />
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </ContentPage.Resources>
-
     <Grid RowDefinitions="*,Auto" BackgroundColor="#050814">
 
         <!-- MAIN CONTENT -->
@@ -33,7 +18,7 @@
                     Spacing="16">
 
                     <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
-                    <Border Style="{StaticResource GlassCardBorder}">
+                    <Border Style="{StaticResource AuroraGlassBorder}">
                         <Grid RowDefinitions="Auto,Auto" ColumnSpacing="4">
 
                             <!-- Title row -->
@@ -62,28 +47,23 @@
                                     LineBreakMode="TailTruncation"
                                     MaxLines="2" />
 
-                                <!-- Est. Value chip (no button style, pure border) -->
                                 <Border
+                                    Style="{StaticResource AuroraGlassBorder_Green}"
                                     Grid.Column="1"
                                     HorizontalOptions="End"
                                     VerticalOptions="Center"
-                                    Padding="10,6"
-                                    Background="#00B4D8"
-                                    StrokeThickness="0">
+                                    Padding="10,6">
                                     <VerticalStackLayout
-                                        Spacing="0"
                                         HorizontalOptions="Center">
-                                        <Label
+                                        <Label TextColor="White"
                                             Text="Est. Value"
                                             FontSize="11"
-                                            TextColor="#050814"
                                             HorizontalTextAlignment="Center" />
-                                        <Label
+                                        <Label TextColor="White"
                                             x:Name="EstimatedValueLabel"
                                             Text="$0.00"
                                             FontSize="18"
                                             FontAttributes="Bold"
-                                            TextColor="#050814"
                                             HorizontalTextAlignment="Center" />
                                     </VerticalStackLayout>
                                 </Border>
@@ -95,8 +75,7 @@
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                         <!-- Front -->
                         <Border
-                            Style="{StaticResource GlassCardBorder}"
-                            Background="#0B1020">
+                            Style="{StaticResource AuroraGlassBorder}">
                             <Grid>
                                 <Image
                                     x:Name="FrontImagePreview"
@@ -128,8 +107,7 @@
 
                         <!-- Back -->
                         <Border
-                            Style="{StaticResource GlassCardBorder}"
-                            Background="#0B1020"
+                            Style="{StaticResource AuroraGlassBorder}"
                             Grid.Column="1">
                             <Grid>
                                 <Image
@@ -168,21 +146,17 @@
                         <Button
                             Text="Take Photos"
                             Clicked="OnTakePhotos"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            FontSize="12"
-                            Padding="14,4"
-                            CornerRadius="18" />
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="14,4" />
                         <Button
                             Text="Pick Photos"
                             Clicked="OnPickPhotos"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            FontSize="12"
-                            Padding="14,4"
-                            CornerRadius="18" />
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="14,4" />
                     </HorizontalStackLayout>
 
                     <!-- Card details (editable form) -->
-                    <Border Style="{StaticResource GlassCardBorder}">
+                    <Border Style="{StaticResource AuroraGlassBorder}">
                         <VerticalStackLayout Spacing="8">
 
                             <Label
@@ -324,7 +298,7 @@
                     </Border>
 
                     <!-- eBay insights section -->
-                    <Border Style="{StaticResource GlassCardBorder}">
+                    <Border Style="{StaticResource AuroraGlassBorder}">
                         <VerticalStackLayout Spacing="10">
                             <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
                                 <Label
@@ -344,15 +318,12 @@
                                     x:Name="EbayQueryEntry"
                                     Placeholder="Search phrase for this card…"
                                     FontSize="13"
-                                    TextColor="#E2E8F0"
-                                    HorizontalOptions="FillAndExpand" />
+                                    TextColor="#E2E8F0" />
                                 <Button
                                     Text="Refresh"
                                     Clicked="OnRefreshInsightsClicked"
-                                    Style="{StaticResource AccentButton_AuroraBlue}"
-                                    FontSize="12"
-                                    Padding="12,4"
-                                    CornerRadius="18" />
+                                    Style="{StaticResource AuroraNeonButton}"
+                                    Padding="12,4"/>
                             </HorizontalStackLayout>
 
                             <Label
@@ -485,20 +456,13 @@
                         <Button
                             Text="Save Card"
                             Clicked="OnSave"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            FontSize="13"
-                            Padding="18,6"
-                            CornerRadius="22" />
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="18,6"/>
                         <Button
+                            Style="{StaticResource AuroraNeonButton_Red}"
                             Text="Delete"
                             Clicked="OnDelete"
-                            FontSize="13"
-                            Padding="16,6"
-                            TextColor="#FF4B6A"
-                            BackgroundColor="Transparent"
-                            BorderColor="#FF4B6A"
-                            BorderWidth="1"
-                            CornerRadius="22" />
+                            Padding="16,6" />
                     </HorizontalStackLayout>
 
                 </VerticalStackLayout>
