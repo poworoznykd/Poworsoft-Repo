@@ -21,7 +21,6 @@ namespace CollectIQ.Views
     {
         private readonly List<decimal> lastInsightPrices = new();
 
-
         private readonly SqliteDatabase database = new();
         private readonly EbayService ebayService;
 
@@ -442,7 +441,9 @@ namespace CollectIQ.Views
                 parts.Add(currentCard.Player);
             }
 
-            if (!string.IsNullOrWhiteSpace(currentCard.Set))
+            // Avoid polluting search with sentinel text like "eBay Import"
+            if (!string.IsNullOrWhiteSpace(currentCard.Set) &&
+                !string.Equals(currentCard.Set.Trim(), "eBay Import", StringComparison.OrdinalIgnoreCase))
             {
                 parts.Add(currentCard.Set);
             }
@@ -517,8 +518,13 @@ namespace CollectIQ.Views
             if (!string.IsNullOrWhiteSpace(TeamEntry.Text))
                 parts.Add(TeamEntry.Text.Trim());
 
-            if (!string.IsNullOrWhiteSpace(SetEntry.Text))
-                parts.Add(SetEntry.Text.Trim());
+            // Do NOT include the sentinel "eBay Import" value in the query
+            var setText = SetEntry.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(setText) &&
+                !string.Equals(setText, "eBay Import", StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(setText);
+            }
 
             if (!string.IsNullOrWhiteSpace(NumberEntry.Text))
                 parts.Add("#" + NumberEntry.Text.Trim());
@@ -583,7 +589,7 @@ namespace CollectIQ.Views
             decimal median = ComputeMedian(prices);
 
             // Basic labels
-            InsightsCountLabelCard.Text = count.ToString();
+            InsightsCountLabelCard.Text = count.ToString(CultureInfo.InvariantCulture);
             InsightsRangeLabelCard.Text = $"{min:C0} - {max:C0}";
             InsightsMinLabelCard.Text = $"{min:C0}";
             InsightsMaxLabelCard.Text = $"{max:C0}";

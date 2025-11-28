@@ -249,6 +249,13 @@ namespace CollectIQ.Views
                     return;
                 }
 
+                // Make sure the directory exists before writing
+                string? overlayDir = Path.GetDirectoryName(overlayFilePath);
+                if (!string.IsNullOrWhiteSpace(overlayDir) && !Directory.Exists(overlayDir))
+                {
+                    Directory.CreateDirectory(overlayDir);
+                }
+
                 int width = (int)Math.Max(OverlayCanvas.Width, 1.0f);
                 int height = (int)Math.Max(OverlayCanvas.Height, 1.0f);
 
@@ -299,19 +306,20 @@ namespace CollectIQ.Views
                 using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
                 await File.WriteAllBytesAsync(overlayFilePath, data.ToArray());
 
+                // Refresh in-memory bitmap so Draw() shows the new overlay
+                LoadOverlayIfExists();
+
                 // Clear only the in-memory strokes (they're now part of the saved overlay)
                 completedStrokes.Clear();
                 OverlayCanvas.Invalidate();
                 await DisplayAlert("Overlay Updated", "Your drawings have been merged and saved.", "OK");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine($"[ImageViewerPage] Unable to save overlay: {ex}");
                 await DisplayAlert("Unable to save overlay", "Administration has been notified.", "OK");
             }
-
-           
         }
-
 
         /// <summary>
         /// FUNCTION: OnDeleteOverlayClicked
@@ -329,6 +337,7 @@ namespace CollectIQ.Views
             if (File.Exists(overlayFilePath))
                 File.Delete(overlayFilePath);
 
+            overlayBitmap = null;
             completedStrokes.Clear();
             OverlayCanvas.Invalidate();
 
@@ -352,14 +361,17 @@ namespace CollectIQ.Views
                     using FileStream stream = File.OpenRead(overlayFilePath);
                     overlayBitmap = SKBitmap.Decode(stream); // keeps alpha if saved properly
                 }
+                else
+                {
+                    overlayBitmap = null;
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ImageViewerPage] Failed to load overlay: {ex.Message}");
+                overlayBitmap = null;
             }
         }
-
-
 
         /// <summary>
         /// FUNCTION: Draw
@@ -403,7 +415,6 @@ namespace CollectIQ.Views
                             dirtyRect.Height
                         );
                         canvas.Alpha = 1.0f; // reset (good habit for subsequent strokes)
-
                     }
                 }
                 catch (Exception ex)
@@ -436,7 +447,6 @@ namespace CollectIQ.Views
                 }
             }
         }
-
 
         /// <summary>
         /// FUNCTION: OnCloseClicked

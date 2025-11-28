@@ -7,55 +7,87 @@
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     Title="Card Detail"
     Appearing="OnAppearing">
-    
+
+    <ContentPage.Resources>
+        <!-- Futuristic glass-card background -->
+        <Style x:Key="GlassCardBorder" TargetType="Border">
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Stroke" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#151525" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Shadow">
+                <Setter.Value>
+                    <Shadow Brush="#80000000" Radius="18" Offset="0,6" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ContentPage.Resources>
+
     <Grid RowDefinitions="*,Auto" BackgroundColor="#050814">
 
-        <!-- MAIN CONTENT + OVERLAYS -->
+        <!-- MAIN CONTENT -->
         <Grid Grid.Row="0">
-
-            <!-- Scrollable content -->
             <ScrollView>
                 <VerticalStackLayout
                     Padding="16,12,16,24"
                     Spacing="16">
 
-                    <!-- Cinematic header row: title + estimated value -->
+                    <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
                     <Border Style="{StaticResource GlassCardBorder}">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                            <VerticalStackLayout Spacing="2">
-                                <Label
-                                    x:Name="CardTitleLabel"
-                                    Text="Card Title"
-                                    FontSize="20"
-                                    FontAttributes="Bold"
-                                    TextColor="#F2F6FF" />
+                        <Grid RowDefinitions="Auto,Auto" ColumnSpacing="4">
+
+                            <!-- Title row -->
+                            <Label
+                                x:Name="CardTitleLabel"
+                                Grid.Row="0"
+                                Text="Card Title"
+                                FontSize="20"
+                                FontAttributes="Bold"
+                                TextColor="#F2F6FF"
+                                LineBreakMode="WordWrap" />
+
+                            <!-- Subtitle + Est Value chip row -->
+                            <Grid
+                                Grid.Row="1"
+                                ColumnDefinitions="*,Auto"
+                                ColumnSpacing="8"
+                                VerticalOptions="Center">
+
                                 <Label
                                     x:Name="CardSubtitleLabel"
+                                    Grid.Column="0"
                                     Text="Year · Team · Set · #"
                                     FontSize="12"
-                                    TextColor="#A0AEC0" />
-                            </VerticalStackLayout>
+                                    TextColor="#A0AEC0"
+                                    LineBreakMode="TailTruncation"
+                                    MaxLines="2" />
 
-                            <Border
-                                HorizontalOptions="End"
-                                VerticalOptions="Center"
-                                Style="{StaticResource EstValueChipBorder}">
-                                <VerticalStackLayout Spacing="0" HorizontalOptions="Center">
-                                    <Label
-                                        Text="Est. Value"
-                                        FontSize="11"
-                                        TextColor="#050814"
-                                        HorizontalTextAlignment="Center" />
-                                    <Label
-                                        x:Name="EstimatedValueLabel"
-                                        Text="$0.00"
-                                        FontSize="18"
-                                        FontAttributes="Bold"
-                                        TextColor="#050814"
-                                        HorizontalTextAlignment="Center" />
-                                </VerticalStackLayout>
-                            </Border>
-
+                                <!-- Est. Value chip (no button style, pure border) -->
+                                <Border
+                                    Grid.Column="1"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Center"
+                                    Padding="10,6"
+                                    Background="#00B4D8"
+                                    StrokeThickness="0">
+                                    <VerticalStackLayout
+                                        Spacing="0"
+                                        HorizontalOptions="Center">
+                                        <Label
+                                            Text="Est. Value"
+                                            FontSize="11"
+                                            TextColor="#050814"
+                                            HorizontalTextAlignment="Center" />
+                                        <Label
+                                            x:Name="EstimatedValueLabel"
+                                            Text="$0.00"
+                                            FontSize="18"
+                                            FontAttributes="Bold"
+                                            TextColor="#050814"
+                                            HorizontalTextAlignment="Center" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
                         </Grid>
                     </Border>
 
@@ -70,7 +102,10 @@
                                     x:Name="FrontImagePreview"
                                     Aspect="AspectFill"
                                     Opacity="0.96" />
-                                <Grid Background="#66000000" IsVisible="False" x:Name="FrontImageOverlay" />
+                                <Grid
+                                    x:Name="FrontImageOverlay"
+                                    Background="#66000000"
+                                    IsVisible="False" />
                                 <VerticalStackLayout
                                     Spacing="4"
                                     VerticalOptions="End"
@@ -101,7 +136,10 @@
                                     x:Name="BackImagePreview"
                                     Aspect="AspectFill"
                                     Opacity="0.96" />
-                                <Grid Background="#66000000" IsVisible="False" x:Name="BackImageOverlay" />
+                                <Grid
+                                    x:Name="BackImageOverlay"
+                                    Background="#66000000"
+                                    IsVisible="False" />
                                 <VerticalStackLayout
                                     Spacing="4"
                                     VerticalOptions="End"
@@ -288,161 +326,157 @@
                     <!-- eBay insights section -->
                     <Border Style="{StaticResource GlassCardBorder}">
                         <VerticalStackLayout Spacing="10">
-                            <!-- Header -->
                             <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
                                 <Label
-                Text="eBay Insights"
-                FontAttributes="Bold"
-                FontSize="14"
-                TextColor="#E2E8F0" />
+                                    Text="eBay Insights"
+                                    FontAttributes="Bold"
+                                    FontSize="14"
+                                    TextColor="#E2E8F0" />
                                 <Label
-                x:Name="InsightsLastUpdatedLabel"
-                Text="(never)"
-                FontSize="11"
-                TextColor="#A0AEC0" />
+                                    x:Name="InsightsLastUpdatedLabel"
+                                    Text="(never)"
+                                    FontSize="11"
+                                    TextColor="#A0AEC0" />
                             </HorizontalStackLayout>
 
-                            <!-- Query + Refresh -->
                             <HorizontalStackLayout Spacing="8">
                                 <Entry
-                x:Name="EbayQueryEntry"
-                Placeholder="Search phrase for this card…"
-                FontSize="13"
-                TextColor="#E2E8F0"
-                HorizontalOptions="FillAndExpand" />
+                                    x:Name="EbayQueryEntry"
+                                    Placeholder="Search phrase for this card…"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    HorizontalOptions="FillAndExpand" />
                                 <Button
-                Text="Refresh"
-                Clicked="OnRefreshInsightsClicked"
-                Style="{StaticResource AccentButton_AuroraBlue}"
-                FontSize="12"
-                Padding="12,4"
-                CornerRadius="18" />
+                                    Text="Refresh"
+                                    Clicked="OnRefreshInsightsClicked"
+                                    Style="{StaticResource AccentButton_AuroraBlue}"
+                                    FontSize="12"
+                                    Padding="12,4"
+                                    CornerRadius="18" />
                             </HorizontalStackLayout>
 
-                            <!-- Status/result line -->
                             <Label
-            x:Name="EbayResultLabel"
-            Text=""
-            FontSize="11"
-            TextColor="#A0AEC0" />
+                                x:Name="EbayResultLabel"
+                                Text=""
+                                FontSize="11"
+                                TextColor="#A0AEC0" />
 
                             <!-- Compact metrics grid -->
                             <Grid
-            ColumnDefinitions="*,*"
-            RowDefinitions="Auto,Auto,Auto"
-            ColumnSpacing="16"
-            RowSpacing="4">
+                                ColumnDefinitions="*,*"
+                                RowDefinitions="Auto,Auto,Auto"
+                                ColumnSpacing="16"
+                                RowSpacing="4">
 
                                 <!-- Count -->
                                 <VerticalStackLayout Grid.Row="0" Grid.Column="0">
                                     <Label
-                    Text="Listings"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Listings"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsCountLabelCard"
-                    Text="0"
-                    FontSize="14"
-                    FontAttributes="Bold"
-                    TextColor="#F2F6FF" />
+                                        x:Name="InsightsCountLabelCard"
+                                        Text="0"
+                                        FontSize="14"
+                                        FontAttributes="Bold"
+                                        TextColor="#F2F6FF" />
                                 </VerticalStackLayout>
 
-                                <!-- Price range -->
+                                <!-- Range -->
                                 <VerticalStackLayout Grid.Row="0" Grid.Column="1">
                                     <Label
-                    Text="Range"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Range"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsRangeLabelCard"
-                    Text="$0 - $0"
-                    FontSize="14"
-                    FontAttributes="Bold"
-                    TextColor="#F2F6FF" />
+                                        x:Name="InsightsRangeLabelCard"
+                                        Text="$0 - $0"
+                                        FontSize="14"
+                                        FontAttributes="Bold"
+                                        TextColor="#F2F6FF" />
                                 </VerticalStackLayout>
 
                                 <!-- Min -->
                                 <VerticalStackLayout Grid.Row="1" Grid.Column="0">
                                     <Label
-                    Text="Min"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Min"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsMinLabelCard"
-                    Text="$0"
-                    FontSize="13"
-                    TextColor="#E2E8F0" />
+                                        x:Name="InsightsMinLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
                                 </VerticalStackLayout>
 
                                 <!-- Max -->
                                 <VerticalStackLayout Grid.Row="1" Grid.Column="1">
                                     <Label
-                    Text="Max"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Max"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsMaxLabelCard"
-                    Text="$0"
-                    FontSize="13"
-                    TextColor="#E2E8F0" />
+                                        x:Name="InsightsMaxLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
                                 </VerticalStackLayout>
 
                                 <!-- Median -->
                                 <VerticalStackLayout Grid.Row="2" Grid.Column="0">
                                     <Label
-                    Text="Median"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Median"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsMedianLabelCard"
-                    Text="$0"
-                    FontSize="13"
-                    TextColor="#E2E8F0" />
+                                        x:Name="InsightsMedianLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
                                 </VerticalStackLayout>
 
                                 <!-- Suggested -->
                                 <VerticalStackLayout Grid.Row="2" Grid.Column="1">
                                     <Label
-                    Text="Suggested"
-                    FontSize="11"
-                    TextColor="#A0AEC0" />
+                                        Text="Suggested"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
                                     <Label
-                    x:Name="InsightsEstimatedValueLabel"
-                    Text="$0"
-                    FontSize="13"
-                    FontAttributes="Bold"
-                    TextColor="#7CF9FF" />
+                                        x:Name="InsightsEstimatedValueLabel"
+                                        Text="$0"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="#7CF9FF" />
                                 </VerticalStackLayout>
                             </Grid>
 
-                            <!-- PRICE TREND GRAPH (like your EbaySearchPage overlay) -->
-                            <Grid HeightRequest="80" Margin="0,4,0,8">
-                                <!-- baseline -->
+                            <!-- Sparkline graph (mirrors EbaySearchPage visual language) -->
+                            <Grid
+                                HeightRequest="80"
+                                Margin="0,8,0,4">
+                                <!-- Baseline -->
                                 <BoxView
-                HeightRequest="1.5"
-                VerticalOptions="End"
-                Margin="0,6,0,6"
-                BackgroundColor="#333333" />
-
-                                <!-- bars -->
+                                    HeightRequest="1.5"
+                                    VerticalOptions="End"
+                                    Margin="0,6,0,6"
+                                    BackgroundColor="#333333" />
+                                <!-- Bars -->
                                 <FlexLayout
-                x:Name="InsightsGraphLayout"
-                AlignItems="End"
-                JustifyContent="SpaceEvenly"
-                Margin="0,0,0,4" />
+                                    x:Name="InsightsGraphLayout"
+                                    AlignItems="End"
+                                    JustifyContent="SpaceEvenly"
+                                    Margin="0,0,0,4" />
                             </Grid>
 
                             <!-- Summary line -->
                             <Label
-            x:Name="InsightsSummaryLabelCard"
-            Text="No insights yet."
-            FontSize="11"
-            TextColor="#A0AEC0"
-            LineBreakMode="WordWrap" />
+                                x:Name="InsightsSummaryLabelCard"
+                                Text="No insights yet."
+                                FontSize="11"
+                                TextColor="#A0AEC0"
+                                LineBreakMode="WordWrap" />
                         </VerticalStackLayout>
                     </Border>
-
-
 
                     <!-- Save / delete actions -->
                     <HorizontalStackLayout
