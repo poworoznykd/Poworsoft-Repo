@@ -89,27 +89,36 @@
                     Style="{StaticResource AuroraGlassBorder}"
                     Padding="12,8"
                     Margin="16,6,16,0">
-                <HorizontalStackLayout Spacing="10"
-                                       VerticalOptions="Center">
+                <Grid ColumnDefinitions="Auto,*,Auto"
+                        VerticalOptions="Center">
+
+                    <!-- "Filters" label -->
                     <Label Text="Filters"
-                           FontSize="12"
-                           FontAttributes="Bold"
-                           TextColor="#F2F6FF" />
+                           VerticalTextAlignment="Center"
+                       Grid.Column="0"
+                       FontSize="12"
+                       FontAttributes="Bold"
+                       TextColor="#F2F6FF" />
 
+                    <!-- Summary (will shrink & truncate if needed) -->
                     <Label x:Name="FilterSummaryLabel"
-                           Text="Sold, last 90 days, avg top 10"
-                           FontSize="11"
-                           TextColor="#6CD4FF"
-                           HorizontalOptions="StartAndExpand"
-                           LineBreakMode="TailTruncation" />
+                       Grid.Column="1"
+                            VerticalTextAlignment="Center"
+                       Text="Sold, last 90 days, avg top 10"
+                       FontSize="11"
+                       TextColor="#6CD4FF"
+                       HorizontalOptions="FillAndExpand"
+                       LineBreakMode="TailTruncation" />    
 
+                    <!-- Adjust button - always visible -->
                     <Button x:Name="FilterButton"
-                            Text="Adjust"
-                            Style="{StaticResource AuroraNeonButton}"
-                            HeightRequest="34"
-                            Padding="14,2"
-                            Clicked="OnFilterButtonClicked" />
-                </HorizontalStackLayout>
+                        Grid.Column="2"
+                        Text="Adjust"
+                        Style="{StaticResource AuroraNeonButton}"
+                        HeightRequest="34"
+                        Padding="14,2"
+                        Clicked="OnFilterButtonClicked" />
+                </Grid>
             </Border>
 
             <!-- RESULTS LIST -->

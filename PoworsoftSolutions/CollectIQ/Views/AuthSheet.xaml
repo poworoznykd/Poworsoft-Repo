@@ -116,7 +116,7 @@
 
                         <!-- STRENGTH ROW (LABEL + GAUGE, NUDGED LEFT & DOWN) -->
                         <Grid Grid.Row="5"
-                            ColumnDefinitions="Auto,Auto,*"
+                            ColumnDefinitions="100,*"
                             Margin="0,8,0,0">
                             <!-- label -->
                             <Label Text="Strength:"
@@ -131,9 +131,9 @@
                               Grid.Column="1"
                               WidthRequest="90"
                               HeightRequest="90"
-                              Margin="4,10,0,0"
-                              HorizontalOptions="Start"
-                              VerticalOptions="Start" />
+                              Margin="20,20,20,20"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center" />
                         </Grid>
 
 
