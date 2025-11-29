@@ -3,12 +3,13 @@
     x:Class="CollectIQ.Views.CardPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+    xmlns:controls="clr-namespace:CollectIQ.Controls"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     Title="Card Detail"
     Appearing="OnAppearing">
 
-    <Grid RowDefinitions="*,Auto" BackgroundColor="#050814">
+    <Grid RowDefinitions="*,Auto"
+          BackgroundColor="#050814">
 
         <!-- MAIN CONTENT -->
         <Grid Grid.Row="0">
@@ -19,7 +20,8 @@
 
                     <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
                     <Border Style="{StaticResource AuroraGlassBorder}">
-                        <Grid RowDefinitions="Auto,Auto" ColumnSpacing="4">
+                        <Grid RowDefinitions="Auto,Auto"
+                              ColumnSpacing="4">
 
                             <!-- Title row -->
                             <Label
@@ -56,15 +58,15 @@
                                     <VerticalStackLayout
                                         HorizontalOptions="Center">
                                         <Label TextColor="White"
-                                            Text="Est. Value"
-                                            FontSize="11"
-                                            HorizontalTextAlignment="Center" />
+                                               Text="Est. Value"
+                                               FontSize="11"
+                                               HorizontalTextAlignment="Center" />
                                         <Label TextColor="White"
-                                            x:Name="EstimatedValueLabel"
-                                            Text="$0.00"
-                                            FontSize="18"
-                                            FontAttributes="Bold"
-                                            HorizontalTextAlignment="Center" />
+                                               x:Name="EstimatedValueLabel"
+                                               Text="$0.00"
+                                               FontSize="18"
+                                               FontAttributes="Bold"
+                                               HorizontalTextAlignment="Center" />
                                     </VerticalStackLayout>
                                 </Border>
                             </Grid>
@@ -72,10 +74,11 @@
                     </Border>
 
                     <!-- Front / Back images row -->
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="*,*"
+                          ColumnSpacing="12">
+
                         <!-- Front -->
-                        <Border
-                            Style="{StaticResource AuroraGlassBorder}">
+                        <Border Style="{StaticResource AuroraGlassBorder}">
                             <Grid>
                                 <Image
                                     x:Name="FrontImagePreview"
@@ -106,9 +109,8 @@
                         </Border>
 
                         <!-- Back -->
-                        <Border
-                            Style="{StaticResource AuroraGlassBorder}"
-                            Grid.Column="1">
+                        <Border Style="{StaticResource AuroraGlassBorder}"
+                                Grid.Column="1">
                             <Grid>
                                 <Image
                                     x:Name="BackImagePreview"
@@ -297,10 +299,13 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <!-- eBay insights section -->
+                    <!-- eBay insights section (TRIGGERS OVERLAY CONTROL) -->
                     <Border Style="{StaticResource AuroraGlassBorder}">
                         <VerticalStackLayout Spacing="10">
-                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+
+                            <!-- Header row -->
+                            <HorizontalStackLayout Spacing="8"
+                                                   VerticalOptions="Center">
                                 <Label
                                     Text="eBay Insights"
                                     FontAttributes="Bold"
@@ -313,139 +318,29 @@
                                     TextColor="#A0AEC0" />
                             </HorizontalStackLayout>
 
+                            <!-- Query + Refresh -->
                             <HorizontalStackLayout Spacing="8">
                                 <Entry
                                     x:Name="EbayQueryEntry"
                                     Placeholder="Search phrase for this card…"
                                     FontSize="13"
                                     TextColor="#E2E8F0" />
+                                <!-- This button should fetch comps and then show the overlay -->
                                 <Button
-                                    Text="Refresh"
+                                    Text="Refresh &amp; View"
                                     Clicked="OnRefreshInsightsClicked"
                                     Style="{StaticResource AuroraNeonButton}"
-                                    Padding="12,4"/>
+                                    Padding="12,4" />
                             </HorizontalStackLayout>
 
+                            <!-- Status / helper text -->
                             <Label
                                 x:Name="EbayResultLabel"
-                                Text=""
-                                FontSize="11"
-                                TextColor="#A0AEC0" />
-
-                            <!-- Compact metrics grid -->
-                            <Grid
-                                ColumnDefinitions="*,*"
-                                RowDefinitions="Auto,Auto,Auto"
-                                ColumnSpacing="16"
-                                RowSpacing="4">
-
-                                <!-- Count -->
-                                <VerticalStackLayout Grid.Row="0" Grid.Column="0">
-                                    <Label
-                                        Text="Listings"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsCountLabelCard"
-                                        Text="0"
-                                        FontSize="14"
-                                        FontAttributes="Bold"
-                                        TextColor="#F2F6FF" />
-                                </VerticalStackLayout>
-
-                                <!-- Range -->
-                                <VerticalStackLayout Grid.Row="0" Grid.Column="1">
-                                    <Label
-                                        Text="Range"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsRangeLabelCard"
-                                        Text="$0 - $0"
-                                        FontSize="14"
-                                        FontAttributes="Bold"
-                                        TextColor="#F2F6FF" />
-                                </VerticalStackLayout>
-
-                                <!-- Min -->
-                                <VerticalStackLayout Grid.Row="1" Grid.Column="0">
-                                    <Label
-                                        Text="Min"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsMinLabelCard"
-                                        Text="$0"
-                                        FontSize="13"
-                                        TextColor="#E2E8F0" />
-                                </VerticalStackLayout>
-
-                                <!-- Max -->
-                                <VerticalStackLayout Grid.Row="1" Grid.Column="1">
-                                    <Label
-                                        Text="Max"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsMaxLabelCard"
-                                        Text="$0"
-                                        FontSize="13"
-                                        TextColor="#E2E8F0" />
-                                </VerticalStackLayout>
-
-                                <!-- Median -->
-                                <VerticalStackLayout Grid.Row="2" Grid.Column="0">
-                                    <Label
-                                        Text="Median"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsMedianLabelCard"
-                                        Text="$0"
-                                        FontSize="13"
-                                        TextColor="#E2E8F0" />
-                                </VerticalStackLayout>
-
-                                <!-- Suggested -->
-                                <VerticalStackLayout Grid.Row="2" Grid.Column="1">
-                                    <Label
-                                        Text="Suggested"
-                                        FontSize="11"
-                                        TextColor="#A0AEC0" />
-                                    <Label
-                                        x:Name="InsightsEstimatedValueLabel"
-                                        Text="$0"
-                                        FontSize="13"
-                                        FontAttributes="Bold"
-                                        TextColor="#7CF9FF" />
-                                </VerticalStackLayout>
-                            </Grid>
-
-                            <!-- Sparkline graph (mirrors EbaySearchPage visual language) -->
-                            <Grid
-                                HeightRequest="80"
-                                Margin="0,8,0,4">
-                                <!-- Baseline -->
-                                <BoxView
-                                    HeightRequest="1.5"
-                                    VerticalOptions="End"
-                                    Margin="0,6,0,6"
-                                    BackgroundColor="#333333" />
-                                <!-- Bars -->
-                                <FlexLayout
-                                    x:Name="InsightsGraphLayout"
-                                    AlignItems="End"
-                                    JustifyContent="SpaceEvenly"
-                                    Margin="0,0,0,4" />
-                            </Grid>
-
-                            <!-- Summary line -->
-                            <Label
-                                x:Name="InsightsSummaryLabelCard"
-                                Text="No insights yet."
+                                Text="Tap 'Refresh &amp; View' to fetch latest comps and open the insights overlay."
                                 FontSize="11"
                                 TextColor="#A0AEC0"
                                 LineBreakMode="WordWrap" />
+
                         </VerticalStackLayout>
                     </Border>
 
@@ -457,7 +352,7 @@
                             Text="Save Card"
                             Clicked="OnSave"
                             Style="{StaticResource AuroraNeonButton}"
-                            Padding="18,6"/>
+                            Padding="18,6" />
                         <Button
                             Style="{StaticResource AuroraNeonButton_Red}"
                             Text="Delete"
@@ -473,6 +368,11 @@
         <controls:FuturisticNavBar
             Grid.Row="1"
             Margin="0,8,0,0" />
+
+        <!-- Shared insights overlay control (covers the whole page) -->
+        <controls:InsightsOverlayControl
+            x:Name="CardInsightsOverlay"
+            Grid.RowSpan="2" />
 
     </Grid>
 </ContentPage>

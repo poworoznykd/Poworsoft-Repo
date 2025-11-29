@@ -12,7 +12,7 @@ using Microsoft.Maui.Controls;
 using System;
 using System.Threading.Tasks;
 
-namespace CollectIQ.Views.Controls
+namespace CollectIQ.Controls
 {
     public partial class FuturisticNavBar : ContentView
     {

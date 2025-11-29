@@ -4,103 +4,177 @@
              x:Class="CollectIQ.Views.AuthSheet"
              Shell.NavBarIsVisible="True"
              Shell.TitleColor="#0ab8f9"
-             Shell.BackgroundColor="{StaticResource OffBlack}">
+             Shell.BackgroundColor="{StaticResource OffBlack}"
+             BackgroundColor="{StaticResource OffBlack}">
 
-    <Grid>
-        <!-- Gradient background -->
+    <!-- FULL-SCREEN GRADIENT BACKGROUND -->
+    <Grid Padding="0">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#011219" Offset="0.5" />
-                <GradientStop Color="#054d68" Offset="0.85" />
+                <GradientStop Color="#020610" Offset="0.0" />
+                <GradientStop Color="#021520" Offset="0.35" />
+                <GradientStop Color="#042f49" Offset="0.75" />
                 <GradientStop Color="#0ab8f9" Offset="1.0" />
             </LinearGradientBrush>
         </Grid.Background>
 
-        <!-- Layout centered vertically -->
-        <VerticalStackLayout Padding="30,50,30,40"
-                             Spacing="18"
-                             VerticalOptions="Center"
-                             HorizontalOptions="Center">
+        <!-- SCROLL IN CASE OF SMALLER SCREENS / KEYBOARD -->
+        <ScrollView>
+            <VerticalStackLayout
+                Spacing="18"
+                Padding="18,20,18,24"
+                VerticalOptions="Start"
+                HorizontalOptions="FillAndExpand">
 
-            <!-- Title -->
-            <Label Text="Create Account or Sign In"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   TextColor="White"
-                   HorizontalTextAlignment="Center" />
+                <!-- HERO CARD / HEADER -->
+                <Border
+                    Style="{StaticResource AuroraGlassBorder}"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 26"
+                    Padding="18,16"
+                    Margin="0,0,0,14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="CollectIQ Account"
+                               FontSize="26"
+                               FontAttributes="Bold"
+                               TextColor="#FFFFFF" />
 
-            <Label Text="Enter your details below"
-                   FontSize="14"
-                   TextColor="#E0E0E0"
-                   HorizontalTextAlignment="Center"
-                   Margin="0,0,0,20" />
+                        <Label Text="Create an account or sign in to sync your collection and save your scans."
+                               FontSize="13"
+                               TextColor="#E0F5FF" />
 
-            <!-- Email -->
-            <Entry x:Name="EmailEntry"
-                   Placeholder="Email"
-                   PlaceholderColor="#B0B0B0"
-                   TextColor="White"
-                   Keyboard="Email"
-                   HeightRequest="44"
-                   BackgroundColor="#1E1E1E"
-                   Margin="0,0,0,8" />
+                        <HorizontalStackLayout Spacing="6">
+                            <BoxView WidthRequest="8"
+                                     HeightRequest="8"
+                                     CornerRadius="4"
+                                     BackgroundColor="#39FF14"
+                                     VerticalOptions="Center" />
+                            <Label Text="Secure cloud backup for your cards"
+                                   FontSize="13"
+                                   TextColor="#39FF14" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
 
-            <!-- Password -->
-            <Entry x:Name="PasswordEntry"
-                   Placeholder="Password"
-                   PlaceholderColor="#B0B0B0"
-                   TextColor="White"
-                   IsPassword="True"
-                   HeightRequest="44"
-                   BackgroundColor="#1E1E1E"
-                   TextChanged="OnPasswordChanged"
-                   Margin="0,0,0,12" />
+                <!-- MAIN FORM CARD -->
+                <Border
+                    Style="{StaticResource AuroraGlassBorder}"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 26"
+                    Padding="18,16"
+                    Margin="0,0,0,8">
+                    <Grid RowSpacing="10"
+                          ColumnDefinitions="*"
+                          RowDefinitions="
+                                Auto,   
+                                Auto,   
+                                12,
+                                Auto,   
+                                Auto,   
+                                Auto,   
+                                16,
+                                Auto,   
+                                Auto,   
+                                20,
+                                Auto,   
+                                Auto">
+                        <!-- Sign in -->
 
-            <!-- Password Strength Meter -->
-            <GraphicsView x:Name="StrengthMeterView"
-                          HeightRequest="55"
-                          WidthRequest="130"
-                          HorizontalOptions="Center"
-                          VerticalOptions="Center"
-                          Margin="0,20,0,8" />
+                        <!-- EMAIL -->
+                        <Label Grid.Row="0"
+                               Text="Email"
+                               FontSize="14"
+                               TextColor="#E0F5FF" />
 
-            <!-- Confirm Password -->
-            <Entry x:Name="ConfirmPasswordEntry"
-                   Placeholder="Confirm Password"
-                   PlaceholderColor="#B0B0B0"
-                   TextColor="White"
-                   IsPassword="True"
-                   HeightRequest="44"
-                   BackgroundColor="#1E1E1E"
-                   Margin="0,20,0,25" />
+                        <Entry x:Name="EmailEntry"
+                               Grid.Row="1"
+                               Placeholder="you@example.com"
+                               PlaceholderColor="#7A8CA0"
+                               TextColor="White"
+                               Keyboard="Email"
+                               HeightRequest="44"
+                               BackgroundColor="#10141B"
+                               Margin="0,2,0,0" />
 
-            <!-- Register -->
-            <Button x:Name="RegisterButton"
-                       BorderWidth="2"
-                    Style="{StaticResource AccentButton}"
-                    BorderColor="LightSeaGreen"
-                    Text="Register"
-                    Clicked="OnRegister"
-                    HeightRequest="50"
-                    CornerRadius="14"
-                    BackgroundColor="#0ab8f9"
-                    TextColor="White"
-                    FontAttributes="Bold"
-                    Margin="0,0,0,12"/>
+                        <!-- PASSWORD -->
+                        <Label Grid.Row="3"
+                               Text="Password"
+                               FontSize="14"
+                               TextColor="#E0F5FF"
+                               Margin="0,4,0,0" />
 
-            <!-- Login -->
-            <Button x:Name="LoginButton"
-                    Style="{StaticResource AccentButtonGreen}"
-                       BorderWidth="2"
-                    BorderColor="LightSeaGreen"
-                    Text="Login"
-                    Clicked="OnLogin"
-                    HeightRequest="50"
-                    CornerRadius="14"
-                    BackgroundColor="#0ab8f9"
-                    TextColor="White"
-                    FontAttributes="Bold"/>
+                        <Entry x:Name="PasswordEntry"
+                               Grid.Row="4"
+                               Placeholder="Password"
+                               PlaceholderColor="#7A8CA0"
+                               TextColor="White"
+                               IsPassword="True"
+                               HeightRequest="44"
+                               BackgroundColor="#10141B"
+                               TextChanged="OnPasswordChanged"
+                               Margin="0,2,0,0" />
 
-        </VerticalStackLayout>
+                        <!-- STRENGTH ROW (LABEL + GAUGE, NUDGED LEFT & DOWN) -->
+                        <Grid Grid.Row="5"
+                            ColumnDefinitions="Auto,Auto,*"
+                            Margin="0,8,0,0">
+                            <!-- label -->
+                            <Label Text="Strength:"
+                               FontSize="13"
+                               TextColor="#E0F5FF"
+                               VerticalOptions="Center"
+                               Grid.Column="0"
+                               Margin="0,0,8,0" />          
+
+                            <!-- strength meter -->
+                            <GraphicsView x:Name="StrengthMeterView"
+                              Grid.Column="1"
+                              WidthRequest="90"
+                              HeightRequest="90"
+                              Margin="4,10,0,0"
+                              HorizontalOptions="Start"
+                              VerticalOptions="Start" />
+                        </Grid>
+
+
+                        <!-- CONFIRM PASSWORD -->
+                        <Label Grid.Row="7"
+                               Text="Confirm password"
+                               FontSize="14"
+                               TextColor="#E0F5FF"
+                               Margin="0,6,0,0" />
+
+                        <Entry x:Name="ConfirmPasswordEntry"
+                               Grid.Row="8"
+                               Placeholder="Re-enter password"
+                               PlaceholderColor="#7A8CA0"
+                               TextColor="White"
+                               IsPassword="True"
+                               HeightRequest="44"
+                               BackgroundColor="#10141B"
+                               Margin="0,2,0,0" />
+
+                        <!-- CREATE ACCOUNT BUTTON -->
+                        <Button x:Name="RegisterButton"
+                                Grid.Row="10"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Text="Create account"
+                                Clicked="OnRegister"
+                                HeightRequest="50"
+                                Margin="0,6,0,4" />
+
+                        <!-- SIGN IN BUTTON -->
+                        <Button x:Name="LoginButton"
+                                Grid.Row="11"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Text="Sign in"
+                                Clicked="OnLogin"
+                                HeightRequest="50"
+                                Margin="0,0,0,0" />
+                    </Grid>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
     </Grid>
 </ContentPage>

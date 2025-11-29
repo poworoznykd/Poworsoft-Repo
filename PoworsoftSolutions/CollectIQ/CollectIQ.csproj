@@ -102,13 +102,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <MauiXaml Update="Controls\InsightsOverlayControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
     <MauiXaml Update="Views\CardPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\AuthSheet.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
-    <MauiXaml Update="Views\Controls\FuturisticNavBar.xaml">
+    <MauiXaml Update="Controls\FuturisticNavBar.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\DashboardPage.xaml">
@@ -129,6 +132,10 @@
     <MauiXaml Update="Views\ScanPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Views\Controls\" />
   </ItemGroup>
 
 

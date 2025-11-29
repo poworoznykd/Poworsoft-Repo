@@ -3,52 +3,121 @@
     x:Class="CollectIQ.Views.EbaySearchPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+    xmlns:controls="clr-namespace:CollectIQ.Controls"
     Title="Search"
-    BackgroundColor="#0B0E11">
+    BackgroundColor="#050814">
 
-    <!-- Root grid so we can overlay filter + comps panels -->
     <Grid>
 
-        <!-- Main layout -->
+        <!-- Aurora background -->
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#040810" Offset="0.0" />
+                <GradientStop Color="#02040A" Offset="0.5" />
+                <GradientStop Color="#020916" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <!-- ========================= -->
+        <!-- MAIN LAYOUT (ROWS)       -->
+        <!-- ========================= -->
         <Grid x:Name="MainLayout"
               RowDefinitions="Auto,Auto,*,Auto,80"
               Padding="0"
-              RowSpacing="15">
+              RowSpacing="14">
 
-            <!-- HEADER -->
-            <Label Text="Search Results"
-                   Grid.Row="0"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center"
-                   TextColor="#A8EFFF"
-                   Margin="0,10,0,10" />
+            <!-- HERO HEADER: TITLE + STATUS -->
+            <Border Grid.Row="0"
+                    Style="{StaticResource AuroraGlassBorder}"
+                    Padding="16,14"
+                    Margin="16,16,16,0">
+                <Grid ColumnDefinitions="*,Auto"
+                      RowDefinitions="Auto,Auto">
 
-            <!-- STATUS + SPINNER -->
-            <HorizontalStackLayout Grid.Row="1"
-                                   Spacing="8"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center">
-                <ActivityIndicator x:Name="SearchActivityIndicator"
-                                   IsVisible="False"
-                                   IsRunning="False"
-                                   WidthRequest="24"
-                                   HeightRequest="24" />
-                <Label x:Name="StatusLabel"
-                       Text="READY"
-                       FontSize="16"
-                       TextColor="#A8EFFF"
-                       HorizontalTextAlignment="Center"
-                       LineBreakMode="WordWrap" />
-            </HorizontalStackLayout>
+                    <!-- Left: title + description + status -->
+                    <VerticalStackLayout Grid.Column="0"
+                                         Spacing="6">
+                        <Label Text="Search with eBay"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="#F2F6FF" />
 
-            <!-- RESULTS -->
+                        <Label Text="Use live eBay data to find comps and insights for your cards."
+                               FontSize="11"
+                               TextColor="#9FB3C8" />
+
+                        <HorizontalStackLayout Spacing="8"
+                                               VerticalOptions="Center">
+                            <ActivityIndicator x:Name="SearchActivityIndicator"
+                                               IsVisible="False"
+                                               IsRunning="False"
+                                               WidthRequest="18"
+                                               HeightRequest="18" />
+                            <Label x:Name="StatusLabel"
+                                   Text="READY"
+                                   FontSize="12"
+                                   TextColor="#0ACAF9" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+
+                    <!-- Right: simple badge -->
+                    <Border Grid.Column="1"
+                            Margin="10,0,0,0"
+                            StrokeThickness="1.5"
+                            Stroke="#00E5FF"
+                            Background="#101624"
+                            StrokeShape="RoundRectangle 18"
+                            Padding="10,6"
+                            VerticalOptions="Center">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="LIVE"
+                                   FontSize="10"
+                                   TextColor="#0ACAF9"
+                                   HorizontalTextAlignment="Center" />
+                            <Label Text="COMPS"
+                                   FontSize="14"
+                                   FontAttributes="Bold"
+                                   TextColor="#39FF14"
+                                   HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- FILTER STRIP -->
+            <Border Grid.Row="1"
+                    Style="{StaticResource AuroraGlassBorder}"
+                    Padding="12,8"
+                    Margin="16,6,16,0">
+                <HorizontalStackLayout Spacing="10"
+                                       VerticalOptions="Center">
+                    <Label Text="Filters"
+                           FontSize="12"
+                           FontAttributes="Bold"
+                           TextColor="#F2F6FF" />
+
+                    <Label x:Name="FilterSummaryLabel"
+                           Text="Sold, last 90 days, avg top 10"
+                           FontSize="11"
+                           TextColor="#6CD4FF"
+                           HorizontalOptions="StartAndExpand"
+                           LineBreakMode="TailTruncation" />
+
+                    <Button x:Name="FilterButton"
+                            Text="Adjust"
+                            Style="{StaticResource AuroraNeonButton}"
+                            HeightRequest="34"
+                            Padding="14,2"
+                            Clicked="OnFilterButtonClicked" />
+                </HorizontalStackLayout>
+            </Border>
+
+            <!-- RESULTS LIST -->
             <CollectionView x:Name="EbayResultsView"
                             Grid.Row="2"
+                            Margin="16,4,16,0"
                             SelectionMode="None"
                             SelectedItem="{x:Null}"
-                            SelectionChangedCommand="{x:Null}"
                             BackgroundColor="Transparent"
                             ItemsSource="{Binding Listings}">
                 <CollectionView.ItemTemplate>
@@ -56,6 +125,7 @@
                         <SwipeView SwipeStarted="SwipeView_SwipeStarted"
                                    SwipeEnded="SwipeView_SwipeEnded">
 
+                            <!-- Swipe actions -->
                             <SwipeView.RightItems>
                                 <SwipeItems Mode="Reveal">
                                     <!-- VIEW ON EBAY -->
@@ -73,201 +143,161 @@
                                 </SwipeItems>
                             </SwipeView.RightItems>
 
+                            <!-- RESULT CARD -->
                             <Border
-                                Stroke="#00B4D8"
-                                StrokeThickness="2"
-                                Background="#14181C"
+                                Style="{StaticResource AuroraGlassBorder}"
                                 Padding="10"
-                                Margin="0,5,0,5"
-                                StrokeShape="RoundRectangle 12">
+                                Margin="0,6,0,6">
 
-                                <!-- SELECTION TRIGGERS -->
+                                <!-- Selection glow -->
                                 <Border.Triggers>
-                                    <!-- WHEN SELECTED -->
-                                    <DataTrigger
-                                        TargetType="Border"
-                                        Binding="{Binding IsSelected}"
-                                        Value="True">
-                                        <Setter Property="Stroke" Value="LimeGreen" />
-                                        <Setter Property="StrokeThickness" Value="3" />
-                                        <Setter Property="Background" Value="#001a00" />
+                                    <DataTrigger TargetType="Border"
+                                                 Binding="{Binding IsSelected}"
+                                                 Value="True">
+                                        <Setter Property="Stroke" Value="#39FF14" />
+                                        <Setter Property="StrokeThickness" Value="2.5" />
                                         <Setter Property="Shadow">
                                             <Setter.Value>
-                                                <Shadow Brush="LimeGreen"
-                                                    Radius="25"
-                                                    Opacity="0.8"
-                                                    Offset="0,0" />
+                                                <Shadow Brush="#39FF14"
+                                                        Radius="18"
+                                                        Opacity="0.85"
+                                                        Offset="0,0" />
                                             </Setter.Value>
                                         </Setter>
                                     </DataTrigger>
 
-                                    <!-- WHEN NOT SELECTED -->
-                                    <DataTrigger
-                                        TargetType="Border"
-                                        Binding="{Binding IsSelected}"
-                                        Value="False">
+                                    <DataTrigger TargetType="Border"
+                                                 Binding="{Binding IsSelected}"
+                                                 Value="False">
                                         <Setter Property="Stroke" Value="#00B4D8" />
-                                        <Setter Property="StrokeThickness" Value="2" />
-                                        <Setter Property="Background" Value="#14181C" />
+                                        <Setter Property="StrokeThickness" Value="1.5" />
                                         <Setter Property="Shadow">
                                             <Setter.Value>
                                                 <Shadow Brush="#00000000"
-                                                    Radius="0"
-                                                    Opacity="0"
-                                                    Offset="0,0" />
+                                                        Radius="0"
+                                                        Opacity="0"
+                                                        Offset="0,0" />
                                             </Setter.Value>
                                         </Setter>
                                     </DataTrigger>
                                 </Border.Triggers>
 
-                                <!-- MAIN CONTENT -->
-                                <Grid ColumnDefinitions="100,*,60"
-                                      ColumnSpacing="12"
+                                <!-- MAIN ROW -->
+                                <Grid ColumnDefinitions="100,*,64"
+                                      ColumnSpacing="10"
                                       RowDefinitions="Auto,Auto,Auto">
 
-                                    <!-- TAP ANYWHERE TO SELECT -->
+                                    <!-- Tap anywhere -->
                                     <Grid.GestureRecognizers>
                                         <TapGestureRecognizer
                                             Tapped="OnItemTapped"
                                             CommandParameter="{Binding .}" />
                                     </Grid.GestureRecognizers>
 
-                                    <!-- INSIGHTS BUTTON (NO NAMES INSIDE TEMPLATES) -->
-                                    <Grid Grid.Column="2" Grid.Row="2">
-                                        <VerticalStackLayout HorizontalOptions="Center"
-                                                VerticalOptions="Center">
-                                            <Image
-                                                Source="insights_icon.png"
-                                                WidthRequest="32"
-                                                HeightRequest="32"
-                                                StyleClass="InsightsIcon">
+                                    <!-- IMAGE -->
+                                    <Image Grid.RowSpan="3"
+                                           Source="{Binding ImageUrl}"
+                                           WidthRequest="96"
+                                           HeightRequest="96"
+                                           Aspect="AspectFit"
+                                           VerticalOptions="Center"
+                                           HorizontalOptions="Center" />
+
+                                    <!-- TITLE -->
+                                    <Label Grid.Column="1"
+                                           Text="{Binding Title}"
+                                           FontSize="14"
+                                           FontAttributes="Bold"
+                                           TextColor="#F9FDFF"
+                                           LineBreakMode="WordWrap"
+                                           MaxLines="2" />
+
+                                    <!-- PRICE -->
+                                    <Label Grid.Column="1"
+                                           Grid.Row="1"
+                                           Text="{Binding Price, StringFormat='${0:F2}'}"
+                                           FontSize="14"
+                                           FontAttributes="Bold"
+                                           TextColor="#6CD4FF" />
+
+                                    <!-- STATUS -->
+                                    <Label Grid.Column="1"
+                                           Grid.Row="2"
+                                           Text="{Binding Status}"
+                                           FontSize="12"
+                                           TextColor="#FFCB6B" />
+
+                                    <!-- INSIGHTS ICON -->
+                                    <Grid Grid.Column="2"
+                                          Grid.Row="1"
+                                          VerticalOptions="Center"
+                                          HorizontalOptions="Center">
+                                        <VerticalStackLayout Spacing="2"
+                                                             HorizontalOptions="Center"
+                                                             VerticalOptions="Center">
+                                            <Image Source="insights_icon.png"
+                                                   WidthRequest="30"
+                                                   HeightRequest="30">
                                                 <Image.GestureRecognizers>
-                                                    <TapGestureRecognizer 
+                                                    <TapGestureRecognizer
                                                         Tapped="OnInsightsIconTapped"
                                                         CommandParameter="{Binding .}" />
                                                 </Image.GestureRecognizers>
                                             </Image>
-
-
-                                            <Label Text="INSIGHTS"
-                                               FontSize="10"
-                                               TextColor="LimeGreen"
-                                               HorizontalTextAlignment="Center" />
+                                            <Label Text="Insights"
+                                                   FontSize="10"
+                                                   TextColor="#39FF14"
+                                                   HorizontalTextAlignment="Center" />
                                         </VerticalStackLayout>
                                     </Grid>
-                                    <!-- ITEM IMAGE -->
-                                    <Image Grid.RowSpan="3"
-                                       Source="{Binding ImageUrl}"
-                                       WidthRequest="100"
-                                       HeightRequest="100"
-                                       Aspect="AspectFit"
-                                       VerticalOptions="Center"
-                                       HorizontalOptions="Center" />
-
-                                    <!-- TITLE -->
-                                    <Label Grid.Column="1"
-                                       Text="{Binding Title}"
-                                       FontSize="15"
-                                       FontAttributes="Bold"
-                                       TextColor="White"
-                                       LineBreakMode="WordWrap"
-                                       MaxLines="2" />
-
-                                    <!-- PRICE -->
-                                    <Label Grid.Column="1"
-                                       Grid.Row="1"
-                                       Text="{Binding Price, StringFormat='${0:F2}'}"
-                                       FontSize="14"
-                                       TextColor="#6CD4FF" />
-
-                                    <!-- STATUS -->
-                                    <Label Grid.Column="1"
-                                       Grid.Row="2"
-                                       Text="{Binding Status}"
-                                       FontSize="13"
-                                       TextColor="#FFCB6B" />
                                 </Grid>
                             </Border>
-
                         </SwipeView>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <!-- MANUAL SEARCH SECTION -->
+            <!-- MANUAL SEARCH -->
             <StackLayout Grid.Row="3"
                          Spacing="10"
-                         Padding="0,15,0,0">
+                         Padding="16,6,16,0">
 
-                <Label Text="Didn’t find your card? Search manually:"
-                       FontSize="16"
-                       TextColor="#A8EFFF"
-                       HorizontalOptions="Center" />
+                <Label Text="Did not find your card? Search manually:"
+                       FontSize="13"
+                       TextColor="#A8EFFF" />
 
                 <Entry x:Name="ManualSearchBox"
-                       Placeholder="Enter card details or keywords..."
-                       FontSize="14"
+                       Placeholder="Enter player, year, set, number, grade..."
+                       FontSize="13"
                        BackgroundColor="#111418"
                        TextColor="White"
                        PlaceholderColor="#6CD4FF"
-                       HeightRequest="45"
-                       Margin="15,0,15,5"
+                       HeightRequest="44"
                        Keyboard="Text" />
 
-                <HorizontalStackLayout Spacing="8"
+                <HorizontalStackLayout Spacing="10"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center">
-                    <Button Text="SEARCH"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            BackgroundColor="#001020"
-                            BorderColor="#00B4FF"
-                            BorderWidth="2"
-                            TextColor="White"
-                            FontAttributes="Bold"
-                            CornerRadius="10"
-                            HeightRequest="48"
+                    <Button Text="Search"
+                            Style="{StaticResource AuroraNeonButton}"
+                            HeightRequest="42"
                             WidthRequest="120"
                             Clicked="OnManualSearchClicked" />
 
-                    <Button Text="NEW"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            BackgroundColor="#001020"
-                            TextColor="White"
-                            BorderColor="#00B4FF"
-                            BorderWidth="2"
-                            CornerRadius="10"
-                            HeightRequest="48"
+                    <Button Text="New Card"
+                            Style="{StaticResource AuroraNeonButton}"
+                            HeightRequest="42"
                             WidthRequest="120"
                             Clicked="Add_Manual_Button_Clicked" />
-
-                    <!-- FUTURISTIC FILTER BUTTON -->
-                    <Button x:Name="FilterButton"
-                            Text="FILTER ⚙"
-                            Style="{StaticResource AccentButton_AuroraBlue}"
-                            BackgroundColor="#001020"
-                            TextColor="#6CD4FF"
-                            BorderColor="#00B4FF"
-                            BorderWidth="2"
-                            CornerRadius="18"
-                            HeightRequest="48"
-                            WidthRequest="120"
-                            Clicked="OnFilterButtonClicked" />
                 </HorizontalStackLayout>
-
-                <!-- Summary of active filters -->
-                <Label x:Name="FilterSummaryLabel"
-                       Text="Filters: Sold, last 90 days, avg top 10"
-                       FontSize="12"
-                       TextColor="#6CD4FF"
-                       HorizontalOptions="Center" />
             </StackLayout>
 
-            <!-- FUTURISTIC NAV BAR -->
+            <!-- NAV BAR -->
             <controls:FuturisticNavBar Grid.Row="4"
-                                       Margin="0,12,0,0" />
+                                       Margin="0,8,0,0" />
         </Grid>
 
-        <!-- FILTER OVERLAY (BOTTOM SHEET) -->
+        <!-- FILTER OVERLAY -->
         <Grid x:Name="FilterOverlay"
               IsVisible="False"
               BackgroundColor="#80000000">
@@ -288,7 +318,7 @@
 
                         <!-- Listing Type -->
                         <StackLayout Spacing="4">
-                            <Label Text="Listing Type"
+                            <Label Text="Listing type"
                                    FontSize="14"
                                    TextColor="#A8EFFF" />
                             <Picker x:Name="ListingTypePicker"
@@ -297,9 +327,9 @@
                                     Title="Select listing type" />
                         </StackLayout>
 
-                        <!-- Days Range (only used for sold) -->
+                        <!-- Days Range -->
                         <StackLayout Spacing="4">
-                            <Label Text="Sold Range (Days)"
+                            <Label Text="Sold range (days)"
                                    FontSize="14"
                                    TextColor="#A8EFFF" />
                             <Picker x:Name="DaysRangePicker"
@@ -310,7 +340,7 @@
 
                         <!-- Average Count -->
                         <StackLayout Spacing="4">
-                            <Label Text="Average Comps (Top N)"
+                            <Label Text="Average comps (top N)"
                                    FontSize="14"
                                    TextColor="#A8EFFF" />
                             <Picker x:Name="AverageCountPicker"
@@ -322,23 +352,12 @@
                         <HorizontalStackLayout Spacing="12"
                                                HorizontalOptions="Center"
                                                Margin="0,10,0,0">
-                            <Button Text="APPLY"
-                                    Style="{StaticResource AccentButton_AuroraBlue}"
-                                    BackgroundColor="#001020"
-                                    BorderColor="#00B4FF"
-                                    BorderWidth="2"
-                                    TextColor="White"
-                                    FontAttributes="Bold"
-                                    CornerRadius="12"
+                            <Button Text="Apply"
+                                    Style="{StaticResource AuroraNeonButton}"
                                     WidthRequest="120"
                                     Clicked="OnApplyFiltersClicked" />
-                            <Button Text="CANCEL"
-                                    Style="{StaticResource AccentButton_AuroraBlue}"
-                                    BackgroundColor="#001020"
-                                    BorderColor="#444444"
-                                    BorderWidth="2"
-                                    TextColor="#A8EFFF"
-                                    CornerRadius="12"
+                            <Button Text="Cancel"
+                                    Style="{StaticResource AuroraNeonButton}"
                                     WidthRequest="120"
                                     Clicked="OnCancelFiltersClicked" />
                         </HorizontalStackLayout>
@@ -346,271 +365,9 @@
                 </Frame>
             </Grid>
         </Grid>
-        <!-- ===================================== -->
-        <!-- INSIGHTS OVERLAY (COMPS PANEL)        -->
-        <!-- ===================================== -->
 
-        <!-- ===================================== -->
-        <!-- INSIGHTS OVERLAY (COMPS PANEL)        -->
-        <!-- ===================================== -->
-
-        <!-- Background scrim -->
-        <BoxView x:Name="InsightsScrim"
-                 IsVisible="False"
-                 Opacity="0"
-                 BackgroundColor="#66000000">
-            <BoxView.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnInsightsScrimTapped" />
-            </BoxView.GestureRecognizers>
-        </BoxView>
-
-        <!-- Floating Insights Panel -->
-        <Frame x:Name="InsightsOverlay"
-               IsVisible="False"
-               BackgroundColor="#CC102030"
-               BorderColor="#00B4D8"
-               CornerRadius="18"
-               Padding="16"
-               HasShadow="True"
-               Opacity="0"
-               TranslationY="60"
-               Margin="16"
-               HorizontalOptions="FillAndExpand"
-               VerticalOptions="End">
-
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
-                  ColumnDefinitions="*,Auto">
-
-                <!-- HEADER ROW -->
-                <Grid Grid.Row="0"
-                      Grid.ColumnSpan="2"
-                      ColumnDefinitions="*,Auto">
-                    <Label Text="Market Insights"
-                           Grid.Column="0"
-                           TextColor="#4be7f2"
-                           FontSize="20"
-                           FontAttributes="Bold" />
-
-                    <!-- Close icon -->
-                    <Image Grid.Column="1"
-                           Source="close_icon.png"
-                           HeightRequest="22"
-                           WidthRequest="22"
-                           HorizontalOptions="End">
-                        <Image.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnCloseInsightsTapped" />
-                        </Image.GestureRecognizers>
-                    </Image>
-                </Grid>
-
-                <!-- CARD TITLE -->
-                <Label x:Name="InsightsTitleLabel"
-                       Grid.Row="1"
-                       Grid.ColumnSpan="2"
-                       Text="Card Title"
-                       TextColor="#00E5FF"
-                       FontSize="15"
-                       FontAttributes="Bold"
-                       Margin="0,4,0,6"
-                       LineBreakMode="TailTruncation" />
-
-                <!-- METRICS GRID -->
-                <Grid Grid.Row="2"
-                      Grid.ColumnSpan="2"
-                      ColumnDefinitions="Auto,*,Auto,*,Auto,*"
-                      RowDefinitions="Auto,Auto"
-                      Margin="0,0,0,4">
-
-                    <!-- Row 0: Count / Min / Max -->
-                    <Label Text="Count:"
-                           Grid.Row="0"
-                           Grid.Column="0"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsCountValue"
-                           Grid.Row="0"
-                           Grid.Column="1"
-                           TextColor="White"
-                           FontSize="12" />
-
-                    <Label Text="Min:"
-                           Grid.Row="0"
-                           Grid.Column="2"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsMinValue"
-                           Grid.Row="0"
-                           Grid.Column="3"
-                           TextColor="#7CFC7C"
-                           FontSize="12"
-                           FontAttributes="Bold" />
-
-                    <Label Text="Max:"
-                           Grid.Row="0"
-                           Grid.Column="4"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsMaxValue"
-                           Grid.Row="0"
-                           Grid.Column="5"
-                           TextColor="#FFB347"
-                           FontSize="12"
-                           FontAttributes="Bold" />
-
-                    <!-- Row 1: Avg / Median / Suggested -->
-                    <Label Text="Avg:"
-                           Grid.Row="1"
-                           Grid.Column="0"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsAvgValue"
-                           Grid.Row="1"
-                           Grid.Column="1"
-                           TextColor="#4be7f2"
-                           FontSize="12" />
-
-                    <Label Text="Median:"
-                           Grid.Row="1"
-                           Grid.Column="2"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsMedianValue"
-                           Grid.Row="1"
-                           Grid.Column="3"
-                           TextColor="#00E5FF"
-                           FontSize="12"
-                           FontAttributes="Bold" />
-
-                    <Label Text="Suggested:"
-                           Grid.Row="1"
-                           Grid.Column="4"
-                           TextColor="#A0E8FF"
-                           FontSize="12" />
-                    <Label x:Name="InsightsSuggestedValue"
-                           Grid.Row="1"
-                           Grid.Column="5"
-                           TextColor="#7CFC7C"
-                           FontSize="12"
-                           FontAttributes="Bold" />
-                </Grid>
-
-                <!-- SUMMARY + RANGE -->
-                <StackLayout Grid.Row="3"
-                             Grid.ColumnSpan="2"
-                             Spacing="2">
-                    <!-- High-level one-line summary -->
-                    <Label x:Name="InsightsSummaryLabel"
-                           Text="Market summary line"
-                           TextColor="White"
-                           FontSize="12" />
-
-                    <!-- Reuse your existing labels so code-behind stays happy -->
-                    <StackLayout Orientation="Horizontal"
-                                 Spacing="10">
-                        <Label x:Name="InsightsStatsLabel"
-                               Text="Count / Avg / Min / Max"
-                               TextColor="#CCCCCC"
-                               FontSize="11" />
-                        <Label x:Name="InsightsRangeLabel"
-                               Text="(Range / days)"
-                               TextColor="#4be7f2"
-                               FontSize="11"
-                               HorizontalOptions="EndAndExpand" />
-                    </StackLayout>
-
-                    <!-- Thin separator -->
-                    <BoxView HeightRequest="1"
-                             BackgroundColor="#224be7f2"
-                             Margin="0,4,0,0" />
-                </StackLayout>
-
-                <!-- PRICE TREND AREA (like your screenshot) -->
-                <Grid Grid.Row="4"
-                      Grid.ColumnSpan="2"
-                      HeightRequest="80"
-                      Margin="0,4,0,8">
-
-                    <!-- Baseline near the bottom -->
-                    <BoxView HeightRequest="1.5"
-                             VerticalOptions="End"
-                             Margin="0,6,0,6"
-                             BackgroundColor="#333333" />
-
-                    <!-- Bars anchored to bottom -->
-                    <FlexLayout x:Name="InsightsGraphLayout"
-                                AlignItems="End"
-                                JustifyContent="SpaceEvenly"
-                                Margin="0,0,0,4" />
-                </Grid>
-
-                <!-- COMPS LIST (active or sold or mixed) -->
-                <CollectionView x:Name="InsightsListView"
-                Grid.Row="5"
-                Grid.ColumnSpan="2"
-                HeightRequest="240">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <SwipeView>
-                                <SwipeView.RightItems>
-                                    <SwipeItems Mode="Reveal">
-                                        <SwipeItem Text="Remove"
-                                   BackgroundColor="#8B0000"
-                                   CommandParameter="{Binding .}"
-                                   Invoked="OnRemoveCompSwipe" />
-                                    </SwipeItems>
-                                </SwipeView.RightItems>
-
-                                <Frame BackgroundColor="#14181C"
-                       BorderColor="#00B4D8"
-                       CornerRadius="12"
-                       Padding="8"
-                       Margin="0,4">
-                                    <Grid ColumnDefinitions="*,Auto"
-                          RowDefinitions="Auto,Auto">
-                                        <Label Grid.Row="0"
-                               Grid.Column="0"
-                               Text="{Binding Title}"
-                               TextColor="White"
-                               FontSize="13"
-                               LineBreakMode="TailTruncation"
-                               MaxLines="2" />
-
-                                        <Label Grid.Row="1"
-                               Grid.Column="0"
-                               Text="{Binding SoldDateDisplay}"
-                               TextColor="#4be7f2"
-                               FontSize="11" />
-
-                                        <StackLayout Grid.Row="0"
-                                     Grid.Column="1"
-                                     Grid.RowSpan="2"
-                                     Orientation="Vertical"
-                                     Spacing="2"
-                                     HorizontalOptions="End"
-                                     VerticalOptions="Center">
-                                            <Label Text="{Binding Price, StringFormat='${0:F2}'}"
-                                   TextColor="#00B4D8"
-                                   FontSize="14"
-                                   FontAttributes="Bold"
-                                   HorizontalTextAlignment="End" />
-
-                                            <Label Text="{Binding Status}"
-                                   TextColor="#FFCB6B"
-                                   FontSize="11"
-                                   HorizontalTextAlignment="End" />
-                                        </StackLayout>
-                                    </Grid>
-                                </Frame>
-                            </SwipeView>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-
-
-            </Grid>
-        </Frame>
-
-
+        <!-- INSIGHTS OVERLAY CONTROL -->
+        <controls:InsightsOverlayControl x:Name="InsightsOverlayControl" />
 
     </Grid>
 </ContentPage>

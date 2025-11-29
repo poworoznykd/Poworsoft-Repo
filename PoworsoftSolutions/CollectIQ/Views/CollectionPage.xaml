@@ -13,36 +13,102 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CollectIQ.Views.CollectionPage"
-             xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+             xmlns:controls="clr-namespace:CollectIQ.Controls"
              Title="My Collection"
-             BackgroundColor="#0B0E11">
+             BackgroundColor="#050814">
 
-    <Grid RowDefinitions="Auto,*,80" Padding="0">
+    <Grid RowDefinitions="Auto,*,Auto"
+          Padding="0">
 
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="80" />
-            </Grid.ColumnDefinitions>
-            <!-- ADD NEW CARD BUTTON -->
-                <Button Grid.Column="1"
-                    Style="{StaticResource AccentButton_AuroraBlue}"
-                    ImageSource="add_icon.png"
-                    FontSize="18"
-                    FontAttributes="Bold"
-                    TextColor="White"
-                    HeightRequest="54"
-                    CornerRadius="14"
-                    Margin="0,10,0,0"
-                    VerticalOptions="End"
-                    Clicked="OnAddCardClicked">     
-                </Button>
-            </Grid>
+        <!-- HEADER PANEL (Aurora glass, matches CardPage vibe) -->
+        <Grid Grid.Row="0"
+              Padding="16,10,16,0">
+            <Border Style="{StaticResource AuroraGlassBorder}">
+                <Grid RowDefinitions="Auto,Auto"
+                      ColumnDefinitions="*,Auto"
+                      Padding="12,10">
+
+                    <!-- Title + stats -->
+                    <VerticalStackLayout Grid.Row="0"
+                                         Grid.Column="0"
+                                         Spacing="4">
+                        <Label Text="My Collection"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               TextColor="#F2F6FF" />
+
+                        <Label x:Name="CollectionSubtitleLabel"
+                               Text="Track, value, and grade your favorite cards."
+                               FontSize="12"
+                               TextColor="#A0AEC0" />
+
+                        <!-- Quick stats: total cards + est. value -->
+                        <HorizontalStackLayout Spacing="12"
+                                               Margin="0,4,0,0">
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <Image Source="cards_icon.png"
+                                       HeightRequest="14"
+                                       WidthRequest="14" />
+                                <Label x:Name="CollectionCountLabel"
+                                       Text="0 cards"
+                                       FontSize="11"
+                                       TextColor="#CBD5F5" />
+                            </HorizontalStackLayout>
+
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <Image Source="value_icon.png"
+                                       HeightRequest="14"
+                                       WidthRequest="14" />
+                                <Label x:Name="CollectionValueLabel"
+                                       Text="Est. total $0"
+                                       FontSize="11"
+                                       TextColor="#7CF9FF" />
+                            </HorizontalStackLayout>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+
+                    <!-- ADD NEW CARD BUTTON -->
+                    <Button Grid.Row="0"
+                            Grid.Column="1"
+                            Style="{StaticResource AuroraNeonButton_Green}"
+                            ImageSource="add_icon.png"
+                            FontSize="18"
+                            FontAttributes="Bold"
+                            TextColor="White"
+                            HeightRequest="50"
+                            CornerRadius="14"
+                            Margin="8,0,0,0"
+                            VerticalOptions="Center"
+                            Clicked="OnAddCardClicked" />
+
+                    <!-- Export row -->
+                    <HorizontalStackLayout Grid.Row="1"
+                                           Grid.ColumnSpan="2"
+                                           Spacing="8"
+                                           HorizontalOptions="End"
+                                           Margin="0,8,0,0">
+                        <Button Text="Export CSV"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Padding="12,4"
+                                FontSize="11"
+                                Clicked="OnExportCsvClicked" />
+
+                        <Button Text="Export PDF"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Padding="12,4"
+                                FontSize="11"
+                                Clicked="OnExportPdfClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- SCROLLABLE COLLECTION -->
         <CollectionView x:Name="CardsCollectionView"
                         Grid.Row="1"
-                        Margin="0,12,0,12"
+                        Margin="0,8,0,0"
                         VerticalOptions="FillAndExpand"
                         SelectionMode="None"
                         ItemsSource="{Binding Cards}"
@@ -55,7 +121,7 @@
                        FontSize="16"
                        HorizontalTextAlignment="Center"
                        VerticalOptions="CenterAndExpand"
-                       Margin="0,20,0,0" />
+                       Margin="24,40,24,0" />
             </CollectionView.EmptyView>
 
             <CollectionView.ItemTemplate>
@@ -80,62 +146,130 @@
                             </SwipeItems>
                         </SwipeView.RightItems>
 
-                        <!-- CARD FRAME -->
-                        <Frame CornerRadius="12"
-                               BorderColor="#1A87B9"
-                               BackgroundColor="#14181C"
-                               Padding="14"
-                               Margin="0,8,0,0"
-                               HasShadow="True">
+                        <!-- CARD ITEM (Aurora glass card style) -->
+                        <Border Style="{StaticResource AuroraGlassBorder}"
+                                Margin="16,6,16,0"
+                                Padding="10">
 
                             <Grid ColumnDefinitions="80,*,Auto"
-                                  RowDefinitions="Auto,Auto">
+                                  RowDefinitions="Auto,Auto,Auto"
+                                  ColumnSpacing="10">
 
                                 <!-- CARD IMAGE -->
-                                <Frame Grid.RowSpan="2"
-                                       Grid.Column="0"
-                                       Padding="0"
-                                       CornerRadius="8"
-                                       HasShadow="False"
-                                       BackgroundColor="#0E1115"
-                                       Margin="0,0,10,0">
+                                <Border Grid.RowSpan="3"
+                                        Grid.Column="0"
+                                        StrokeThickness="0"
+                                        Background="#0E1115"
+                                        StrokeShape="RoundRectangle 8">
                                     <Image Source="{Binding FrontImagePath}"
                                            WidthRequest="72"
                                            HeightRequest="100"
-                                           Aspect="AspectFill" />
-                                </Frame>
+                                           Aspect="AspectFill"
+                                           Opacity="0.97" />
+                                </Border>
 
-                                <!-- CARD NAME -->
-                                <Label Grid.Column="1"
-                                       Text="{Binding Name}"
-                                       FontSize="18"
-                                       FontAttributes="Bold"
-                                       TextColor="#B0C4DE"
-                                       LineBreakMode="TailTruncation" />
-
-                                <!-- PLAYER INFO -->
-                                <Label Grid.Row="1"
+                                <!-- CARD NAME / TITLE -->
+                                <Label Grid.Row="0"
                                        Grid.Column="1"
-                                       Text="{Binding Player, StringFormat='Player: {0}'}"
-                                       FontSize="14"
-                                       TextColor="#7C8A93" />
-
-                                <!-- VALUE -->
-                                <Label Grid.Column="2"
-                                       Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
+                                       Text="{Binding Name}"
                                        FontSize="16"
                                        FontAttributes="Bold"
-                                       TextColor="#00B4D8"
-                                       HorizontalOptions="End"
-                                       VerticalOptions="Center" />
+                                       TextColor="#F2F6FF"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="2" />
+
+                                <!-- EST. VALUE CHIP -->
+                                <Border Grid.Row="0"
+                                        Grid.Column="2"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center"
+                                        Padding="8,4"
+                                        StrokeShape="RoundRectangle 10"
+                                        BackgroundColor="#132A3F">
+                                    <HorizontalStackLayout Spacing="4"
+                                                           VerticalOptions="Center">
+                                        <Label Text="Est."
+                                               FontSize="10"
+                                               TextColor="#A0AEC0" />
+                                        <Label Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
+                                               FontSize="13"
+                                               FontAttributes="Bold"
+                                               TextColor="#7CF9FF" />
+                                    </HorizontalStackLayout>
+                                </Border>
+
+                                <!-- PLAYER / TEAM / YEAR ROW -->
+                                <Label Grid.Row="1"
+                                       Grid.Column="1"
+                                       Grid.ColumnSpan="2"
+                                       FontSize="12"
+                                       TextColor="#A0AEC0"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Player}" />
+                                            <Span Text=" · " />
+                                            <Span Text="{Binding Team}" />
+                                            <Span Text=" · " />
+                                            <Span Text="{Binding Year}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+
+                                <!-- SET / GRADE ROW -->
+                                <Label Grid.Row="2"
+                                       Grid.Column="1"
+                                       FontSize="11"
+                                       TextColor="#7C8A93"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Set}" />
+                                            <Span Text="  " />
+                                            <Span Text="{Binding Number, StringFormat='# {0}'}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+
+                                <Label Grid.Row="2"
+                                       Grid.Column="2"
+                                       FontSize="11"
+                                       TextColor="#CBD5F5"
+                                       HorizontalTextAlignment="End"
+                                       HorizontalOptions="End">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding GradeCompany}" />
+                                            <Span Text=" " />
+                                            <Span Text="{Binding Grade}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
                             </Grid>
-                        </Frame>
+                        </Border>
                     </SwipeView>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <controls:FuturisticNavBar Grid.Row="2" Margin="0,12,0,0"/>
+        <!-- Gradient footer + nav bar for smoother transition -->
+        <Grid Grid.Row="2"
+              HeightRequest="90">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <!-- Top: nearly transparent, blends with card area -->
+                    <GradientStop Color="#00050814" Offset="0.0" />
+                    <!-- Bottom: solid page background -->
+                    <GradientStop Color="#FF050814" Offset="1.0" />
+                </LinearGradientBrush>
+            </Grid.Background>
+
+            <controls:FuturisticNavBar
+                Margin="0,4,0,0"
+                VerticalOptions="End" />
+        </Grid>
 
     </Grid>
 </ContentPage>

@@ -17,6 +17,12 @@ using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
 using CollectIQ.Models;
 using CollectIQ.Services;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
+using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Views
 {
@@ -120,6 +126,85 @@ namespace CollectIQ.Views
                 await DisplayAlert("Navigation Error", "Unable to switch to Scan tab.", "OK");
             }
         }
+
+        #region Exporting
+        private async void OnExportCsvClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                if (CardsCollectionView.ItemsSource is not IEnumerable<object> items)
+                {
+                    await DisplayAlert("Export", "No cards to export yet.", "OK");
+                    return;
+                }
+
+                var cards = items.OfType<Card>().ToList();
+                if (cards.Count == 0)
+                {
+                    await DisplayAlert("Export", "No cards to export yet.", "OK");
+                    return;
+                }
+
+                // Build CSV (Excel-compatible)
+                var sb = new StringBuilder();
+                sb.AppendLine("Player,Team,Year,Set,Number,GradeCompany,Grade,PurchasePrice,EstimatedValue,FrontImagePath,BackImagePath");
+
+                foreach (var c in cards)
+                {
+                    string csvLine = string.Join(",",
+                        EscapeCsv(c.Player),
+                        EscapeCsv(c.Team),
+                        c.Year?.ToString() ?? string.Empty,
+                        EscapeCsv(c.Set),
+                        EscapeCsv(c.Number),
+                        EscapeCsv(c.GradeCompany),
+                        c.Grade?.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                        c.PurchasePrice?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                        c.EstimatedValue?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                        EscapeCsv(c.FrontImagePath),
+                        EscapeCsv(c.BackImagePath));
+
+                    sb.AppendLine(csvLine);
+                }
+
+                var fileName = $"CollectIQ_Collection_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                var filePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+
+                await Share.Default.RequestAsync(new ShareFileRequest
+                {
+                    Title = "Export Collection (CSV)",
+                    File = new ShareFile(filePath)
+                });
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Export Error", ex.Message, "OK");
+            }
+        }
+
+        private async void OnExportPdfClicked(object sender, EventArgs e)
+        {
+            // Placeholder so the button does not break anything.
+            // You can later plug in a real PDF generator (Syncfusion, QuestPDF, etc.)
+            await DisplayAlert(
+                "Export to PDF",
+                "PDF export is not wired up yet. CSV export is available now, and PDF can be added with a PDF library later.",
+                "OK");
+        }
+
+        private static string EscapeCsv(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            bool mustQuote = value.Contains(',') || value.Contains('"') || value.Contains('\n');
+            string escaped = value.Replace("\"", "\"\"");
+            return mustQuote ? $"\"{escaped}\"" : escaped;
+        }
+        #endregion
 
     }
 }

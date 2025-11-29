@@ -3,98 +3,192 @@
 * FILE: ScanPage.xaml
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-18
-* UPDATED: 2025-11-09
 * DESCRIPTION:
-*     Defines the user interface for scanning a trading card’s front and back
-*     using the live camera feed. Includes visual scan line animation,
-*     capture controls, and manual entry navigation.
+*     Neon scan experience aligned with Dashboard / Collection / Card pages.
 -->
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+             xmlns:controls="clr-namespace:CollectIQ.Controls"
              x:Class="CollectIQ.Views.ScanPage"
-             BackgroundColor="#05080D"
+             BackgroundColor="#050814"
              Title="Scan Card"
              Disappearing="OnDisappearing">
 
-    <!-- === Root Grid Layout === -->
-    <Grid RowDefinitions="Auto,Auto,*,Auto,80" Padding="0" RowSpacing="15">
+    <!-- 3 rows:
+         0 = scrollable header + scan frame
+         1 = controls (scan / manual / status)
+         2 = nav bar -->
+    <Grid RowDefinitions="*,Auto,Auto">
 
-        <!-- === Live Camera Feed === -->
-        <toolkit:CameraView
-            x:Name="CameraView"
-            Grid.Row="0"
-            HorizontalOptions="Center"
-            VerticalOptions="Center"
-            WidthRequest="340"
-            HeightRequest="400"
-            BackgroundColor="Black"
-            CameraFlashMode="Off"
-            MediaCaptured="Camera_MediaCaptured"
-            Margin="20" />
+        <!-- ========================= -->
+        <!-- SCROLLABLE TOP CONTENT    -->
+        <!-- ========================= -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout
+                Padding="16,16,16,8"
+                Spacing="18">
 
-        <!-- === Animated Scan Line Overlay === -->
-        <BoxView x:Name="ScanLine"
-                 HeightRequest="3"
-                 BackgroundColor="#00FF88"
-                 Opacity="0.9"
-                 VerticalOptions="Start"
-                 HorizontalOptions="FillAndExpand"
-                 Margin="30,25,30,0" />
+                <!-- HEADER / HERO (slightly shorter) -->
+                <Border
+                    Style="{StaticResource AuroraGlassBorder}"
+                    Padding="14,10"
+                    Margin="0,0,0,2">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Scan a Card"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#F2F6FF" />
+                        <Label Text="Align the card inside the neon frame, then tap the scan button. Capture front and back before saving."
+                               FontSize="10"
+                               TextColor="#9FB3C8" />
+                    </VerticalStackLayout>
+                </Border>
 
-        <!-- === Bottom Controls === -->
-        <Grid Grid.Row="1"
-              Padding="0,20,0,25"
-              RowDefinitions="Auto,Auto"
-              ColumnDefinitions="*,*">
+                <!-- SCAN AREA: CAMERA + NEON FRAME + SCAN LINE -->
+                <Border
+                    Style="{StaticResource AuroraGlassBorder}"
+                    Padding="10"
+                    Margin="0,4,0,12">
+                    <!-- ↓↓↓ smaller so it ends well above the button ↓↓↓ -->
+                    <Grid HeightRequest="320">
 
-            <!-- === Capture Button === -->
+                        <!-- Live camera feed -->
+                        <toolkit:CameraView
+                            x:Name="CameraView"
+                            HorizontalOptions="FillAndExpand"
+                            VerticalOptions="FillAndExpand"
+                            BackgroundColor="Black"
+                            CameraFlashMode="Off"
+                            MediaCaptured="Camera_MediaCaptured" />
+
+                        <!-- Inner neon scan frame -->
+                        <Border
+                            Stroke="#00E5FF"
+                            StrokeThickness="2"
+                            StrokeShape="RoundRectangle 26"
+                            BackgroundColor="#22020816"
+                            Margin="14" />
+
+                        <!-- Corner markers -->
+                        <Grid Margin="20">
+                            <!-- top-left -->
+                            <Grid HorizontalOptions="Start"
+                                  VerticalOptions="Start">
+                                <BoxView WidthRequest="26"
+                                         HeightRequest="3"
+                                         BackgroundColor="#00E5FF" />
+                                <BoxView WidthRequest="3"
+                                         HeightRequest="26"
+                                         BackgroundColor="#00E5FF" />
+                            </Grid>
+                            <!-- top-right -->
+                            <Grid HorizontalOptions="End"
+                                  VerticalOptions="Start">
+                                <BoxView WidthRequest="26"
+                                         HeightRequest="3"
+                                         BackgroundColor="#00E5FF" />
+                                <BoxView WidthRequest="3"
+                                         HeightRequest="26"
+                                         BackgroundColor="#00E5FF"
+                                         HorizontalOptions="End" />
+                            </Grid>
+                            <!-- bottom-left -->
+                            <Grid HorizontalOptions="Start"
+                                  VerticalOptions="End">
+                                <BoxView WidthRequest="26"
+                                         HeightRequest="3"
+                                         BackgroundColor="#00E5FF"
+                                         VerticalOptions="End" />
+                                <BoxView WidthRequest="3"
+                                         HeightRequest="26"
+                                         BackgroundColor="#00E5FF" />
+                            </Grid>
+                            <!-- bottom-right -->
+                            <Grid HorizontalOptions="End"
+                                  VerticalOptions="End">
+                                <BoxView WidthRequest="26"
+                                         HeightRequest="3"
+                                         BackgroundColor="#00E5FF"
+                                         VerticalOptions="End" />
+                                <BoxView WidthRequest="3"
+                                         HeightRequest="26"
+                                         BackgroundColor="#00E5FF"
+                                         HorizontalOptions="End" />
+                            </Grid>
+                        </Grid>
+
+                        <!-- Animated scan line -->
+                        <BoxView x:Name="ScanLine"
+                                 HeightRequest="3"
+                                 Margin="26,26,26,0"
+                                 VerticalOptions="Start"
+                                 HorizontalOptions="FillAndExpand"
+                                 BackgroundColor="#39FF14"
+                                 Opacity="0.95"
+                                 CornerRadius="2" />
+                    </Grid>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- ========================= -->
+        <!-- CONTROLS ROW              -->
+        <!-- ========================= -->
+        <VerticalStackLayout
+            Grid.Row="1"
+            Spacing="10"
+            Padding="0,0,0,6">
+
+            <!-- Smaller neon capture button sitting clear of the frame -->
             <Button x:Name="ScanButton"
                     Style="{StaticResource AccentButtonGreen}"
-                    Grid.ColumnSpan="2"
                     Clicked="OnScanClicked"
                     BackgroundColor="Transparent"
-                    BorderColor="#00FF88"
-                    BorderWidth="4"
-                    WidthRequest="88"
-                    HeightRequest="88"
-                    CornerRadius="44"
+                    BorderColor="#39FF14"
+                    BorderWidth="3"
+                    WidthRequest="72"
+                    HeightRequest="72"
+                    CornerRadius="36"
+                    Margin="0,4,0,0"
                     HorizontalOptions="Center"
-                    VerticalOptions="End">
+                    VerticalOptions="Center">
                 <Button.Shadow>
-                    <Shadow Brush="#00FF88" Radius="25" />
+                    <Shadow Brush="#39FF14" Radius="22" />
                 </Button.Shadow>
             </Button>
 
-            <!-- === Manual Entry Button === -->
-            <Button x:Name="ManualButton"
-                    Style="{StaticResource AccentButton_AuroraBlue}"
-                    Text="Add Manually"
-                    Grid.Row="1"
-                    Grid.Column="0"
-                    BackgroundColor="#001020"
-                    TextColor="White"
-                    BorderColor="#00B4FF"
-                    BorderWidth="2"
-                    CornerRadius="12"
-                    HeightRequest="50"
-                    Clicked="OnAddManuallyClicked"
-                    Margin="0,20,0,0" />
+            <!-- Manual entry + status -->
+            <HorizontalStackLayout Spacing="10"
+                                   HorizontalOptions="FillAndExpand"
+                                   VerticalOptions="Center"
+                                   Padding="12,0">
 
-            <!-- === Status Label === -->
-            <Label x:Name="ResultLabel"
-                   Text="Ready to scan..."
-                   FontSize="16"
-                   Grid.Row="1"
-                   Grid.Column="1"
-                   TextColor="#A8EFFF"
-                   VerticalOptions="Center"
-                   HorizontalOptions="End" />
-        </Grid>
+                <!-- Match other neon buttons -->
+                <Button x:Name="ManualButton"
+                        Style="{StaticResource AuroraNeonButton}"
+                        Text="Add Manually"
+                        HeightRequest="44"
+                        HorizontalOptions="Start"
+                        Clicked="OnAddManuallyClicked" />
 
-        <controls:FuturisticNavBar Grid.Row="4" Margin="0,12,0,0"/>
+                <Label x:Name="ResultLabel"
+                       Text="Ready to scan..."
+                       FontSize="13"
+                       TextColor="#A8EFFF"
+                       HorizontalOptions="EndAndExpand"
+                       VerticalOptions="Center"
+                       HorizontalTextAlignment="End" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+        <!-- ========================= -->
+        <!-- FUTURISTIC NAV BAR        -->
+        <!-- ========================= -->
+        <controls:FuturisticNavBar
+            Grid.Row="2"
+            Margin="0,8,0,0" />
     </Grid>
 </ContentPage>

@@ -6,194 +6,263 @@
 * FIRST VERSION: 2025-11-06
 * DESCRIPTION:
 *   Full-screen card viewer using FreakyZoomableView with a neon overlay mode.
-*   The overlay toggle always displays a glowing outline and softly pulses
-*   when active. The toggle fills neon green when ON and is transparent when OFF.
-*   Includes freehand drawing overlay, color palette, and overlay save/delete.
+*   Styled to match the Aurora glass UI used on CollectIQ dashboard, collection,
+*   scan, and search pages.
 -->
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="CollectIQ.Views.ImageViewerPage"
              xmlns:freakyControls="clr-namespace:Maui.FreakyControls;assembly=Maui.FreakyControls"
-             BackgroundColor="#000000"
+             x:Class="CollectIQ.Views.ImageViewerPage"
              Shell.NavBarIsVisible="False"
-             Padding="0">
+             Padding="0"
+             BackgroundColor="Transparent">
 
-    <Grid x:Name="RootGrid" BackgroundColor="#000000" Opacity="0.97">
+    <Grid x:Name="RootGrid"
+          RowDefinitions="Auto,*,Auto"
+          Opacity="0.97">
 
-        <!-- === MAIN ZOOMABLE VIEW === -->
-        <freakyControls:FreakyZoomableView>
-            <Grid>
-                <Image x:Name="ZoomImage"
-                       Aspect="AspectFit"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center" />
+        <!-- Aurora gradient background -->
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#040810" Offset="0.0" />
+                <GradientStop Color="#02040A" Offset="0.5" />
+                <GradientStop Color="#020916" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
 
-                <!-- DRAWING OVERLAY -->
-                <GraphicsView x:Name="OverlayCanvas"
-                              BackgroundColor="Transparent"
-                              IsVisible="False"
-                              StartInteraction="OnStartInteraction"
-                              DragInteraction="OnDragInteraction"
-                              EndInteraction="OnEndInteraction"
-                              Drawable="{x:Reference OverlayCanvas}"
-                              VerticalOptions="Fill"
-                              HorizontalOptions="Fill" />
-            </Grid>
-        </freakyControls:FreakyZoomableView>
-
-        <!-- === TOP CONTROLS === -->
-        <Grid HorizontalOptions="Fill"
-              VerticalOptions="Start"
-              Padding="16"
-              ColumnDefinitions="Auto,*,Auto">
-
-            <!-- OVERLAY TOGGLE GROUP -->
-            <Grid>
-                <!-- Halo: always visible, pulsing when active -->
-                <Ellipse x:Name="OverlayHalo"
-                         WidthRequest="70"
-                         HeightRequest="70"
-                         Stroke="#00FF9D"
-                         StrokeThickness="10"
-                         Opacity="0.6"
-                         HorizontalOptions="Center"
-                         VerticalOptions="Center"
-                         InputTransparent="True" />
-
-                <!-- Outline always visible -->
-                <Ellipse WidthRequest="56"
-                         HeightRequest="56"
-                         Stroke="#00FF9D"
-                         StrokeThickness="3"
-                         Opacity="1.0"
-                         HorizontalOptions="Center"
-                         VerticalOptions="Center"
-                         InputTransparent="True" />
-
-                <!-- Toggle button -->
-                <Frame x:Name="OverlayToggleFrame"
-                       WidthRequest="48"
-                       HeightRequest="48"
-                       CornerRadius="24"
-                       BackgroundColor="Transparent"
-                       BorderColor="Transparent"
-                       HasShadow="False"
-                       Padding="0"
-                       VerticalOptions="Center"
-                       HorizontalOptions="Center">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnOverlayToggleTapped" />
-                    </Frame.GestureRecognizers>
-
-                    <Image x:Name="OverlayToggleIcon"
-                           Source="overlay_icon.png"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center"
-                           WidthRequest="22"
-                           HeightRequest="22"
-                           Opacity="0.9" />
-                </Frame>
-            </Grid>
-
-            <!-- OVERLAY LABEL -->
-            <Label x:Name="OverlayWatermark"
-                   Text="OVERLAY"
-                   FontSize="22"
-                   FontAttributes="Bold"
-                   TextColor="#00FF9D"
-                   Opacity="0"
-                   Shadow="{Shadow Brush=#00FF9D, Radius=8, Offset='0,0'}"
-                   Grid.Column="1"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Start"
-                   Margin="0,10,0,0" />
-
-            <!-- CLOSE BUTTON -->
-            <Button Text="CLOSE"
-                    FontSize="16"
-                    CornerRadius="20"
-                    Padding="6"
-                    Margin="0,4,4,0"
-                    TextColor="White"
-                    Style="{StaticResource AuroraNeonButton}"
-                    Grid.Column="2"
-                    Clicked="OnCloseClicked" />
+        <!-- soft beams -->
+        <Grid>
+            <BoxView Opacity="0.18"
+                     Rotation="15"
+                     TranslationY="-260"
+                     HeightRequest="220"
+                     BackgroundColor="#001B33" />
+            <BoxView Opacity="0.12"
+                     Rotation="-12"
+                     TranslationY="260"
+                     HeightRequest="200"
+                     BackgroundColor="#002224" />
         </Grid>
 
-        <!-- === BOTTOM CONTROLS === -->
-        <VerticalStackLayout VerticalOptions="End"
+        <!-- ========================== -->
+        <!-- HEADER BAR                 -->
+        <!-- ========================== -->
+        <Border Grid.Row="0"
+                Margin="18,20,18,8"
+                Padding="16,10"
+                Style="{StaticResource AuroraGlassBorder}"
+                StrokeThickness="2.2"
+                StrokeShape="RoundRectangle 26">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  VerticalOptions="Center">
+
+                <!-- Overlay toggle cluster -->
+                <Grid WidthRequest="70"
+                      HeightRequest="70"
+                      HorizontalOptions="Start"
+                      VerticalOptions="Center">
+
+                    <!-- Halo -->
+                    <Ellipse x:Name="OverlayHalo"
+                             WidthRequest="64"
+                             HeightRequest="64"
+                             Stroke="#00FF9D"
+                             StrokeThickness="8"
+                             Opacity="0.6"
                              HorizontalOptions="Center"
-                             Padding="0,0,0,25"
-                             Spacing="10">
+                             VerticalOptions="Center"
+                             InputTransparent="True" />
 
-            <!-- COLOR PALETTE -->
-            <Grid x:Name="ColorPalette"
-                  HorizontalOptions="Center"
-                  ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                  ColumnSpacing="12">
+                    <!-- Outline -->
+                    <Ellipse WidthRequest="52"
+                             HeightRequest="52"
+                             Stroke="#00FF9D"
+                             StrokeThickness="3"
+                             Opacity="1"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center"
+                             InputTransparent="True" />
 
-                <Frame BackgroundColor="#FF0000" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FF0000" />
-                    </Frame.GestureRecognizers>
-                </Frame>
+                    <!-- Toggle button -->
+                    <Frame x:Name="OverlayToggleFrame"
+                           WidthRequest="44"
+                           HeightRequest="44"
+                           CornerRadius="22"
+                           BackgroundColor="Transparent"
+                           BorderColor="Transparent"
+                           HasShadow="False"
+                           Padding="0"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnOverlayToggleTapped" />
+                        </Frame.GestureRecognizers>
 
-                <Frame BackgroundColor="#00FF00" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent" Grid.Column="1">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#00FF00" />
-                    </Frame.GestureRecognizers>
-                </Frame>
+                        <Image x:Name="OverlayToggleIcon"
+                               Source="overlay_icon.png"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               WidthRequest="22"
+                               HeightRequest="22"
+                               Opacity="0.9" />
+                    </Frame>
+                </Grid>
 
-                <Frame BackgroundColor="#00B4FF" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent" Grid.Column="2">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#00B4FF" />
-                    </Frame.GestureRecognizers>
-                </Frame>
+                <!-- Title + watermark -->
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="2"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Label Text="Image Overlay Mode"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="#F2F6FF"
+                           HorizontalTextAlignment="Center" />
 
-                <Frame BackgroundColor="#8000FF" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent" Grid.Column="3">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#8000FF" />
-                    </Frame.GestureRecognizers>
-                </Frame>
+                    <Label x:Name="OverlayWatermark"
+                           Text="Tap the neon ring to draw &amp; annotate"
+                           FontSize="11"
+                           TextColor="#00FF9D"
+                           Opacity="0.9"
+                           HorizontalTextAlignment="Center"
+                           Shadow="{Shadow Brush=#00FF9D, Radius=8, Offset='0,0'}" />
+                </VerticalStackLayout>
 
-                <Frame BackgroundColor="#FFFF00" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent" Grid.Column="4">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FFFF00" />
-                    </Frame.GestureRecognizers>
-                </Frame>
-
-                <Frame BackgroundColor="#FFA500" WidthRequest="36" HeightRequest="36" CornerRadius="18"
-                       Padding="0" BorderColor="Transparent" Grid.Column="5">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FFA500" />
-                    </Frame.GestureRecognizers>
-                </Frame>
+                <!-- Close button -->
+                <Button Grid.Column="2"
+                        Text="CLOSE"
+                        FontSize="14"
+                        CornerRadius="18"
+                        Padding="10,6"
+                        Margin="0,0,0,0"
+                        TextColor="White"
+                        Style="{StaticResource AuroraNeonButton}"
+                        Clicked="OnCloseClicked" />
             </Grid>
+        </Border>
 
-            <!-- SAVE / DELETE -->
-            <HorizontalStackLayout HorizontalOptions="Center" Spacing="20">
-                <Button Text="SAVE"
-                        FontSize="16"
-                        CornerRadius="15"
-                        Padding="6"
-                        TextColor="White"
-                        Style="{StaticResource AuroraNeonButton}"
-                        Clicked="OnSaveOverlayClicked" />
+        <!-- ========================== -->
+        <!-- ZOOM AREA                  -->
+        <!-- ========================== -->
+        <Border Grid.Row="1"
+                Margin="18,4,18,10"
+                Padding="6"
+                Style="{StaticResource AuroraGlassBorder}"
+                StrokeThickness="2.2"
+                StrokeShape="RoundRectangle 30">
+            <Grid>
 
-                <Button Text="DELETE"
-                        FontSize="16"
-                        CornerRadius="15"
-                        Padding="6"
-                        TextColor="White"
-                        Style="{StaticResource AuroraNeonButton}"
-                        Clicked="OnDeleteOverlayClicked" />
-            </HorizontalStackLayout>
-        </VerticalStackLayout>
+                <!-- inner neon frame so it feels like ScanPage -->
+                <Border Stroke="#00D5FF"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 26"
+                        Margin="10">
+                    <freakyControls:FreakyZoomableView>
+                        <Grid>
+                            <Image x:Name="ZoomImage"
+                                   Aspect="AspectFit"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center" />
+
+                            <!-- DRAWING OVERLAY -->
+                            <GraphicsView x:Name="OverlayCanvas"
+                                          BackgroundColor="Transparent"
+                                          IsVisible="False"
+                                          StartInteraction="OnStartInteraction"
+                                          DragInteraction="OnDragInteraction"
+                                          EndInteraction="OnEndInteraction"
+                                          Drawable="{x:Reference OverlayCanvas}"
+                                          VerticalOptions="Fill"
+                                          HorizontalOptions="Fill" />
+                        </Grid>
+                    </freakyControls:FreakyZoomableView>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ========================== -->
+        <!-- BOTTOM CONTROLS            -->
+        <!-- ========================== -->
+        <Border Grid.Row="2"
+                Margin="18,4,18,26"
+                Padding="16,10"
+                Style="{StaticResource AuroraGlassBorder}"
+                StrokeThickness="2"
+                StrokeShape="RoundRectangle 24">
+            <VerticalStackLayout VerticalOptions="Center"
+                                 HorizontalOptions="Center"
+                                 Spacing="12">
+
+                <!-- Color palette -->
+                <Grid x:Name="ColorPalette"
+                      HorizontalOptions="Center"
+                      ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                      ColumnSpacing="10">
+
+                    <Frame BackgroundColor="#FF0000" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FF0000" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <Frame BackgroundColor="#00FF00" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent" Grid.Column="1">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#00FF00" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <Frame BackgroundColor="#00B4FF" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent" Grid.Column="2">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#00B4FF" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <Frame BackgroundColor="#8000FF" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent" Grid.Column="3">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#8000FF" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <Frame BackgroundColor="#FFFF00" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent" Grid.Column="4">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FFFF00" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <Frame BackgroundColor="#FFA500" WidthRequest="30" HeightRequest="30" CornerRadius="15"
+                           Padding="0" BorderColor="Transparent" Grid.Column="5">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnColorSelected" CommandParameter="#FFA500" />
+                        </Frame.GestureRecognizers>
+                    </Frame>
+                </Grid>
+
+                <!-- Save / Delete buttons -->
+                <HorizontalStackLayout HorizontalOptions="Center"
+                                       Spacing="14">
+                    <Button Text="SAVE"
+                            FontSize="14"
+                            CornerRadius="16"
+                            Padding="12,6"
+                            TextColor="White"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Clicked="OnSaveOverlayClicked" />
+
+                    <Button Text="DELETE"
+                            FontSize="14"
+                            CornerRadius="16"
+                            Padding="12,6"
+                            TextColor="White"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Clicked="OnDeleteOverlayClicked" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </Border>
     </Grid>
 </ContentPage>
