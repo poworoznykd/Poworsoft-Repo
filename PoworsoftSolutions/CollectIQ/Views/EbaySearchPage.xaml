@@ -214,7 +214,7 @@
 
                                     <!-- TITLE -->
                                     <Label Grid.Column="1"
-                                           Text="{Binding Title}"
+                                           Text="{Binding DisplayTitle}"
                                            FontSize="14"
                                            FontAttributes="Bold"
                                            TextColor="#F9FDFF"

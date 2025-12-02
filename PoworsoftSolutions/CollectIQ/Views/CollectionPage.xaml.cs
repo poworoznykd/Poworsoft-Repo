@@ -147,12 +147,12 @@ namespace CollectIQ.Views
 
                 // Build CSV (Excel-compatible)
                 var sb = new StringBuilder();
-                sb.AppendLine("Player,Team,Year,Set,Number,GradeCompany,Grade,PurchasePrice,EstimatedValue,FrontImagePath,BackImagePath");
+                sb.AppendLine("Name,Team,Year,Set,Number,GradeCompany,Grade,PurchasePrice,EstimatedValue,FrontImagePath,BackImagePath");
 
                 foreach (var c in cards)
                 {
                     string csvLine = string.Join(",",
-                        EscapeCsv(c.Player),
+                        EscapeCsv(c.Name),
                         EscapeCsv(c.Team),
                         c.Year?.ToString() ?? string.Empty,
                         EscapeCsv(c.Set),

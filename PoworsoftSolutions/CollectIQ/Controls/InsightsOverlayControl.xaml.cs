@@ -55,6 +55,28 @@ namespace CollectIQ.Controls
             InsightsScrim.Opacity = 0;
         }
 
+        // =======================================================
+        //      VALUE CALLBACK (Used to send value back to page)
+        // =======================================================
+
+        public decimal? SuggestedValue { get; private set; }
+
+        // Called by EbaySearchPage when overlay is shown.
+        // The overlay will invoke this when user closes the overlay
+        // or clicks the "Apply Suggested Value" button.
+        public Action<decimal?> OnEstimatedValueReady { get; set; }
+
+
+        private void ApplySuggestedValue_Clicked(object sender, EventArgs e)
+        {
+            if (SuggestedValue.HasValue)
+            {
+                // Send value back to the page
+                OnEstimatedValueReady?.Invoke(SuggestedValue);
+            }
+        }
+
+
         /// <summary>
         /// Shows the overlay with the given anchor listing and comps.
         /// The host page is responsible for providing the comps
@@ -131,6 +153,12 @@ namespace CollectIQ.Controls
 
             InsightsOverlay.IsVisible = false;
             InsightsScrim.IsVisible = false;
+
+            // APPLY VALUE AUTOMATICALLY IF AVAILABLE
+            if (SuggestedValue.HasValue)
+            {
+                OnEstimatedValueReady?.Invoke(SuggestedValue);
+            }
 
             Closed?.Invoke(this, EventArgs.Empty);
         }
@@ -243,7 +271,7 @@ namespace CollectIQ.Controls
             decimal q75 = Percentile(prices, 0.75);
 
             decimal suggested = Math.Round(median * 0.95m, 2);
-
+            SuggestedValue = suggested;
             // Volatility description
             decimal spread = max - min;
             string volatility;

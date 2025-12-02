@@ -1,4 +1,5 @@
-﻿using SQLite;
+﻿using CollectIQ.Utilities;
+using SQLite;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -11,6 +12,7 @@ namespace CollectIQ.Models
     /// </summary>
     public class EbayListing : INotifyPropertyChanged
     {
+        public string DisplayTitle => BuildDisplayTitle();
         // IMPORTANT: implement INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -52,6 +54,11 @@ namespace CollectIQ.Models
         public string Title { get; set; } = string.Empty;
 
         /// <summary>
+        /// Human-readable title from eBay.
+        /// </summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>
         /// Main image URL to show in the results list.
         /// </summary>
         public string ImageUrl { get; set; } = string.Empty;
@@ -60,6 +67,11 @@ namespace CollectIQ.Models
         /// URL to open in the browser when user taps a card.
         /// </summary>
         public string Url { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Current or sold estimated value (numeric) after using insights.
+        /// </summary>
+        public decimal? EstimatedValue { get; set; }
 
         /// <summary>
         /// Current or sold price value (numeric).
@@ -108,6 +120,19 @@ namespace CollectIQ.Models
                 : $"{Title} - {FormattedPrice}";
         }
 
+        private string BuildDisplayTitle()
+        {
+            // Try to extract player name from title
+            // (use the same logic as CardMetadataParser)
+            string extractedPlayer = CardMetadataParser.Parse(this as EbayListing).Name;
+
+            if (!string.IsNullOrWhiteSpace(extractedPlayer))
+            {
+                return $"{extractedPlayer} - {Title}";
+            }
+
+            return Title;
+        }
         /// <summary>
         /// Utility that formats a price nicely for display.
         /// </summary>

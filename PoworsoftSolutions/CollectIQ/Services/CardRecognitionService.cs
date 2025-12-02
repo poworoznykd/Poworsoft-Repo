@@ -34,7 +34,7 @@ namespace CollectIQ.Services
             {
                 Id = Guid.NewGuid().ToString(),
                 Title = "2020 Select Silver Prizm #66 – Patrick Mahomes II",
-                Player = "Patrick Mahomes II",
+                Name = "Patrick Mahomes II",
                 Team = "Kansas City Chiefs",
                 Year = 2020,
                 Set = "Select Silver Prizm",

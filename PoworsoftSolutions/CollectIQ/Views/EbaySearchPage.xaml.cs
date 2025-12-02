@@ -13,9 +13,10 @@
 //      when a result is swiped open.
 //
 
-using CollectIQ.Models;
 using CollectIQ.Controls;
+using CollectIQ.Models;
 using CollectIQ.Services;
+using CollectIQ.Utilities;
 using FreakyKit.Utils;
 using Microsoft.Maui.Controls;
 using System;
@@ -124,6 +125,15 @@ namespace CollectIQ.Views
             int days = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
             await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
+            InsightsOverlayControl.OnEstimatedValueReady = (value) =>
+            {
+                if (value.HasValue)
+                {
+                    selectedListing.Price = value.Value;
+                    selectedListing.EstimatedValue = value.Value;
+                }
+            };
+
         }
 
         #region Filter Initialization
@@ -320,7 +330,7 @@ namespace CollectIQ.Views
                     {
                         // Step 2: take top distinct titles and search sold comps by text.
                         var topTitles = identified
-                            .Where(r => !string.IsNullOrWhiteSpace(r.Title))
+                            .Where(r => !string.IsNullOrWhiteSpace(r.Title) && !r.Title.Contains("your pick"))
                             .Select(r => r.Title!)
                             .Distinct()
                             .Take(3)
@@ -630,18 +640,9 @@ namespace CollectIQ.Views
                 {
                     return;
                 }
-                //TODO: Improve mapping from EbayListing to Card
-                Card card = new Card
-                {
-                    Title = listing.Title,
-                    EstimatedValue = listing.Price,
-                    CollectionId = "Default",
-                    FrontImagePath = listing.ImageUrl,
-                    BackImagePath = listing.ImageUrl,
-                    Set = "eBay Import",
-                    GradeCompany = "Raw",
-                    InsightsJson = $"{{ \"EbayListingId\": \"{listing.ListingId}\", \"EbayUrl\": \"{listing.Url}\" }}"
-                };
+
+                Card card = CardMetadataParser.Parse(listing);
+                card.EstimatedValue = listing.EstimatedValue;
 
                 await App.Database.AddCardAsync(card);
                 await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");

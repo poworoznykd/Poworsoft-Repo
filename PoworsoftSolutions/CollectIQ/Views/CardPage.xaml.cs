@@ -4,16 +4,17 @@
 //              and live eBay-based pricing insights via the shared InsightsOverlayControl.
 // -------------------------------------------------------------------------------------------------
 
+using CollectIQ.Controls;
+using CollectIQ.Models;
+using CollectIQ.Services;
+using CollectIQ.Utilities;
+using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using CollectIQ.Models;
-using CollectIQ.Services;
-using CollectIQ.Utilities;
-using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
@@ -100,7 +101,7 @@ namespace CollectIQ.Views
         private void PopulateFormFromCard()
         {
             // Map card -> entries / labels
-            PlayerEntry.Text = currentCard.Player;
+            PlayerEntry.Text = currentCard.Name;
             TeamEntry.Text = currentCard.Team;
             YearEntry.Text = currentCard.Year.HasValue ? currentCard.Year.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
             SetEntry.Text = currentCard.Set;
@@ -142,7 +143,7 @@ namespace CollectIQ.Views
 
             string title = !string.IsNullOrWhiteSpace(currentCard.Title)
                 ? currentCard.Title
-                : $"{yearText} {currentCard.Player}";
+                : $"{yearText} {currentCard.Name}";
 
             CardTitleLabel.Text = title.Trim();
 
@@ -158,7 +159,7 @@ namespace CollectIQ.Views
 
         private void UpdateCardFromForm()
         {
-            currentCard.Player = PlayerEntry.Text?.Trim();
+            currentCard.Name = PlayerEntry.Text?.Trim();
             currentCard.Team = TeamEntry.Text?.Trim();
             currentCard.Set = SetEntry.Text?.Trim();
             currentCard.Number = NumberEntry.Text?.Trim();
@@ -198,7 +199,7 @@ namespace CollectIQ.Views
             if (string.IsNullOrWhiteSpace(currentCard.Title))
             {
                 string yearText = currentCard.Year.HasValue ? currentCard.Year.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
-                currentCard.Title = $"{yearText} {currentCard.Player} {currentCard.Set} #{currentCard.Number}".Trim();
+                currentCard.Title = $"{yearText} {currentCard.Name} {currentCard.Set} #{currentCard.Number}".Trim();
             }
 
             // Keep estimated value in sync with insights if we have them
@@ -424,9 +425,9 @@ namespace CollectIQ.Views
                 parts.Add(currentCard.Year.Value.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (!string.IsNullOrWhiteSpace(currentCard.Player))
+            if (!string.IsNullOrWhiteSpace(currentCard.Name))
             {
-                parts.Add(currentCard.Player);
+                parts.Add(currentCard.Name);
             }
 
             // Avoid polluting search with sentinel text like "eBay Import"
@@ -541,6 +542,13 @@ namespace CollectIQ.Views
                     priced,
                     listingTypeFilter: "sold",
                     daysRangeFilter: 90);
+                CardInsightsOverlay.OnEstimatedValueReady = (value) =>
+                {
+                    if (value.HasValue)
+                    {
+                        currentCard.EstimatedValue = value.Value;
+                    }
+                };
             }
             catch (Exception ex)
             {

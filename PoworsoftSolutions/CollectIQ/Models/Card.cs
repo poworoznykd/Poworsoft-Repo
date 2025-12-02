@@ -3,7 +3,7 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-28
-* UPDATED: 2025-10-29
+* UPDATED: 2025-12-01
 * DESCRIPTION:
 *     Represents a collectible card record within the user’s collection,
 *     including identifiers, grading details, and image paths.
@@ -28,7 +28,7 @@ namespace CollectIQ.Models
         public string Title { get; set; } = string.Empty;
 
         [Indexed]
-        public string Player { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
 
         [Indexed]
         public string Team { get; set; } = string.Empty;
@@ -45,22 +45,38 @@ namespace CollectIQ.Models
         public double? Grade { get; set; } = null;
 
         // === Financial ===
-        public decimal? PurchasePrice { get; set; }   // currency-safe
-        public decimal? EstimatedValue { get; set; }  // currency-safe
+        public decimal? PurchasePrice { get; set; }
+        public decimal? EstimatedValue { get; set; }
 
         // === Images ===
-        /// <summary>
-        /// Path to the front image of the card (primary photo).
-        /// </summary>
         public string FrontImagePath { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Path to the back image of the card (secondary photo).
-        /// </summary>
         public string BackImagePath { get; set; } = string.Empty;
 
         // === Insights (JSON serialized) ===
         public string InsightsJson { get; set; } = "{}";
 
+
+        // ============================================================
+        //          NEW OPTIONAL FIELDS (NON-BREAKING)
+        // ============================================================
+
+        // --- Sport (Football, Hockey, Basketball, Pokémon, etc.) ---
+        public string Sport { get; set; } = string.Empty;
+
+        // --- Parallels & Inserts ---
+        public string Parallel { get; set; } = string.Empty;             // Refractor, Pulsar, Silver Prizm, etc.
+        public string Subset { get; set; } = string.Empty;               // Fireworks, My House, etc.
+
+        // --- Serial Number (#/99, 10/25) ---
+        public string SerialNumber { get; set; } = string.Empty;
+
+        // --- Advanced Grading Details ---
+        public string Grader { get; set; } = string.Empty;               // PSA, BGS, CGC, SGC, TAG
+
+        public double? SubgradeCorners { get; set; }
+        public double? SubgradeEdges { get; set; }
+        public double? SubgradeSurface { get; set; }
+        public double? SubgradeCentering { get; set; }
     }
 }
