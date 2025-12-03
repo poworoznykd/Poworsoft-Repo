@@ -100,6 +100,12 @@
                                 Padding="12,4"
                                 FontSize="11"
                                 Clicked="OnExportPdfClicked" />
+                        <Button x:Name="OpenFilterButton"
+                             Text="Filters"
+                             Style="{StaticResource AuroraNeonButton}"
+                            Padding="12,4"
+                            FontSize="11"
+                             Clicked="OnFilterClicked"/>
                     </HorizontalStackLayout>
                 </Grid>
             </Border>
@@ -270,6 +276,10 @@
                 Margin="0,4,0,0"
                 VerticalOptions="End" />
         </Grid>
+        <controls:FilterOverlayControl 
+            x:Name="FilterOverlay"
+            IsVisible="True"
+            Opacity="1" />
 
     </Grid>
 </ContentPage>

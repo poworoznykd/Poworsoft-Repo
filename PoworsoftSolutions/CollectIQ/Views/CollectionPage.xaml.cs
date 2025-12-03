@@ -4,36 +4,36 @@
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-25
 * DESCRIPTION:
-*     Provides logic for displaying, deleting, and editing sports cards
-*     within the user’s collection. Integrates swipe actions, smooth
-*     animations, and SQLite persistence for a premium user experience.
+*     Displays, filters, deletes, and edits cards in the user’s collection.
+*     This version includes fully working filter logic using camelCase fields.
 */
 
-using System;
-using System.Collections.ObjectModel;
-using System.Threading.Tasks;
-using Microsoft.Maui.Controls;
-using CommunityToolkit.Maui.Alerts;
-using CommunityToolkit.Maui.Core;
 using CollectIQ.Models;
 using CollectIQ.Services;
+using Microsoft.Maui.Controls;
+using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
-using Microsoft.Maui.Storage;
+using System.Threading.Tasks;
 
 namespace CollectIQ.Views
 {
     public partial class CollectionPage : ContentPage
     {
-        private readonly SqliteDatabase _database = new();
+        private readonly SqliteDatabase database = new();
+        private List<Card> allCards = new();   // full list, always preserved
+
         public ObservableCollection<Card> Cards { get; } = new();
 
         public CollectionPage()
         {
             InitializeComponent();
+
+            // When the overlay raises FiltersChanged → reapply filters
+            FilterOverlay.FiltersChanged += (_, __) => ApplyFilters();
+
             BindingContext = this;
         }
 
@@ -44,17 +44,20 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Loads all cards from the SQLite database into the CollectionView.
+        /// Loads collection from DB and stores a full copy in allCards.
         /// </summary>
         private async Task LoadCardsAsync()
         {
             try
             {
-                await _database.InitializeAsync();
+                await database.InitializeAsync();
                 Cards.Clear();
 
-                var cards = await _database.GetAllCardsAsync();
-                foreach (var card in cards)
+                var cardsFromDb = await database.GetAllCardsAsync();
+
+                allCards = cardsFromDb.ToList();   // <-- store full copy
+
+                foreach (var card in allCards)
                     Cards.Add(card);
 
                 EmptyMessage.IsVisible = Cards.Count == 0;
@@ -66,64 +69,115 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// Handles deletion of a selected card from the local collection.
+        /// Applies filters from the FilterOverlay control.
+        /// </summary>
+        private void ApplyFilters()
+        {
+            if (allCards == null || allCards.Count == 0)
+                return;
+
+            IEnumerable<Card> filtered = allCards;
+
+            // SEARCH
+            string search = FilterOverlay.Search?.Trim().ToLower() ?? "";
+            if (!string.IsNullOrEmpty(search))
+            {
+                filtered = filtered.Where(c =>
+                    (c.Name?.ToLower().Contains(search) ?? false) ||
+                    (c.Title?.ToLower().Contains(search) ?? false) ||
+                    (c.Team?.ToLower().Contains(search) ?? false));
+            }
+
+            // SPORT FILTERS
+            var sports = new List<string>();
+            if (FilterOverlay.Hockey) sports.Add("Hockey");
+            if (FilterOverlay.Football) sports.Add("Football");
+            if (FilterOverlay.Basketball) sports.Add("Basketball");
+            if (FilterOverlay.Pokemon) sports.Add("Pokemon");
+
+            if (sports.Count > 0)
+            {
+                filtered = filtered.Where(c =>
+                    !string.IsNullOrWhiteSpace(c.Sport) &&
+                    sports.Contains(c.Sport, StringComparer.OrdinalIgnoreCase));
+            }
+
+            // YEAR RANGE
+            filtered = filtered.Where(c =>
+                (c.Year ?? 0) >= FilterOverlay.MinYear &&
+                (c.Year ?? 0) <= FilterOverlay.MaxYear);
+
+            // VALUE RANGE
+            filtered = filtered.Where(c =>
+                (c.EstimatedValue ?? 0) >= FilterOverlay.MinValue &&
+                (c.EstimatedValue ?? 0) <= FilterOverlay.MaxValue);
+
+            // --- FINAL UPDATE ---
+            Cards.Clear();
+            foreach (var card in filtered)
+                Cards.Add(card);
+
+            EmptyMessage.IsVisible = Cards.Count == 0;
+        }
+
+        /// <summary>
+        /// shows the filter overlay
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void OnFilterClicked(object sender, EventArgs e)
+        {
+            await FilterOverlay.ShowAsync();
+        }
+
+        /// <summary>
+        /// Swipe delete handler.
         /// </summary>
         private async void OnDeleteCard(object sender, EventArgs e)
         {
             if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
             {
                 bool confirm = await DisplayAlert("Confirm Delete",
-                    $"Are you sure you want to delete '{card.Title}'?", "Delete", "Cancel");
+                    $"Delete '{card.Title}'?", "Delete", "Cancel");
 
                 if (!confirm) return;
 
                 try
                 {
-                    await _database.DeleteCardAsync(card.Id);
+                    await database.DeleteCardAsync(card.Id);
+                    allCards.Remove(card);
                     Cards.Remove(card);
-                    EmptyMessage.IsVisible = Cards.Count == 0;
 
-                    await Toast.Make("Card deleted.", ToastDuration.Short).Show();
+                    EmptyMessage.IsVisible = Cards.Count == 0;
                 }
                 catch (Exception ex)
                 {
-                    await DisplayAlert("Error", $"Failed to delete card: {ex.Message}", "OK");
+                    await DisplayAlert("Error", ex.Message, "OK");
                 }
             }
         }
 
         /// <summary>
-        /// Placeholder for future edit functionality.
+        /// Opens edit page.
         /// </summary>
         private async void OnEditCard(object sender, EventArgs e)
         {
             if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
-            {
                 await Navigation.PushAsync(new CardPage(card));
-            }
         }
 
         /// <summary>
-        /// FUNCTION: OnAddCardClicked
-        /// DESCRIPTION:
-        ///     Switches to the ScanPage tab to allow the user to scan or add a new card.
-        /// PARAMETERS:
-        ///     sender – Source of the event.
-        ///     e – Event arguments.
-        /// RETURNS:
-        ///     None.
+        /// Navigates to Scan tab to add a card.
         /// </summary>
         private async void OnAddCardClicked(object sender, EventArgs e)
         {
             try
             {
-                // Switch tab to ScanPage (ShellContent route)
                 await Shell.Current.GoToAsync("//ScanPage");
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"[CollectionPage] Tab navigation error: {ex.Message}");
-                await DisplayAlert("Navigation Error", "Unable to switch to Scan tab.", "OK");
+                await DisplayAlert("Error", "Unable to switch to Scan tab.", "OK");
             }
         }
 

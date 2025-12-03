@@ -235,7 +235,7 @@
                     <!-- APPLY BUTTON -->
                     <Button 
                         Text="Apply Suggested Value"
-                        BackgroundColor="#39FF14"
+                            Style="{StaticResource AuroraNeonButton_Green}"
                         TextColor="Black"
                         CornerRadius="10"
                         Margin="0,10,0,20"

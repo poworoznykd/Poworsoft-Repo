@@ -146,7 +146,7 @@ namespace CollectIQ.Views
                 : $"{yearText} {currentCard.Name}";
 
             CardTitleLabel.Text = title.Trim();
-
+            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
             // Subtitle: Year · Team · Set · #
             List<string> parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(yearText)) parts.Add(yearText);
@@ -191,6 +191,8 @@ namespace CollectIQ.Views
             {
                 currentCard.PurchasePrice = null;
             }
+
+            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
 
             currentCard.FrontImagePath = frontPath;
             currentCard.BackImagePath = backPath;

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="CollectIQ.Controls.FilterOverlayControl"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="Transparent">
+
+    <!-- Absolute so overlay measures INDEPENDENTLY from the page -->
+    <AbsoluteLayout x:Name="RootLayout">
+
+        <!-- SCRIM -->
+        <BoxView
+            x:Name="FilterScrim"
+            BackgroundColor="#CC000000"
+            Opacity="0"
+            IsVisible="False"
+            AbsoluteLayout.LayoutFlags="All"
+            AbsoluteLayout.LayoutBounds="0,0,1,1">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnScrimTapped"/>
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <!-- PANEL -->
+        <Border
+            x:Name="FilterOverlay"
+            IsVisible="False"
+            Style="{StaticResource AuroraGlassBorder}"
+            BackgroundColor="#FF0B1120"
+            Padding="20,18"
+            Opacity="0"
+            TranslationY="40"
+            AbsoluteLayout.LayoutFlags="PositionProportional"
+            AbsoluteLayout.LayoutBounds="0.5,0.0,360,620">
+
+            <ScrollView VerticalOptions="FillAndExpand">
+
+                <VerticalStackLayout Spacing="18">
+
+                    <Label Text="FILTER CARDS"
+                           Style="{StaticResource AuroraLabel_Blue}"
+                           FontSize="26"
+                           HorizontalOptions="Center" />
+
+                    <!-- SEARCH -->
+                    <Entry x:Name="SearchEntry"
+                           Placeholder="Search by name/title/team..."
+                           PlaceholderColor="{StaticResource Gray500}"
+                           TextColor="White"
+                           BackgroundColor="#00000030"
+                           HeightRequest="48" />
+
+                    <!-- SPORT -->
+                    <Label Text="Sport"
+                           Style="{StaticResource AuroraLabel_Blue}"
+                           Margin="0,10,0,0" />
+
+                    <VerticalStackLayout Spacing="12">
+                        <HorizontalStackLayout>
+                            <CheckBox x:Name="ChkHockey"/>
+                            <Label Text="Hockey" TextColor="White" Margin="8,0,0,0"/>
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout>
+                            <CheckBox x:Name="ChkFootball"/>
+                            <Label Text="Football" TextColor="White" Margin="8,0,0,0"/>
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout>
+                            <CheckBox x:Name="ChkBasketball"/>
+                            <Label Text="Basketball" TextColor="White" Margin="8,0,0,0"/>
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout>
+                            <CheckBox x:Name="ChkPokemon"/>
+                            <Label Text="Pokémon" TextColor="White" Margin="8,0,0,0"/>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+
+                    <!-- YEAR RANGE -->
+                    <Label Text="Year Range"
+                           Style="{StaticResource AuroraLabel_Blue}"
+                           Margin="0,12,0,0"/>
+
+                    <Slider x:Name="YearMinSlider" Minimum="1900" Maximum="2050"/>
+                    <Slider x:Name="YearMaxSlider" Minimum="1900" Maximum="2050"/>
+                    <Label x:Name="LblYearRange" TextColor="White"/>
+
+                    <!-- VALUE RANGE -->
+                    <Label Text="Value Range ($)"
+                           Style="{StaticResource AuroraLabel_Blue}"
+                           Margin="0,12,0,0"/>
+
+                    <Slider x:Name="ValueMinSlider" Minimum="0" Maximum="5000"/>
+                    <Slider x:Name="ValueMaxSlider" Minimum="0" Maximum="5000"/>
+                    <Label x:Name="LblValueRange" TextColor="White"/>
+
+                    <!-- BUTTONS -->
+                    <HorizontalStackLayout Spacing="20" Margin="0,18,0,20">
+                        <Button Text="Apply"
+                                x:Name="ApplyBtn"
+                                HeightRequest="42"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Clicked="OnApplyClicked"/>
+
+                        <Button Text="Clear"
+                                x:Name="ClearBtn"
+                                HeightRequest="42"
+                                Style="{StaticResource AuroraNeonButton_Red}"
+                                Clicked="OnClearClicked"/>
+                    </HorizontalStackLayout>
+
+                </VerticalStackLayout>
+
+            </ScrollView>
+
+        </Border>
+
+    </AbsoluteLayout>
+
+</ContentView>
