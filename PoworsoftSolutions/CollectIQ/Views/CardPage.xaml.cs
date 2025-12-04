@@ -100,37 +100,62 @@ namespace CollectIQ.Views
 
         private void PopulateFormFromCard()
         {
-            // Map card -> entries / labels
-            PlayerEntry.Text = currentCard.Name;
-            TeamEntry.Text = currentCard.Team;
-            YearEntry.Text = currentCard.Year.HasValue ? currentCard.Year.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
-            SetEntry.Text = currentCard.Set;
-            NumberEntry.Text = currentCard.Number;
-            GradeCoEntry.Text = currentCard.GradeCompany;
-            GradeEntry.Text = currentCard.Grade.HasValue ? currentCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture) : string.Empty;
-            PriceEntry.Text = currentCard.PurchasePrice.HasValue ? currentCard.PurchasePrice.Value.ToString("0.00", CultureInfo.InvariantCulture) : string.Empty;
+            if (currentCard == null)
+                return;
 
-            if (!string.IsNullOrWhiteSpace(currentCard.FrontImagePath))
+            try
             {
-                FrontImagePreview.Source = ImageSource.FromFile(currentCard.FrontImagePath);
+                // ---- SAFE STRING FIELDS ----
+                PlayerEntry.Text = currentCard.Name ?? string.Empty;
+                TeamEntry.Text = currentCard.Team ?? string.Empty;
+                SetEntry.Text = currentCard.Set ?? string.Empty;
+                NumberEntry.Text = currentCard.Number ?? string.Empty;
+                GradeCoEntry.Text = currentCard.GradeCompany ?? string.Empty;
+
+                // ---- SAFE INT ----
+                YearEntry.Text = currentCard.Year?.ToString() ?? string.Empty;
+
+                // ---- SAFE DECIMAL ----
+                PriceEntry.Text = currentCard.PurchasePrice.HasValue
+                    ? currentCard.PurchasePrice.Value.ToString("0.00", CultureInfo.InvariantCulture)
+                    : string.Empty;
+
+                // ---- SAFE DOUBLE ----
+                GradeEntry.Text = currentCard.Grade.HasValue
+                    ? currentCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture)
+                    : string.Empty;
+
+                // ---- SAFE IMAGES ----
+                if (!string.IsNullOrWhiteSpace(currentCard.FrontImagePath))
+                {
+                    FrontImagePreview.Source = ImageSource.FromFile(currentCard.FrontImagePath);
+                }
+                else
+                {
+                    FrontImagePreview.Source = null;
+                }
+
+                if (!string.IsNullOrWhiteSpace(currentCard.BackImagePath))
+                {
+                    BackImagePreview.Source = ImageSource.FromFile(currentCard.BackImagePath);
+                }
+                else
+                {
+                    BackImagePreview.Source = null;
+                }
+
+                // ---- SAFE HEADER ----
+                UpdateHeaderFromCard();
+
+                // ---- SAFE ESTIMATED VALUE ----
+                if (currentCard.EstimatedValue.HasValue)
+                    EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+                else
+                    EstimatedValueLabel.Text = "$0.00";
             }
-
-            if (!string.IsNullOrWhiteSpace(currentCard.BackImagePath))
+            catch (Exception ex)
             {
-                BackImagePreview.Source = ImageSource.FromFile(currentCard.BackImagePath);
-            }
-
-            // Title + subtitle
-            UpdateHeaderFromCard();
-
-            // Estimated value label from stored card value if it exists
-            if (currentCard.EstimatedValue.HasValue)
-            {
-                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
-            }
-            else
-            {
-                EstimatedValueLabel.Text = "$0.00";
+                Console.WriteLine($"[ERROR] PopulateFormFromCard failed: {ex}");
             }
         }
 
