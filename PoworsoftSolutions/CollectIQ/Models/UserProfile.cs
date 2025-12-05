@@ -7,19 +7,22 @@ namespace CollectIQ.Models
     /// </summary>
     public sealed class UserProfile : BaseEntity
     {
+        // --- Authorization Role ---
+        public string Role { get; set; } = "Admin";
+
+        // --- External or provider ID (optional) ---
         [Indexed]
         public string? ProviderUserId { get; set; }
 
+        // --- Email for local or cloud login ---
         [Indexed(Unique = true)]
         public string? Email { get; set; }
 
-        public string? GuestId { get; set; }
+        // --- Display username ---
         public string? DisplayName { get; set; }
 
         // --- Local authentication fields ---
         public string? PasswordHash { get; set; }
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string Salt { get; set; }
     }
 }

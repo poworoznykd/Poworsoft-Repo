@@ -3,7 +3,7 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-18
-* UPDATED: 2025-11-09
+* UPDATED: 2025-12-04
 * DESCRIPTION:
 *     Handles live camera scanning of card front and back,
 *     saves captured images, and returns to the appropriate page
@@ -18,6 +18,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using CollectIQ.Utilities;
+using CollectIQ.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
 
@@ -36,36 +37,10 @@ namespace CollectIQ.Views
         // =========================
 
         /// <summary>
-        /// Indicates whether the scan-line animation should continue running.
+        /// View model backing this page. Holds scanning state and
+        /// captured image paths.
         /// </summary>
-        private bool isScanning;
-
-        /// <summary>
-        /// Indicates that the next capture should be treated as the back of the card
-        /// for the CardPage workflow.
-        /// </summary>
-        private bool isCapturingBack;
-
-        /// <summary>
-        /// Prevents double-tap / double-capture scenarios on the Scan button.
-        /// </summary>
-        private bool isCaptureInProgress;
-
-        /// <summary>
-        /// Full file system path for the captured front image.
-        /// </summary>
-        private string frontImagePath = string.Empty;
-
-        /// <summary>
-        /// Full file system path for the captured back image.
-        /// </summary>
-        private string backImagePath = string.Empty;
-
-        /// <summary>
-        /// Title of the page that initiated this scan (e.g., CardPage).
-        /// Used to decide if we capture front+back or front-only.
-        /// </summary>
-        private readonly string? returnPageName;
+        private readonly ScanPageViewModel viewModel;
 
         // =========================
         // Constructors
@@ -81,6 +56,9 @@ namespace CollectIQ.Views
         public ScanPage()
         {
             InitializeComponent();
+
+            viewModel = new ScanPageViewModel();
+            BindingContext = viewModel;
         }
 
         /// <summary>
@@ -97,7 +75,13 @@ namespace CollectIQ.Views
         public ScanPage(string returnPageNameParam)
         {
             InitializeComponent();
-            returnPageName = returnPageNameParam;
+
+            viewModel = new ScanPageViewModel
+            {
+                ReturnPageName = returnPageNameParam
+            };
+
+            BindingContext = viewModel;
         }
 
         // =========================
@@ -116,8 +100,7 @@ namespace CollectIQ.Views
         {
             base.OnAppearing();
 
-            isScanning = true;
-            isCaptureInProgress = false;
+            viewModel.InitializeForAppearing();
 
             try
             {
@@ -144,15 +127,15 @@ namespace CollectIQ.Views
             while (retries++ < 30)
             {
                 if (element?.Height > 0)
+                {
                     return;
+                }
 
                 await Task.Delay(100);
             }
 
             Debug.WriteLine($"[Layout] Warning: {element} did not get valid height after retries.");
         }
-
-
 
         /// <summary>
         /// FUNCTION: OnDisappearing
@@ -166,7 +149,7 @@ namespace CollectIQ.Views
         {
             base.OnDisappearing();
 
-            isScanning = false;
+            viewModel.PrepareForDisappearing();
 
             try
             {
@@ -231,7 +214,7 @@ namespace CollectIQ.Views
         /// FUNCTION: RunScanLineAnimationAsync
         /// DESCRIPTION:
         ///     Continuously animates the scan-line up and down while
-        ///     the isScanning flag remains true.
+        ///     the IsScanning flag in the view model remains true.
         /// RETURNS:
         ///     Task.
         /// </summary>
@@ -246,7 +229,7 @@ namespace CollectIQ.Views
             double startY = 0;
             double endY = containerHeight - 10;
 
-            while (isScanning)
+            while (viewModel.IsScanning)
             {
                 try
                 {
@@ -270,7 +253,7 @@ namespace CollectIQ.Views
         /// DESCRIPTION:
         ///     Captures card images using CameraView, saves them locally,
         ///     and navigates to the appropriate page.
-        ///     - If launched with returnPageName = CardPage:
+        ///     - If launched with ReturnPageName = CardPage:
         ///         captures FRONT then BACK and returns both paths.
         ///     - Otherwise (eBay flow):
         ///         captures only FRONT and navigates to EbaySearchPage
@@ -283,32 +266,34 @@ namespace CollectIQ.Views
         /// </summary>
         private async void OnScanClicked(object sender, EventArgs e)
         {
-            if (isCaptureInProgress)
+            if (viewModel.IsCaptureInProgress)
             {
                 return;
             }
 
-            isCaptureInProgress = true;
+            viewModel.IsCaptureInProgress = true;
 
             try
             {
-                isScanning = false;
+                viewModel.IsScanning = false;
 
-                using var captureCancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-                using var imageStream = await CameraView.CaptureImage(captureCancellationTokenSource.Token);
+                using var captureCancellationTokenSource =
+                    new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var imageStream =
+                    await CameraView.CaptureImage(captureCancellationTokenSource.Token);
 
                 if (imageStream == null)
                 {
                     await DisplayAlert("Error", "No image captured.", "OK");
-                    isScanning = true;
-                    isCaptureInProgress = false;
+                    viewModel.IsScanning = true;
+                    viewModel.IsCaptureInProgress = false;
                     return;
                 }
 
                 string cardPhotosFolder = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
                 Directory.CreateDirectory(cardPhotosFolder);
 
-                string fileName = isCapturingBack
+                string fileName = viewModel.IsCapturingBack
                     ? $"card_back_{Guid.NewGuid()}.jpg"
                     : $"card_front_{Guid.NewGuid()}.jpg";
 
@@ -320,8 +305,10 @@ namespace CollectIQ.Views
                 }
 
                 bool isCardPageWorkflow =
-                    !string.IsNullOrWhiteSpace(returnPageName) &&
-                    returnPageName.Equals(nameof(CardPage), StringComparison.OrdinalIgnoreCase);
+                    !string.IsNullOrWhiteSpace(viewModel.ReturnPageName) &&
+                    viewModel.ReturnPageName.Equals(
+                        nameof(CardPage),
+                        StringComparison.OrdinalIgnoreCase);
 
                 if (isCardPageWorkflow)
                 {
@@ -336,11 +323,11 @@ namespace CollectIQ.Views
             {
                 Debug.WriteLine($"[ScanPage] Capture failed: {ex}");
                 await DisplayAlert("Error", $"Capture failed: {ex.Message}", "OK");
-                isScanning = true;
+                viewModel.IsScanning = true;
             }
             finally
             {
-                isCaptureInProgress = false;
+                viewModel.IsCaptureInProgress = false;
             }
         }
 
@@ -358,29 +345,29 @@ namespace CollectIQ.Views
         /// <param name="savedPath">Captured image path.</param>
         private async Task HandleCardPageWorkflowAsync(string savedPath)
         {
-            if (!isCapturingBack)
+            if (!viewModel.IsCapturingBack)
             {
-                frontImagePath = savedPath;
-                isCapturingBack = true;
+                viewModel.FrontImagePath = savedPath;
+                viewModel.IsCapturingBack = true;
 
                 await DisplayAlert(
                     "Flip Card",
                     "Now flip your card and capture the BACK side.",
                     "OK");
 
-                isScanning = true;
+                viewModel.IsScanning = true;
                 return;
             }
 
-            backImagePath = savedPath;
-            isCapturingBack = false;
+            viewModel.BackImagePath = savedPath;
+            viewModel.IsCapturingBack = false;
 
             await Task.Delay(250);
 
             var resultData = new Dictionary<string, string>
             {
-                { "FrontPath", frontImagePath },
-                { "BackPath", backImagePath }
+                { "FrontPath", viewModel.FrontImagePath },
+                { "BackPath", viewModel.BackImagePath }
             };
 
             NavigationCache.Set(nameof(CardPage), resultData);
@@ -402,14 +389,14 @@ namespace CollectIQ.Views
         /// <param name="savedPath">Captured image path.</param>
         private async Task HandleEbayWorkflowAsync(string savedPath)
         {
-            frontImagePath = savedPath;
-            isCapturingBack = false;
+            viewModel.FrontImagePath = savedPath;
+            viewModel.IsCapturingBack = false;
 
             await Task.Delay(250);
 
             await DisplayAlert("Captured", "Card front captured successfully.", "OK");
 
-            string encodedPath = Uri.EscapeDataString(frontImagePath);
+            string encodedPath = Uri.EscapeDataString(viewModel.FrontImagePath);
 
             await Shell.Current.GoToAsync(
                 $"//{nameof(EbaySearchPage)}?frontPath={encodedPath}");

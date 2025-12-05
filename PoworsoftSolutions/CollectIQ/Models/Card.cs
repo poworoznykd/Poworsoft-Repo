@@ -1,29 +1,37 @@
 ﻿/*
-* FILE: Card.cs
-* PROJECT: CollectIQ (Mobile Application)
-* PROGRAMMER: Darryl Poworoznyk
-* FIRST VERSION: 2025-10-28
-* UPDATED: 2025-12-01
-* DESCRIPTION:
-*     Represents a collectible card record within the user’s collection,
-*     including identifiers, grading details, and image paths.
-*     Implements SQLite indexing and adheres to SET Coding Standards Rev 1.11.
+* FILE            : Card.cs
+* PROJECT         : CollectIQ (Mobile Application)
+* PROGRAMMER      : Darryl Poworoznyk
+* FIRST VERSION   : 2025-10-28
+* UPDATED         : 2025-12-09
+* DESCRIPTION     :
+*     Represents a collectible card record within the user’s collection.
+*     Now supports composition-based domain models (Player, Team, Grading,
+*     MarketData, HighlightReel) using JSON serialization for backwards-
+*     compatible storage.
 */
 
 using SQLite;
+using System.Text.Json;
+using CollectIQ.Models.Domain;
+using CollectIQ.Models.Domain.Entities;
+using CollectIQ.Domain.Entities;
 
 namespace CollectIQ.Models
 {
     /// <summary>
     /// Represents a single collectible card within a collection.
+    /// Now composes real domain models through JSON-backed properties.
     /// </summary>
     public sealed class Card : BaseEntity
     {
-        // === Collection Metadata ===
+        // ============================================================
+        //        ORIGINAL FIELDS (All untouched, fully compatible)
+        // ============================================================
+
         [Indexed]
         public string CollectionId { get; set; } = string.Empty;
 
-        // === Identification ===
         [Indexed]
         public string Title { get; set; } = string.Empty;
 
@@ -34,49 +42,111 @@ namespace CollectIQ.Models
         public string Team { get; set; } = string.Empty;
 
         public int? Year { get; set; }
-
         public string Set { get; set; } = string.Empty;
-
         public string Number { get; set; } = string.Empty;
 
-        // === Grading ===
+        // --- Grading ---
         public string GradeCompany { get; set; } = "None";
+        public double? Grade { get; set; }
 
-        public double? Grade { get; set; } = null;
-
-        // === Financial ===
+        // --- Financial ---
         public decimal? PurchasePrice { get; set; }
         public decimal? EstimatedValue { get; set; }
 
-        // === Images ===
+        // --- Images ---
         public string FrontImagePath { get; set; } = string.Empty;
-
         public string BackImagePath { get; set; } = string.Empty;
 
-        // === Insights (JSON serialized) ===
+        // --- Insights (JSON serialized) ---
         public string InsightsJson { get; set; } = "{}";
 
-
-        // ============================================================
-        //          NEW OPTIONAL FIELDS (NON-BREAKING)
-        // ============================================================
-
-        // --- Sport (Football, Hockey, Basketball, Pokémon, etc.) ---
+        // --- Advanced fields ---
         public string Sport { get; set; } = string.Empty;
-
-        // --- Parallels & Inserts ---
-        public string Parallel { get; set; } = string.Empty;             // Refractor, Pulsar, Silver Prizm, etc.
-        public string Subset { get; set; } = string.Empty;               // Fireworks, My House, etc.
-
-        // --- Serial Number (#/99, 10/25) ---
+        public string Parallel { get; set; } = string.Empty;
+        public string Subset { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
 
-        // --- Advanced Grading Details ---
-        public string Grader { get; set; } = string.Empty;               // PSA, BGS, CGC, SGC, TAG
-
+        // --- Subgrades ---
+        public string Grader { get; set; } = string.Empty;
         public double? SubgradeCorners { get; set; }
         public double? SubgradeEdges { get; set; }
         public double? SubgradeSurface { get; set; }
         public double? SubgradeCentering { get; set; }
+
+
+        // ============================================================
+        //   NEW JSON BACKING FIELDS (Storage Only, Keep As Strings)
+        // ============================================================
+
+        public string PlayerJson { get; set; } = "{}";
+        public string TeamJson { get; set; } = "{}";
+        public string GradingJson { get; set; } = "{}";
+        public string MarketJson { get; set; } = "{}";
+        public string HighlightJson { get; set; } = "{}";
+
+
+        // ============================================================
+        //   NEW COMPOSITION PROPERTIES (Ignored by SQLite)
+        // ============================================================
+
+        [Ignore]
+        public Player Player
+        {
+            get => SafeDeserialize<Player>(PlayerJson) ?? new Player();
+            set => PlayerJson = SafeSerialize(value);
+        }
+
+        [Ignore]
+        public Team TeamDetails
+        {
+            get => SafeDeserialize<Team>(TeamJson) ?? new Team();
+            set => TeamJson = SafeSerialize(value);
+        }
+
+        [Ignore]
+        public Grading Grading
+        {
+            get => SafeDeserialize<Grading>(GradingJson) ?? new Grading();
+            set => GradingJson = SafeSerialize(value);
+        }
+
+        [Ignore]
+        public MarketData Market
+        {
+            get => SafeDeserialize<MarketData>(MarketJson) ?? new MarketData();
+            set => MarketJson = SafeSerialize(value);
+        }
+
+        [Ignore]
+        public HighlightReel Highlights
+        {
+            get => SafeDeserialize<HighlightReel>(HighlightJson) ?? new HighlightReel();
+            set => HighlightJson = SafeSerialize(value);
+        }
+
+
+        // ============================================================
+        //   PRIVATE JSON HELPERS (Safe for nulls + bad data)
+        // ============================================================
+
+        private static T? SafeDeserialize<T>(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return default;
+
+            try
+            {
+                return JsonSerializer.Deserialize<T>(json);
+            }
+            catch
+            {
+                return default;
+            }
+        }
+
+        private static string SafeSerialize<T>(T model)
+        {
+            return JsonSerializer.Serialize(model);
+        }
     }
 }

@@ -10,6 +10,7 @@
 
 using CollectIQ.Interfaces;
 using CollectIQ.Services;
+using CollectIQ.Services.Roles;
 using CollectIQ.Views;
 using CommunityToolkit.Maui;
 using Maui.FreakyControls.Extensions;
@@ -45,6 +46,11 @@ namespace CollectIQ
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddTransient<AuthSheet>();
             builder.Services.AddTransient<LandingPage>();
+            //Role behaviors
+            builder.Services.AddSingleton<IUserRoleBehavior, AdminRoleBehavior>();
+            builder.Services.AddSingleton<IUserRoleBehavior, RegularRoleBehavior>();
+            builder.Services.AddSingleton<IUserRoleBehavior, GuestRoleBehavior>();
+
 
 #if ANDROID
             NavigationViewHandler.Mapper.AppendToMapping("CustomNavBarColors", (handler, view) =>

@@ -1,11 +1,17 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
 <Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="CollectIQ.App">
+             x:Class="CollectIQ.App"
+             xmlns:conv="clr-namespace:CollectIQ.Converters">
 
     <Application.Resources>
         <ResourceDictionary>
 
+            <conv:StrengthToLabelConverter x:Key="StrengthToLabelConverter" />
+
+            <conv:WeakColorConverter x:Key="WeakColorConverter" />
+            <conv:MediumColorConverter x:Key="MediumColorConverter" />
+            <conv:StrongColorConverter x:Key="StrongColorConverter" />
             <!-- ============================================================
                  GLOBAL SHELL STYLING (Dark Neon Theme)
                  ============================================================ -->

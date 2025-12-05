@@ -7,12 +7,14 @@
 //      Implements local authentication logic for registration,
 //      login, and session management.
 //
+using CollectIQ.Interfaces;
+using CollectIQ.Models;
+using CollectIQ.Services.Roles;
+using CollectIQ.Services.Session;
+using Microsoft.Maui.Storage;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using CollectIQ.Interfaces;
-using CollectIQ.Models;
-using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Services
 {
@@ -57,6 +59,31 @@ namespace CollectIQ.Services
             // ============================================================
             await SecureStorage.SetAsync(SessionKey, email);
             await SecureStorage.SetAsync("last_login", DateTime.UtcNow.ToString());
+
+            // ============================================================
+            // STEP 2: Load the full user object
+            // ============================================================
+            var user = await _db.GetUserProfileByEmailAsync(email);
+            if (user == null)
+                return false;
+
+            // ============================================================
+            // STEP 3: Resolve the role behavior (Strategy Pattern)
+            // ============================================================
+            var behaviors = new List<IUserRoleBehavior>
+            {
+                new AdminRoleBehavior(),
+                new RegularRoleBehavior(),
+                new GuestRoleBehavior()
+            };
+
+            var roleBehavior = behaviors.First(b => b.Role == user.Role);
+
+            // ============================================================
+            // STEP 4: Set Session
+            // ============================================================
+            UserSession.CurrentUser = user;
+            UserSession.CurrentRoleBehavior = roleBehavior;
 
             return true;
         }

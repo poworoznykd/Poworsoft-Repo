@@ -5,9 +5,10 @@
              Shell.NavBarIsVisible="True"
              Shell.TitleColor="#0ab8f9"
              Shell.BackgroundColor="{StaticResource OffBlack}"
-             BackgroundColor="{StaticResource OffBlack}">
+             BackgroundColor="{StaticResource OffBlack}"
+             xmlns:vm="clr-namespace:CollectIQ.ViewModels.Auth"
+             x:DataType="vm:LoginViewModel">
 
-    <!-- FULL-SCREEN GRADIENT BACKGROUND -->
     <Grid Padding="0">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -18,15 +19,21 @@
             </LinearGradientBrush>
         </Grid.Background>
 
-        <!-- SCROLL IN CASE OF SMALLER SCREENS / KEYBOARD -->
         <ScrollView>
             <VerticalStackLayout
                 Spacing="18"
                 Padding="18,20,18,24"
                 VerticalOptions="Start"
                 HorizontalOptions="FillAndExpand">
+                <!-- STATUS MESSAGE -->
+                <Label
+                    Text="{Binding Message}"
+                    FontSize="14"
+                    TextColor="#39FF14"
+                    HorizontalOptions="Center"
+                    Margin="0,0,0,4" /> 
 
-                <!-- HERO CARD / HEADER -->
+                <!-- HERO CARD -->
                 <Border
                     Style="{StaticResource AuroraGlassBorder}"
                     StrokeThickness="2"
@@ -63,11 +70,12 @@
                     StrokeShape="RoundRectangle 26"
                     Padding="18,16"
                     Margin="0,0,0,8">
+
                     <Grid RowSpacing="10"
                           ColumnDefinitions="*"
                           RowDefinitions="
-                                Auto,   
-                                Auto,   
+                                Auto,  
+                                Auto,  
                                 12,
                                 Auto,   
                                 Auto,   
@@ -75,10 +83,11 @@
                                 16,
                                 Auto,   
                                 Auto,   
+                                Auto,   
                                 20,
                                 Auto,   
                                 Auto">
-                        <!-- Sign in -->
+                        <!-- 12 Sign In -->
 
                         <!-- EMAIL -->
                         <Label Grid.Row="0"
@@ -86,15 +95,16 @@
                                FontSize="14"
                                TextColor="#E0F5FF" />
 
-                        <Entry x:Name="EmailEntry"
-                               Grid.Row="1"
-                               Placeholder="you@example.com"
-                               PlaceholderColor="#7A8CA0"
-                               TextColor="White"
-                               Keyboard="Email"
-                               HeightRequest="44"
-                               BackgroundColor="#10141B"
-                               Margin="0,2,0,0" />
+                        <Entry
+                            Grid.Row="1"
+                            Placeholder="you@example.com"
+                            PlaceholderColor="#7A8CA0"
+                            TextColor="White"
+                            Keyboard="Email"
+                            HeightRequest="44"
+                            BackgroundColor="#10141B"
+                            Margin="0,2,0,0"
+                            Text="{Binding Email}" />
 
                         <!-- PASSWORD -->
                         <Label Grid.Row="3"
@@ -103,74 +113,112 @@
                                TextColor="#E0F5FF"
                                Margin="0,4,0,0" />
 
-                        <Entry x:Name="PasswordEntry"
-                               Grid.Row="4"
-                               Placeholder="Password"
-                               PlaceholderColor="#7A8CA0"
-                               TextColor="White"
-                               IsPassword="True"
-                               HeightRequest="44"
-                               BackgroundColor="#10141B"
-                               TextChanged="OnPasswordChanged"
-                               Margin="0,2,0,0" />
+                        <Grid Grid.Row="4"
+      ColumnDefinitions="*,40"
+      HeightRequest="44"
+      BackgroundColor="#10141B"
+      Margin="0,2,0,0">
 
-                        <!-- STRENGTH ROW (LABEL + GAUGE, NUDGED LEFT & DOWN) -->
-                        <Grid Grid.Row="5"
-                            ColumnDefinitions="100,*"
-                            Margin="0,8,0,0">
-                            <!-- label -->
-                            <Label Text="Strength:"
-                               FontSize="13"
-                               TextColor="#E0F5FF"
-                               VerticalOptions="Center"
-                               Grid.Column="0"
-                               Margin="0,0,8,0" />          
+                            <Entry
+                                Grid.Column="0"
+                                Text="{Binding Password}"
+                                Placeholder="Password"
+                                PlaceholderColor="#7A8CA0"
+                                TextColor="White"
+                                IsPassword="{Binding IsPasswordHidden}"
+                                BackgroundColor="Transparent" />
 
-                            <!-- strength meter -->
-                            <GraphicsView x:Name="StrengthMeterView"
-                              Grid.Column="1"
-                              WidthRequest="90"
-                              HeightRequest="90"
-                              Margin="20,20,20,20"
-                              HorizontalOptions="Center"
-                              VerticalOptions="Center" />
+                            <ImageButton
+                                Grid.Column="1"
+                                Source="{Binding PasswordEyeIcon}"
+                                BackgroundColor="Transparent"
+                                Command="{Binding TogglePasswordVisibilityCommand}"
+                                Padding="6"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        </Grid>
+
+                        <!-- STRENGTH METER -->
+                        <Grid Grid.Row="5" Margin="0,8,0,0">
+                            <VerticalStackLayout Spacing="6">
+
+                                <!-- LABEL -->
+                                <Label
+                                    Text="{Binding Strength, Converter={StaticResource StrengthToLabelConverter}}"
+                                    FontSize="13"
+                                    TextColor="#E0F5FF"
+                                    HorizontalOptions="Start" />
+
+                                <!-- BARS -->
+                                <Grid ColumnDefinitions="*,*,*" HeightRequest="8">
+
+                                    <BoxView
+                                        Grid.Column="0"
+                                        CornerRadius="4"
+                                        BackgroundColor="{Binding Strength, Converter={StaticResource WeakColorConverter}}" />
+
+                                    <BoxView
+                                        Grid.Column="1"
+                                        CornerRadius="4"
+                                        BackgroundColor="{Binding Strength, Converter={StaticResource MediumColorConverter}}" />
+
+                                    <BoxView
+                                        Grid.Column="2"
+                                        CornerRadius="4"
+                                        BackgroundColor="{Binding Strength, Converter={StaticResource StrongColorConverter}}" />
+
+                                </Grid>
+                            </VerticalStackLayout>
                         </Grid>
 
 
-                        <!-- CONFIRM PASSWORD -->
+                        <!-- CONFIRM -->
                         <Label Grid.Row="7"
                                Text="Confirm password"
                                FontSize="14"
                                TextColor="#E0F5FF"
                                Margin="0,6,0,0" />
 
-                        <Entry x:Name="ConfirmPasswordEntry"
-                               Grid.Row="8"
-                               Placeholder="Re-enter password"
-                               PlaceholderColor="#7A8CA0"
-                               TextColor="White"
-                               IsPassword="True"
-                               HeightRequest="44"
-                               BackgroundColor="#10141B"
-                               Margin="0,2,0,0" />
+                        <Entry
+                            Grid.Row="8"
+                            Placeholder="Re-enter password"
+                            PlaceholderColor="#7A8CA0"
+                            TextColor="White"
+                            IsPassword="True"
+                            HeightRequest="44"
+                            BackgroundColor="#10141B"
+                            Margin="0,2,0,0"
+                            Text="{Binding ConfirmPassword}" />
 
-                        <!-- CREATE ACCOUNT BUTTON -->
-                        <Button x:Name="RegisterButton"
-                                Grid.Row="10"
-                                Style="{StaticResource AuroraNeonButton}"
-                                Text="Create account"
-                                Clicked="OnRegister"
-                                HeightRequest="50"
-                                Margin="0,6,0,4" />
+                        <!-- REMEMBER ME -->
+                        <HorizontalStackLayout Grid.Row="9"
+                                               Spacing="8"
+                                               VerticalOptions="Center"
+                                               Margin="0,4,0,0">
+                            <CheckBox IsChecked="{Binding RememberMe}"
+                                      Color="#39FF14" />
+                            <Label Text="Remember me"
+                                   TextColor="#E0F5FF"
+                                   VerticalOptions="Center" />
+                        </HorizontalStackLayout>
 
-                        <!-- SIGN IN BUTTON -->
-                        <Button x:Name="LoginButton"
-                                Grid.Row="11"
-                                Style="{StaticResource AuroraNeonButton}"
-                                Text="Sign in"
-                                Clicked="OnLogin"
-                                HeightRequest="50"
-                                Margin="0,0,0,0" />
+                        <!-- CREATE ACCOUNT -->
+                        <Button
+                            Grid.Row="11"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Text="Create account"
+                            Command="{Binding RegisterCommand}"
+                            HeightRequest="50"
+                            Margin="0,6,0,4" />
+
+                        <!-- SIGN IN -->
+                        <Button
+                            Grid.Row="12"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Text="Sign in"
+                            Command="{Binding LoginCommand}"
+                            HeightRequest="50" />
+
                     </Grid>
                 </Border>
 

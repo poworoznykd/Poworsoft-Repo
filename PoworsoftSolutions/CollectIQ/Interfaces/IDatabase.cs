@@ -30,5 +30,10 @@ namespace CollectIQ.Interfaces
         Task<string?> GetPasswordHashAsync(string email);
         Task UpsertUserProfileAsync(UserProfile profile);
         Task<UserProfile?> GetUserProfileAsync();
+
+        // ----------------------------------------------------
+        // Card collection operations (matches SqliteDatabase)
+        // ----------------------------------------------------
+        Task<List<Card>> GetAllCardsAsync();
     }
 }

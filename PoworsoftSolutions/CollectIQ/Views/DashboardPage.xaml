@@ -198,12 +198,12 @@
 
                             <!-- NFL -->
                             <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
+                                Padding="10"
+                                WidthRequest="132">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
-                                        Tapped="OnSportDealsTapped"
-                                        CommandParameter="NFL" />
+                                    Command="{Binding OpenSportDealsCommand}"
+                                    CommandParameter="NFL" />
                                 </Border.GestureRecognizers>
 
                                 <VerticalStackLayout Spacing="6"
@@ -233,11 +233,11 @@
 
                             <!-- NBA -->
                             <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
+                                Padding="10"
+                                WidthRequest="132">         
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
-                                        Tapped="OnSportDealsTapped"
+                                        Command="{Binding OpenSportDealsCommand}"
                                         CommandParameter="NBA" />
                                 </Border.GestureRecognizers>
 
@@ -273,8 +273,8 @@
                                 WidthRequest="132">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
-                                    Tapped="OnSportDealsTapped"
-                                    CommandParameter="NHL" />
+                                        Command="{Binding OpenSportDealsCommand}"
+                                        CommandParameter="NHL" />
                                 </Border.GestureRecognizers>
 
                                 <VerticalStackLayout Spacing="6"
@@ -308,8 +308,8 @@
                                 WidthRequest="132">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
-                                    Tapped="OnSportDealsTapped"
-                                    CommandParameter="MLB" />
+                                        Command="{Binding OpenSportDealsCommand}"
+                                        CommandParameter="MLB" />
                                 </Border.GestureRecognizers>
 
                                 <VerticalStackLayout Spacing="6"
@@ -337,40 +337,146 @@
                                 </VerticalStackLayout>
                             </Border>
 
-                            <!-- Pokémon -->
+                            <!-- NCAA -->
                             <Border Style="{StaticResource AuroraGlassBorder}"
                                 Padding="10"
                                 WidthRequest="132">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
-                                    Tapped="OnSportDealsTapped"
-                                    CommandParameter="Pokemon" />
+                                        Command="{Binding OpenSportDealsCommand}"
+                                        CommandParameter="NCAA" />
                                 </Border.GestureRecognizers>
 
                                 <VerticalStackLayout Spacing="6"
-                                                 HorizontalOptions="Center">
+                         HorizontalOptions="Center">
                                     <Border StrokeThickness="0"
                                         Background="White"
                                         StrokeShape="RoundRectangle 14"
                                         Padding="6"
                                         WidthRequest="96"
                                         HeightRequest="52">
-                                        <Image Source="pokemon_logo.png"
-                                           Aspect="AspectFit" />
+                                        <Image Source="ncaa_logo.png"
+                                            Aspect="AspectFit" />
                                     </Border>
 
-                                    <Label Text="Pokémon"
-                                       FontSize="14"
-                                       FontAttributes="Bold"
-                                       TextColor="#FFFFFF"
-                                       HorizontalTextAlignment="Center" />
-                                    <Label Text="Chase cards &amp; grails"
+                                    <Label Text="NCAA"
+                                        FontSize="14"
+                                        FontAttributes="Bold"
+                                        TextColor="#FFFFFF"
+                                        HorizontalTextAlignment="Center" />
+                                    <Label Text="College stars &amp; autos"
                                        FontSize="10"
                                        TextColor="#9FB3C8"
                                        HorizontalTextAlignment="Center"
                                        MaxLines="2" />
                                 </VerticalStackLayout>
                             </Border>
+
+                            <!-- WNBA -->
+                            <Border Style="{StaticResource AuroraGlassBorder}"
+        Padding="10"
+        WidthRequest="132">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+            Command="{Binding OpenSportDealsCommand}"
+            CommandParameter="WNBA" />
+                                </Border.GestureRecognizers>
+
+                                <VerticalStackLayout Spacing="6"
+                         HorizontalOptions="Center">
+                                    <Border StrokeThickness="0"
+                Background="White"
+                StrokeShape="RoundRectangle 14"
+                Padding="6"
+                WidthRequest="96"
+                HeightRequest="52">
+                                        <Image Source="wnba_logo.png"
+                   Aspect="AspectFit" />
+                                    </Border>
+
+                                    <Label Text="WNBA"
+               FontSize="14"
+               FontAttributes="Bold"
+               TextColor="#FFFFFF"
+               HorizontalTextAlignment="Center" />
+                                    <Label Text="Rookies &amp; fan favorites"
+               FontSize="10"
+               TextColor="#9FB3C8"
+               HorizontalTextAlignment="Center"
+               MaxLines="2" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- PGA -->
+                            <Border Style="{StaticResource AuroraGlassBorder}"
+        Padding="10"
+        WidthRequest="132">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+            Command="{Binding OpenSportDealsCommand}"
+            CommandParameter="PGA" />
+                                </Border.GestureRecognizers>
+
+                                <VerticalStackLayout Spacing="6"
+                         HorizontalOptions="Center">
+                                    <Border StrokeThickness="0"
+                Background="White"
+                StrokeShape="RoundRectangle 14"
+                Padding="6"
+                WidthRequest="96"
+                HeightRequest="52">
+                                        <Image Source="pga_logo.png"
+                   Aspect="AspectFit" />
+                                    </Border>
+
+                                    <Label Text="PGA"
+               FontSize="14"
+               FontAttributes="Bold"
+               TextColor="#FFFFFF"
+               HorizontalTextAlignment="Center" />
+                                    <Label Text="Majors &amp; inserts"
+               FontSize="10"
+               TextColor="#9FB3C8"
+               HorizontalTextAlignment="Center"
+               MaxLines="2" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Pokémon -->
+                            <Border Style="{StaticResource AuroraGlassBorder}"
+        Padding="10"
+        WidthRequest="132">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+            Command="{Binding OpenSportDealsCommand}"
+            CommandParameter="Pokemon" />
+                                </Border.GestureRecognizers>
+
+                                <VerticalStackLayout Spacing="6"
+                         HorizontalOptions="Center">
+                                    <Border StrokeThickness="0"
+                Background="White"
+                StrokeShape="RoundRectangle 14"
+                Padding="6"
+                WidthRequest="96"
+                HeightRequest="52">
+                                        <Image Source="pokemon_logo.png"
+                   Aspect="AspectFit" />
+                                    </Border>
+
+                                    <Label Text="Pokémon"
+               FontSize="14"
+               FontAttributes="Bold"
+               TextColor="#FFFFFF"
+               HorizontalTextAlignment="Center" />
+                                    <Label Text="Chase cards &amp; grails"
+               FontSize="10"
+               TextColor="#9FB3C8"
+               HorizontalTextAlignment="Center"
+               MaxLines="2" />
+                                </VerticalStackLayout>
+                            </Border>
+
 
                         </HorizontalStackLayout>
                     </ScrollView>
