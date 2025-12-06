@@ -164,6 +164,8 @@ namespace CollectIQ.ViewModels.Auth
 
         private async Task LoginAsync()
         {
+            Email = "d@d.com";
+            Password = "1234";
             Message = string.Empty;
 
             if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
@@ -171,7 +173,7 @@ namespace CollectIQ.ViewModels.Auth
                 Message = "Email and password are required.";
                 return;
             }
-
+            
             var ok = await authService.LoginAsync(Email, Password);
 
             if (!ok)
