@@ -5,9 +5,12 @@
 // -------------------------------------------------------------------------------------------------
 
 using CollectIQ.Controls;
+using CollectIQ.Interfaces;
 using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
+using CollectIQ.ViewModels;
+using CollectIQ.ViewModels.Auth;
 using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Generic;
@@ -22,13 +25,9 @@ namespace CollectIQ.Views
 {
     public partial class CardPage : ContentPage
     {
-        private readonly List<decimal> lastInsightPrices = new();
-
+        private readonly CardPageViewModel viewModel;
         private readonly SqliteDatabase database = new();
         private readonly EbayService ebayService;
-
-        private Card currentCard;
-        private CardInsights currentInsights;
 
         private string frontPath;
         private string backPath;
@@ -43,204 +42,32 @@ namespace CollectIQ.Views
         public CardPage(Card card)
         {
             InitializeComponent();
-
+            viewModel = new CardPageViewModel(card);
             ebayService = new EbayService(new HttpClient());
-
-            currentCard = card ?? new Card();
-            isNewCard = card == null;
-
-            frontPath = currentCard.FrontImagePath;
-            backPath = currentCard.BackImagePath;
-
-            currentInsights = new CardInsights();
-
-            PopulateFormFromCard();
-            ApplyInsightsToUi(currentInsights);
+            BindingContext = viewModel;
+            frontPath = viewModel.SelectedCard.FrontImagePath;
+            backPath = viewModel.SelectedCard.BackImagePath;
         }
 
         private void OnAppearing(object sender, EventArgs e)
         {
-            // If ImageViewerPage pushed updated image paths into the navigation cache, pick them up.
             try
             {
-                var cachedResult = NavigationCache.Get<Dictionary<string, string>>(nameof(CardPage));
-                if (cachedResult != null)
+                if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.FrontImagePath))
                 {
-                    if (cachedResult.TryGetValue("FrontImagePath", out var front))
-                    {
-                        frontPath = front;
-                        currentCard.FrontImagePath = front;
-                        if (!string.IsNullOrWhiteSpace(front))
-                        {
-                            FrontImagePreview.Source = ImageSource.FromFile(front);
-                        }
-                    }
-
-                    if (cachedResult.TryGetValue("BackImagePath", out var back))
-                    {
-                        backPath = back;
-                        currentCard.BackImagePath = back;
-                        if (!string.IsNullOrWhiteSpace(back))
-                        {
-                            BackImagePreview.Source = ImageSource.FromFile(back);
-                        }
-                    }
-
-                    NavigationCache.Clear(nameof(CardPage));
+                    FrontImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.FrontImagePath);
+                }
+                if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.BackImagePath))
+                {
+                    BackImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.BackImagePath);
                 }
             }
-            catch
+            catch(Exception ex)
             {
-                // If NavigationCache is not available or throws for any reason,
-                // we don't want to crash the page. Silently ignore.
+                //TODO - Do something with ex
             }
         }
 
-        // ---------------------------------------------------------------------
-        // UI POPULATION / MAPPING
-        // ---------------------------------------------------------------------
-
-        private void PopulateFormFromCard()
-        {
-            if (currentCard == null)
-                return;
-
-            try
-            {
-                // ---- SAFE STRING FIELDS ----
-                PlayerEntry.Text = currentCard.Name ?? string.Empty;
-                TeamEntry.Text = currentCard.Team ?? string.Empty;
-                SetEntry.Text = currentCard.Set ?? string.Empty;
-                NumberEntry.Text = currentCard.Number ?? string.Empty;
-                GradeCoEntry.Text = currentCard.GradeCompany ?? string.Empty;
-
-                // ---- SAFE INT ----
-                YearEntry.Text = currentCard.Year?.ToString() ?? string.Empty;
-
-                // ---- SAFE DECIMAL ----
-                PriceEntry.Text = currentCard.PurchasePrice.HasValue
-                    ? currentCard.PurchasePrice.Value.ToString("0.00", CultureInfo.InvariantCulture)
-                    : string.Empty;
-
-                // ---- SAFE DOUBLE ----
-                GradeEntry.Text = currentCard.Grade.HasValue
-                    ? currentCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture)
-                    : string.Empty;
-
-                // ---- SAFE IMAGES ----
-                if (!string.IsNullOrWhiteSpace(currentCard.FrontImagePath))
-                {
-                    FrontImagePreview.Source = ImageSource.FromFile(currentCard.FrontImagePath);
-                }
-                else
-                {
-                    FrontImagePreview.Source = null;
-                }
-
-                if (!string.IsNullOrWhiteSpace(currentCard.BackImagePath))
-                {
-                    BackImagePreview.Source = ImageSource.FromFile(currentCard.BackImagePath);
-                }
-                else
-                {
-                    BackImagePreview.Source = null;
-                }
-
-                // ---- SAFE HEADER ----
-                UpdateHeaderFromCard();
-
-                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] PopulateFormFromCard failed: {ex}");
-            }
-        }
-
-        private void UpdateHeaderFromCard()
-        {
-            string yearText = currentCard.Year.HasValue ? currentCard.Year.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
-            string setText = string.IsNullOrWhiteSpace(currentCard.Set) ? string.Empty : currentCard.Set;
-            string numberText = string.IsNullOrWhiteSpace(currentCard.Number) ? string.Empty : $"#{currentCard.Number}";
-            string teamText = string.IsNullOrWhiteSpace(currentCard.Team) ? string.Empty : currentCard.Team;
-
-            string title = !string.IsNullOrWhiteSpace(currentCard.Title)
-                ? currentCard.Title
-                : $"{yearText} {currentCard.Name}";
-
-            CardTitleLabel.Text = title.Trim();
-            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
-           
-
-            // Subtitle: Year · Team · Set · #
-            List<string> parts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(yearText)) parts.Add(yearText);
-            if (!string.IsNullOrWhiteSpace(teamText)) parts.Add(teamText);
-            if (!string.IsNullOrWhiteSpace(setText)) parts.Add(setText);
-            if (!string.IsNullOrWhiteSpace(numberText)) parts.Add(numberText);
-
-            CardSubtitleLabel.Text = parts.Count > 0 ? string.Join(" · ", parts) : "Tap Save to update details";
-        }
-
-        private void UpdateCardFromForm()
-        {
-            currentCard.Name = PlayerEntry.Text?.Trim();
-            currentCard.Team = TeamEntry.Text?.Trim();
-            currentCard.Set = SetEntry.Text?.Trim();
-            currentCard.Number = NumberEntry.Text?.Trim();
-            currentCard.GradeCompany = GradeCoEntry.Text?.Trim();
-
-            if (int.TryParse(YearEntry.Text?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var year))
-            {
-                currentCard.Year = year;
-            }
-            else
-            {
-                currentCard.Year = null;
-            }
-
-            if (double.TryParse(GradeEntry.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var grade))
-            {
-                currentCard.Grade = grade;
-            }
-            else
-            {
-                currentCard.Grade = null;
-            }
-
-            if (decimal.TryParse(PriceEntry.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var price))
-            {
-                currentCard.PurchasePrice = price;
-            }
-            else
-            {
-                currentCard.PurchasePrice = null;
-            }
-
-            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
-           
-
-            currentCard.FrontImagePath = frontPath;
-            currentCard.BackImagePath = backPath;
-
-            // Derive a default title if none is set
-            if (string.IsNullOrWhiteSpace(currentCard.Title))
-            {
-                string yearText = currentCard.Year.HasValue ? currentCard.Year.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
-                currentCard.Title = $"{yearText} {currentCard.Name} {currentCard.Set} #{currentCard.Number}".Trim();
-            }
-
-            // Keep estimated value in sync with insights if we have them
-            if (currentInsights != null && currentInsights.SuggestedPrice.HasValue)
-            {
-                currentCard.Insights.SuggestedPrice = (decimal?)currentInsights.SuggestedPrice.Value;
-            }
-        }
-
-
-        // ---------------------------------------------------------------------
-        // IMAGE TAPS -> IMAGE VIEWER
-        // ---------------------------------------------------------------------
 
         private async void OnFrontImageTapped(object sender, EventArgs e)
         {
@@ -290,16 +117,13 @@ namespace CollectIQ.Views
             try
             {
                 isBusy = true;
-                UpdateCardFromForm();
-                UpdateHeaderFromCard();
-
-                if (currentCard.Id != null)
+                if (viewModel.SelectedCard.Id != null)
                 {
-                    await database.UpdateCardAsync(currentCard);
+                    await database.UpdateCardAsync(viewModel.SelectedCard);
                 }
                 else
                 {
-                    await database.AddCardAsync(currentCard);
+                    await database.AddCardAsync(viewModel.SelectedCard);
                     isNewCard = false;
                 }
 
@@ -318,7 +142,7 @@ namespace CollectIQ.Views
 
         private async void OnDelete(object sender, EventArgs e)
         {
-            if (currentCard == null)
+            if (viewModel.SelectedCard == null)
             {
                 await DisplayAlert("Delete", "This card has not been saved yet.", "OK");
                 return;
@@ -332,7 +156,7 @@ namespace CollectIQ.Views
 
             try
             {
-                await database.DeleteCardAsync(currentCard.Id);
+                await database.DeleteCardAsync(viewModel.SelectedCard.Id);
                 await Navigation.PopAsync();
             }
             catch (Exception ex)
@@ -345,17 +169,18 @@ namespace CollectIQ.Views
         // INSIGHTS (EBAY)
         // ---------------------------------------------------------------------
 
-        private CardInsights BuildInsightsFromPrices(IReadOnlyList<double> prices, string currency, string query)
+        private void BuildInsightsFromPrices(IReadOnlyList<double> prices, string currency, string query)
         {
             if (prices == null || prices.Count == 0)
             {
-                return new CardInsights
-                {
-                    ListingCount = 0,
-                    Currency = currency,
-                    QueryUsed = query,
-                    Summary = "No prices available for this query."
-                };
+                viewModel.SelectedCard.Insights =
+                    new CardInsights
+                    {
+                        ListingCount = 0,
+                        Currency = currency,
+                        QueryUsed = query,
+                        Summary = "No prices available for this query."
+                    };
             }
 
             double min = prices.First();
@@ -379,111 +204,61 @@ namespace CollectIQ.Views
             // Confidence: more listings -> higher confidence, capped at 1.0
             double confidence = Math.Min(1.0, Math.Log10(count + 1) / 1.2);
 
-            string summary = $"Based on {count} recent listings between {FormatCurrencyDecimal(min, currency)} and {FormatCurrencyDecimal(max, currency)}, " +
-                             $"a fair value for this card is around {FormatCurrencyDecimal(suggested, currency)}.";
+            string summary = $"Based on {count} recent listings between ${min} USD and ${max} USD, " +
+                             $"a fair value for this card is around ${suggested} USD.";
 
-            return new CardInsights
-            {
-                MinPrice = min,
-                MaxPrice = max,
-                AveragePrice = avg,
-                MedianPrice = median,
-                SuggestedPrice = (decimal)suggested,
-                ListingCount = count,
-                Currency = currency,
-                LastUpdatedUtc = DateTime.UtcNow,
-                QueryUsed = query,
-                ConfidenceScore = confidence,
-                Summary = summary
-            };
-        }
-
-        /// <summary>
-        /// Applies a CardInsights object to the *simple* CardPage UI (header chip + summary text).
-        /// Detailed per-comp visuals are handled by the shared InsightsOverlayControl.
-        /// </summary>
-        private void ApplyInsightsToUi(CardInsights insights)
-        {
-            currentInsights = insights ?? new CardInsights();
-            if(currentCard.Insights.SuggestedPrice.HasValue)
-                EstimatedValueLabel.Text = currentCard.EstimatedValue.ToString();
-            else
-                EstimatedValueLabel.Text = "$0.00";
-            if (insights == null || insights.ListingCount <= 0 || !insights.SuggestedPrice.HasValue)
-            {
-                InsightsLastUpdatedLabel.Text = "(never)";
-                EbayResultLabel.Text = "No insights yet.";
-                if (currentCard != null)
+            viewModel.SelectedCard.Insights =
+                new CardInsights
                 {
-                    currentCard.Insights.SuggestedPrice = null;
-                }
-
-                return;
-            }
-
-            string currency = string.IsNullOrWhiteSpace(insights.Currency) ? "USD" : insights.Currency;
-
-            // Update the big "Est. Value" chip from suggested price.
-            decimal suggestedDec = (decimal)insights.SuggestedPrice.Value;
-            EstimatedValueLabel.Text = FormatCurrency(suggestedDec, currency);
-
-            // Keep card's stored estimated value in sync.
-            if (currentCard != null && 
-                currentCard.Insights != null &&
-                currentCard.Insights.SuggestedPrice.HasValue)
-            {
-                currentCard.Insights.SuggestedPrice = suggestedDec;
-                currentCard.EstimatedValue = suggestedDec;
-            }
-
-            if (insights.LastUpdatedUtc.HasValue)
-            {
-                InsightsLastUpdatedLabel.Text = insights.LastUpdatedUtc.Value.ToLocalTime().ToString("g");
-            }
-            else
-            {
-                InsightsLastUpdatedLabel.Text = "(unknown)";
-            }
-
-            EbayResultLabel.Text = string.IsNullOrWhiteSpace(insights.Summary)
-                ? "Insights ready."
-                : insights.Summary;
+                    MinPrice = min,
+                    MaxPrice = max,
+                    AveragePrice = avg,
+                    MedianPrice = median,
+                    SuggestedPrice = (decimal)suggested,
+                    ListingCount = count,
+                    Currency = currency,
+                    LastUpdatedUtc = DateTime.UtcNow,
+                    QueryUsed = query,
+                    ConfidenceScore = confidence,
+                    Summary = summary
+                };
         }
+
 
         private string BuildDefaultQueryFromCard()
         {
             List<string> parts = new List<string>();
 
-            if (currentCard.Year.HasValue)
+            if (viewModel.SelectedCard.Year.HasValue)
             {
-                parts.Add(currentCard.Year.Value.ToString(CultureInfo.InvariantCulture));
+                parts.Add(viewModel.SelectedCard.Year.Value.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (!string.IsNullOrWhiteSpace(currentCard.Name))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Name))
             {
-                parts.Add(currentCard.Name);
+                parts.Add(viewModel.SelectedCard.Name);
             }
 
             // Avoid polluting search with sentinel text like "eBay Import"
-            if (!string.IsNullOrWhiteSpace(currentCard.Set) &&
-                !string.Equals(currentCard.Set.Trim(), "eBay Import", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Set) &&
+                !string.Equals(viewModel.SelectedCard.Set.Trim(), "eBay Import", StringComparison.OrdinalIgnoreCase))
             {
-                parts.Add(currentCard.Set);
+                parts.Add(viewModel.SelectedCard.Set);
             }
 
-            if (!string.IsNullOrWhiteSpace(currentCard.Number))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Number))
             {
-                parts.Add($"#{currentCard.Number}");
+                parts.Add($"#{viewModel.SelectedCard.Number}");
             }
 
-            if (!string.IsNullOrWhiteSpace(currentCard.GradeCompany))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.GradeCompany))
             {
-                parts.Add(currentCard.GradeCompany);
+                parts.Add(viewModel.SelectedCard.GradeCompany);
             }
 
-            if (currentCard.Grade.HasValue)
+            if (viewModel.SelectedCard.Grade.HasValue)
             {
-                parts.Add(currentCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture));
+                parts.Add(viewModel.SelectedCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture));
             }
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
@@ -529,7 +304,6 @@ namespace CollectIQ.Views
 
                 if (comps == null || comps.Count == 0)
                 {
-                    ApplyInsightsToUi(null);
                     EbayResultLabel.Text = $"No sold listings found for \"{query}\".";
                     return;
                 }
@@ -540,7 +314,6 @@ namespace CollectIQ.Views
 
                 if (priced.Count == 0)
                 {
-                    ApplyInsightsToUi(null);
                     EbayResultLabel.Text = $"No valid prices found for \"{query}\".";
                     return;
                 }
@@ -551,16 +324,17 @@ namespace CollectIQ.Views
                     .OrderBy(v => v)
                     .ToList();
 
-                var insights = BuildInsightsFromPrices(
+                BuildInsightsFromPrices(
                     priceDoubles,
                     currency: "USD",
                     query: query);
 
-                ApplyInsightsToUi(insights);
+              
 
                 // Prepare anchor listing representing this card for the overlay
-                decimal anchorPriceDec = insights.SuggestedPrice.HasValue
-                    ? (decimal)Math.Round(insights.SuggestedPrice.Value, 2)
+                decimal anchorPriceDec = 
+                    viewModel.SelectedCard.Insights.SuggestedPrice.HasValue
+                    ? (decimal)Math.Round(viewModel.SelectedCard.Insights.SuggestedPrice.Value, 2)
                     : priced.First().Price!.Value;
 
                 var anchorListing = new EbayListing
@@ -584,7 +358,6 @@ namespace CollectIQ.Views
                     else
                     {
                         anchorListing.EstimatedValue = 0.00m;
-                        EstimatedValueLabel.Text = FormatCurrency(currentCard.Insights.SuggestedPrice ?? 0.00m, "USD");
                     }
 
                     // Properly await the async hide call
@@ -643,20 +416,5 @@ namespace CollectIQ.Views
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
         }
 
-        // ---------------------------------------------------------------------
-        // FORMAT HELPERS
-        // ---------------------------------------------------------------------
-
-        private static string FormatCurrency(decimal value, string currency)
-        {
-            string prefix = currency?.ToUpperInvariant() == "USD" ? "$" : $"{currency} ";
-            return prefix + value.ToString("0.00", CultureInfo.InvariantCulture);
-        }
-
-        private static string FormatCurrencyDecimal(double value, string currency)
-        {
-            string prefix = currency?.ToUpperInvariant() == "USD" ? "$" : $"{currency} ";
-            return prefix + value.ToString("0.00", CultureInfo.InvariantCulture);
-        }
     }
 }
