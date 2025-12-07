@@ -34,6 +34,68 @@ namespace CollectIQ.Models
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
+        // Example EstimatedValue property (adjust type to match your model)
+        private decimal? estimatedValue;
+        public decimal? EstimatedValue
+        {
+            get => estimatedValue;
+            set
+            {
+                if (estimatedValue != value)
+                {
+                    estimatedValue = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private CardInsights insights = new CardInsights();
+
+
+        [Ignore]
+        public CardInsights Insights
+        {
+            get => insights;
+            set
+            {
+                if (insights == value)
+                {
+                    return;
+                }
+
+                // Unsubscribe from old instance
+                if (insights != null)
+                {
+                    insights.PropertyChanged -= OnInsightsPropertyChanged;
+                }
+
+                // Never allow null – if someone sets null, create a new instance
+                insights = value ?? new CardInsights();
+
+                // Subscribe to new instance
+                insights.PropertyChanged += OnInsightsPropertyChanged;
+
+                OnPropertyChanged();
+            }
+        }
+
+        private void OnInsightsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(CardInsights.SuggestedPrice))
+            {
+                // If SuggestedPrice is decimal?:
+                EstimatedValue = Insights?.SuggestedPrice ?? 0.00m;
+
+                // If SuggestedPrice is double? and EstimatedValue is double:
+                // EstimatedValue = Insights.SuggestedPrice ?? 0.00;
+            }
+        }
+
+        public Card()
+        {
+            // Go through the property so event subscription is wired up
+            Insights = new CardInsights();
+        }
 
         [Indexed]
         public string CollectionId { get; set; } = string.Empty;
@@ -57,14 +119,10 @@ namespace CollectIQ.Models
 
         // --- Financial ---
         public decimal? PurchasePrice { get; set; }
-        public decimal? EstimatedValue { get; set; }
 
         // --- Images ---
         public string FrontImagePath { get; set; } = string.Empty;
         public string BackImagePath { get; set; } = string.Empty;
-
-        // --- Insights (JSON serialized) ---
-        public string InsightsJson { get; set; } = "{}";
 
         // --- Advanced fields ---
         public string Sport { get; set; } = string.Empty;

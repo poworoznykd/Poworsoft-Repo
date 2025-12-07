@@ -63,7 +63,7 @@
                                                HorizontalTextAlignment="Center" />
                                         <Label TextColor="White"
                                                x:Name="EstimatedValueLabel"
-                                               Text="$0.00"
+                                               Text="{Binding EstimatedValue, StringFormat='${0:0.00} USD'}" 
                                                FontSize="18"
                                                FontAttributes="Bold"
                                                HorizontalTextAlignment="Center" />

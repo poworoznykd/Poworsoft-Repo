@@ -5,36 +5,181 @@
 // -------------------------------------------------------------------------------------------------
 
 using System;
+using System.ComponentModel;
 
 namespace CollectIQ.Models
 {
-    public class CardInsights
+    public class CardInsights : INotifyPropertyChanged
     {
-        public double? MinPrice { get; set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
-        public double? MaxPrice { get; set; }
+        public CardInsights(decimal suggested = 0.00m)
+        {
+            SuggestedPrice = suggested;
+        }
 
-        public double? MedianPrice { get; set; }
+        private double? minPrice;
+        public double? MinPrice
+        {
+            get => minPrice;
+            set
+            {
+                if (minPrice != value)
+                {
+                    minPrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public double? AveragePrice { get; set; }
+        private double? maxPrice;
+        public double? MaxPrice
+        {
+            get => maxPrice;
+            set
+            {
+                if (maxPrice != value)
+                {
+                    maxPrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? medianPrice;
+        public double? MedianPrice
+        {
+            get => medianPrice;
+            set
+            {
+                if (medianPrice != value)
+                {
+                    medianPrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? averagePrice;
+        public double? AveragePrice
+        {
+            get => averagePrice;
+            set
+            {
+                if (averagePrice != value)
+                {
+                    averagePrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // Suggested fair value for the card based on comps
-        public double? SuggestedPrice { get; set; }
+        private decimal? suggestedPrice;
+        public decimal? SuggestedPrice
+        {
+            get => suggestedPrice;
+            set
+            {
+                if (suggestedPrice != value)
+                {
+                    suggestedPrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // Number of listings used to compute insights
-        public int ListingCount { get; set; }
+        private int listingCount;
+        public int ListingCount
+        {
+            get => listingCount;
+            set
+            {
+                if (listingCount != value)
+                {
+                    listingCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public string Currency { get; set; } = "USD";
+        private string currency = "USD";
+        public string Currency
+        {
+            get => currency;
+            set
+            {
+                if (currency != value)
+                {
+                    currency = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public DateTime? LastUpdatedUtc { get; set; }
+        private DateTime? lastUpdatedUtc;
+        public DateTime? LastUpdatedUtc
+        {
+            get => lastUpdatedUtc;
+            set
+            {
+                if (lastUpdatedUtc != value)
+                {
+                    lastUpdatedUtc = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // Short human-readable description of the market picture
-        public string Summary { get; set; } = string.Empty;
+        private string summary = string.Empty;
+        public string Summary
+        {
+            get => summary;
+            set
+            {
+                if (summary != value)
+                {
+                    summary = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // The exact query that was used to fetch these insights
-        public string QueryUsed { get; set; } = string.Empty;
+        private string queryUsed = string.Empty;
+        public string QueryUsed
+        {
+            get => queryUsed;
+            set
+            {
+                if (queryUsed != value)
+                {
+                    queryUsed = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // 0.0–1.0 indicating how confident we are in the suggested price
-        public double? ConfidenceScore { get; set; }
+        private double? confidenceScore;
+        public double? ConfidenceScore
+        {
+            get => confidenceScore;
+            set
+            {
+                if (confidenceScore != value)
+                {
+                    confidenceScore = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
     }
 }

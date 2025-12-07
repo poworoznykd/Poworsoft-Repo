@@ -112,7 +112,7 @@ namespace CollectIQ.Utilities
             Card card = new Card
             {
                 Title = title.Trim(),
-                EstimatedValue = listing.Price,
+                Insights = new CardInsights(listing.Price ?? 0.00m),
                 CollectionId = "Default",
                 FrontImagePath = listing.ImageUrl,
                 BackImagePath = listing.ImageUrl

@@ -242,7 +242,7 @@
                                             <Label Grid.Column="1"
                                                    TextColor="AliceBlue"
                                                    VerticalOptions="Center"
-                                                   Text="{Binding EstimatedValueString}" />
+                                                   Text="{Binding EstimatedValue, StringFormat='${0:0.00} USD'}" />
                                         </Grid>
                                     </VerticalStackLayout>
 

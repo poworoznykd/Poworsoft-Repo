@@ -49,26 +49,6 @@ namespace CollectIQ.Models
                 if (estimatedValue != value)
                 {
                     estimatedValue = value;
-                    estimatedValueString = FormatPrice(estimatedValue, Currency);
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        private string? estimatedValueString;
-
-        /// <summary>
-        /// Indicates whether this listing is currently selected in the UI.
-        /// Used to drive Border highlight.
-        /// </summary>
-        public string? EstimatedValueString
-        {
-            get => estimatedValueString;
-            set
-            {
-                if (estimatedValueString != value)
-                {
-                    estimatedValueString = value;
                     OnPropertyChanged();
                 }
             }

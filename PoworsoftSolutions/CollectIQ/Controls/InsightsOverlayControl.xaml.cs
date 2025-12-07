@@ -16,6 +16,7 @@ using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -27,12 +28,14 @@ namespace CollectIQ.Controls
     /// </summary>
     public partial class InsightsOverlayControl : ContentView
     {
-        private readonly ObservableCollection<EbayListing> _insightsListings;
-        private EbayListing? _currentAnchor;
+        public CardInsights? InsightsData { get; set; }
+
+        private readonly ObservableCollection<EbayListing> insightsListings;
+        private EbayListing? currentAnchor;
 
         // These drive the "Sold over last X days" text.
-        private string _listingTypeFilter;
-        private int _daysRangeFilter;
+        private string listingTypeFilter;
+        private int daysRangeFilter;
 
         /// <summary>
         /// Fired after the overlay finishes closing.
@@ -43,11 +46,11 @@ namespace CollectIQ.Controls
         {
             InitializeComponent();
 
-            _insightsListings = new ObservableCollection<EbayListing>();
-            InsightsListView.ItemsSource = _insightsListings;
+            insightsListings = new ObservableCollection<EbayListing>();
+            InsightsListView.ItemsSource = insightsListings;
 
-            _listingTypeFilter = "sold";
-            _daysRangeFilter = 90;
+            listingTypeFilter = "sold";
+            daysRangeFilter = 90;
 
             InsightsOverlay.IsVisible = false;
             InsightsScrim.IsVisible = false;
@@ -59,8 +62,6 @@ namespace CollectIQ.Controls
         //      VALUE CALLBACK (Used to send value back to page)
         // =======================================================
 
-        public decimal? SuggestedValue { get; private set; }
-
         // Called by EbaySearchPage when overlay is shown.
         // The overlay will invoke this when user closes the overlay
         // or clicks the "Apply Suggested Value" button.
@@ -69,40 +70,44 @@ namespace CollectIQ.Controls
 
         private void ApplySuggestedValue_Clicked(object sender, EventArgs e)
         {
-            if (SuggestedValue.HasValue)
+            if (InsightsData != null && InsightsData.SuggestedPrice.HasValue)
             {
                 // Send value back to the page
-                OnEstimatedValueReady?.Invoke(SuggestedValue);
+                OnEstimatedValueReady?.Invoke((decimal)InsightsData.SuggestedPrice);
             }
         }
 
 
-        /// <summary>
-        /// Shows the overlay with the given anchor listing and comps.
-        /// The host page is responsible for providing the comps
-        /// (e.g., from a search, collection page, etc.).
-        /// </summary>
-        /// <param name="anchorListing">Listing the overlay is describing.</param>
-        /// <param name="comps">Collection of comps to analyze.</param>
-        /// <param name="listingTypeFilter">
-        /// "sold" for sold comps, anything else for active listings.
-        /// </param>
-        /// <param name="daysRangeFilter">
-        /// Number of days to show in the description for sold comps.
-        /// </param>
         public async Task ShowAsync(
             EbayListing anchorListing,
             IEnumerable<EbayListing> comps,
             string listingTypeFilter,
             int daysRangeFilter)
         {
-            _currentAnchor = anchorListing;
-            _listingTypeFilter = string.IsNullOrWhiteSpace(listingTypeFilter)
+            System.Diagnostics.Debug.WriteLine("[Insights] Entering ShowAsync.");
+
+            // 1. Make sure the visual elements are actually wired up
+            if (InsightsOverlay == null || InsightsScrim == null)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Insights] UI not ready. " +
+                    $"InsightsOverlay null: {InsightsOverlay == null}, " +
+                    $"InsightsScrim null: {InsightsScrim == null}. " +
+                    "Check x:Name in XAML and InitializeComponent().");
+
+                // No UI to animate – bail out safely.
+                return;
+            }
+
+            // 2. Normalize / store inputs
+            currentAnchor = anchorListing;
+            this.listingTypeFilter = string.IsNullOrWhiteSpace(listingTypeFilter)
                 ? "sold"
                 : listingTypeFilter;
-            _daysRangeFilter = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
+            this.daysRangeFilter = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
-            _insightsListings.Clear();
+            // 3. Populate the internal comps collection
+            insightsListings.Clear();
 
             if (comps != null)
             {
@@ -110,19 +115,22 @@ namespace CollectIQ.Controls
                 {
                     if (comp != null)
                     {
-                        _insightsListings.Add(comp);
+                        insightsListings.Add(comp);
                     }
                 }
             }
 
+            // 4. Recalculate insights based on the current comps
             RecalculateInsightsFromCurrentComps();
 
+            // 5. If already visible, we only needed to refresh the data
             if (InsightsOverlay.IsVisible)
             {
-                // Already visible – just refreshed the data.
+                System.Diagnostics.Debug.WriteLine("[Insights] Overlay already visible, data refreshed.");
                 return;
             }
 
+            // 6. Prepare initial visual state for the animation
             InsightsOverlay.IsVisible = true;
             InsightsScrim.IsVisible = true;
 
@@ -130,11 +138,33 @@ namespace CollectIQ.Controls
             InsightsOverlay.TranslationY = 60;
             InsightsScrim.Opacity = 0;
 
-            await Task.WhenAll(
-                InsightsOverlay.FadeTo(1, 180, Easing.CubicOut),
-                InsightsOverlay.TranslateTo(0, 0, 180, Easing.CubicOut),
-                InsightsScrim.FadeTo(1, 180, Easing.CubicOut));
+            System.Diagnostics.Debug.WriteLine(
+                $"[Insights] Starting animation. " +
+                $"InsightsOverlay null: {InsightsOverlay == null}, " +
+                $"InsightsScrim null: {InsightsScrim == null}");
+
+            // 7. Animate in (wrapped in try/catch so we can see any failures clearly)
+            try
+            {
+                await Task.WhenAll(
+                    InsightsOverlay.FadeTo(1, 180, Easing.CubicOut),
+                    InsightsOverlay.TranslateTo(0, 0, 180, Easing.CubicOut),
+                    InsightsScrim.FadeTo(1, 180, Easing.CubicOut));
+
+                System.Diagnostics.Debug.WriteLine("[Insights] ShowAsync completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Insights] Animation error: " + ex);
+
+                // Optional: hide again if animation fails
+                // InsightsOverlay.IsVisible = false;
+                // InsightsScrim.IsVisible = false;
+
+                throw; // keep this while debugging so you see the stack trace
+            }
         }
+
 
         /// <summary>
         /// Hides the overlay with a short slide/fade animation.
@@ -155,9 +185,9 @@ namespace CollectIQ.Controls
             InsightsScrim.IsVisible = false;
 
             // APPLY VALUE AUTOMATICALLY IF AVAILABLE
-            if (SuggestedValue.HasValue)
+            if (InsightsData != null && InsightsData.SuggestedPrice.HasValue)
             {
-                OnEstimatedValueReady?.Invoke(SuggestedValue);
+                OnEstimatedValueReady?.Invoke((decimal)InsightsData.SuggestedPrice.Value);
             }
 
             Closed?.Invoke(this, EventArgs.Empty);
@@ -196,9 +226,9 @@ namespace CollectIQ.Controls
                     return;
                 }
 
-                if (_insightsListings.Contains(comp))
+                if (insightsListings.Contains(comp))
                 {
-                    _insightsListings.Remove(comp);
+                    insightsListings.Remove(comp);
                 }
 
                 RecalculateInsightsFromCurrentComps();
@@ -219,11 +249,11 @@ namespace CollectIQ.Controls
         /// </summary>
         private void RecalculateInsightsFromCurrentComps()
         {
-            List<EbayListing> listingList = _insightsListings.ToList();
+            List<EbayListing> listingList = insightsListings.ToList();
 
             if (listingList.Count == 0)
             {
-                InsightsTitleLabel.Text = _currentAnchor?.Title ?? "Selected Card";
+                InsightsTitleLabel.Text = currentAnchor?.Title ?? "Selected Card";
                 InsightsSummaryLabel.Text = "No market data available.";
                 InsightsCountValue.Text = "0";
                 InsightsMinValue.Text = "$0.00";
@@ -246,7 +276,7 @@ namespace CollectIQ.Controls
 
             if (prices.Count == 0)
             {
-                InsightsTitleLabel.Text = _currentAnchor?.Title ?? "Selected Card";
+                InsightsTitleLabel.Text = currentAnchor?.Title ?? "Selected Card";
                 InsightsSummaryLabel.Text = "No valid price data available.";
                 InsightsCountValue.Text = listingList.Count.ToString();
                 InsightsMinValue.Text = "$0.00";
@@ -271,7 +301,11 @@ namespace CollectIQ.Controls
             decimal q75 = Percentile(prices, 0.75);
 
             decimal suggested = Math.Round(median * 0.95m, 2);
-            SuggestedValue = suggested;
+            if(InsightsData == null)
+            {
+                InsightsData = new CardInsights();
+            }
+            InsightsData.SuggestedPrice = suggested;
             // Volatility description
             decimal spread = max - min;
             string volatility;
@@ -298,12 +332,12 @@ namespace CollectIQ.Controls
 
             // Where anchor listing sits, if we know it
             string positionText = string.Empty;
-            if (_currentAnchor != null &&
-                _currentAnchor.Price.HasValue &&
-                _currentAnchor.Price.Value > 0m &&
+            if (currentAnchor != null &&
+                currentAnchor.Price.HasValue &&
+                currentAnchor.Price.Value > 0m &&
                 prices.Count > 0)
             {
-                decimal anchorPrice = _currentAnchor.Price.Value;
+                decimal anchorPrice = currentAnchor.Price.Value;
 
                 if (anchorPrice <= q25)
                 {
@@ -320,7 +354,7 @@ namespace CollectIQ.Controls
             }
 
             // Update overlay labels
-            InsightsTitleLabel.Text = _currentAnchor?.Title ?? "Selected Card";
+            InsightsTitleLabel.Text = currentAnchor?.Title ?? "Selected Card";
 
             InsightsCountValue.Text = count.ToString();
             InsightsMinValue.Text = $"${min:F2}";
@@ -335,13 +369,13 @@ namespace CollectIQ.Controls
             InsightsStatsLabel.Text = $"Count: {count}  Avg: ${avg:F2}  Min: ${min:F2}  Max: ${max:F2}";
 
             InsightsRangeLabel.Text =
-                string.Equals(_listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
-                    ? $"Sold comps over last {_daysRangeFilter} days"
+                string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
+                    ? $"Sold comps over last {daysRangeFilter} days"
                     : "Active listings only";
 
             // Rebuild chart
             BuildInsightsPriceChart(
-                _currentAnchor ?? new EbayListing { Price = median },
+                currentAnchor ?? new EbayListing { Price = median },
                 prices,
                 min,
                 max,

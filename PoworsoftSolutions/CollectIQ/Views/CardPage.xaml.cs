@@ -149,11 +149,7 @@ namespace CollectIQ.Views
                 // ---- SAFE HEADER ----
                 UpdateHeaderFromCard();
 
-                // ---- SAFE ESTIMATED VALUE ----
-                if (currentCard.EstimatedValue.HasValue)
-                    EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
-                else
-                    EstimatedValueLabel.Text = "$0.00";
+                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
             }
             catch (Exception ex)
             {
@@ -173,16 +169,8 @@ namespace CollectIQ.Views
                 : $"{yearText} {currentCard.Name}";
 
             CardTitleLabel.Text = title.Trim();
-
-            // Safely handle missing estimated value
-            if (currentCard.EstimatedValue.HasValue)
-            {
-                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
-            }
-            else
-            {
-                EstimatedValueLabel.Text = "$0.00";
-            }
+            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
+           
 
             // Subtitle: Year · Team · Set · #
             List<string> parts = new List<string>();
@@ -229,15 +217,8 @@ namespace CollectIQ.Views
                 currentCard.PurchasePrice = null;
             }
 
-            // Only update the label if we actually have an estimated value
-            if (currentCard.EstimatedValue.HasValue)
-            {
-                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
-            }
-            else
-            {
-                EstimatedValueLabel.Text = "$0.00";
-            }
+            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue ?? 0.00m, "USD");
+           
 
             currentCard.FrontImagePath = frontPath;
             currentCard.BackImagePath = backPath;
@@ -252,7 +233,7 @@ namespace CollectIQ.Views
             // Keep estimated value in sync with insights if we have them
             if (currentInsights != null && currentInsights.SuggestedPrice.HasValue)
             {
-                currentCard.EstimatedValue = (decimal?)currentInsights.SuggestedPrice.Value;
+                currentCard.Insights.SuggestedPrice = (decimal?)currentInsights.SuggestedPrice.Value;
             }
         }
 
@@ -407,7 +388,7 @@ namespace CollectIQ.Views
                 MaxPrice = max,
                 AveragePrice = avg,
                 MedianPrice = median,
-                SuggestedPrice = suggested,
+                SuggestedPrice = (decimal)suggested,
                 ListingCount = count,
                 Currency = currency,
                 LastUpdatedUtc = DateTime.UtcNow,
@@ -424,8 +405,8 @@ namespace CollectIQ.Views
         private void ApplyInsightsToUi(CardInsights insights)
         {
             currentInsights = insights ?? new CardInsights();
-            if(currentCard.EstimatedValue.HasValue)
-                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+            if(currentCard.Insights.SuggestedPrice.HasValue)
+                EstimatedValueLabel.Text = currentCard.EstimatedValue.ToString();
             else
                 EstimatedValueLabel.Text = "$0.00";
             if (insights == null || insights.ListingCount <= 0 || !insights.SuggestedPrice.HasValue)
@@ -434,7 +415,7 @@ namespace CollectIQ.Views
                 EbayResultLabel.Text = "No insights yet.";
                 if (currentCard != null)
                 {
-                    currentCard.EstimatedValue = null;
+                    currentCard.Insights.SuggestedPrice = null;
                 }
 
                 return;
@@ -447,8 +428,11 @@ namespace CollectIQ.Views
             EstimatedValueLabel.Text = FormatCurrency(suggestedDec, currency);
 
             // Keep card's stored estimated value in sync.
-            if (currentCard != null)
+            if (currentCard != null && 
+                currentCard.Insights != null &&
+                currentCard.Insights.SuggestedPrice.HasValue)
             {
+                currentCard.Insights.SuggestedPrice = suggestedDec;
                 currentCard.EstimatedValue = suggestedDec;
             }
 
@@ -595,9 +579,13 @@ namespace CollectIQ.Views
 
                     // Update the selected listing
                     anchorListing.Price = value.Value;
-                    anchorListing.EstimatedValue = CardInsightsOverlay.SuggestedValue;
-                    // Safely update the label
-                    EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+                    if(CardInsightsOverlay?.InsightsData != null)
+                        anchorListing.EstimatedValue = CardInsightsOverlay.InsightsData.SuggestedPrice ?? 0.00m;
+                    else
+                    {
+                        anchorListing.EstimatedValue = 0.00m;
+                        EstimatedValueLabel.Text = FormatCurrency(currentCard.Insights.SuggestedPrice ?? 0.00m, "USD");
+                    }
 
                     // Properly await the async hide call
                     await CardInsightsOverlay.HideAsync();

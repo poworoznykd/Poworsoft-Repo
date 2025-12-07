@@ -124,26 +124,32 @@ namespace CollectIQ.Views
 
             int days = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
-            // First: wire up the callback
-            InsightsOverlayControl.OnEstimatedValueReady = async (value) =>
+            if(InsightsOverlayControl != null)
             {
-                if (!value.HasValue)
+                // First: wire up the callback
+                InsightsOverlayControl.OnEstimatedValueReady = async (value) =>
                 {
-                    return;
-                }
+                    if (!value.HasValue)
+                    {
+                        return;
+                    }
 
-                // Update the selected listing
-                selectedListing.Price = value.Value;
-                selectedListing.EstimatedValue = InsightsOverlayControl.SuggestedValue;
+                    if (selectedListing != null)
+                    {
+                        // Update the selected listing
+                        selectedListing.Price = value.Value;
+                        selectedListing.EstimatedValue = InsightsOverlayControl?.InsightsData?.SuggestedPrice ?? 0.00m;
 
-                // Properly await the async hide call
-                await InsightsOverlayControl.HideAsync();
-            };
+                    }
 
-            // Then: show the overlay
-            await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
+                    // Properly await the async hide call
+                    await InsightsOverlayControl.HideAsync();
+                };
 
+                // Then: show the overlay
+                await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
 
+            }
         }
 
         #region Filter Initialization
@@ -653,6 +659,7 @@ namespace CollectIQ.Views
                 }
 
                 Card card = CardMetadataParser.Parse(listing);
+                card.Insights.SuggestedPrice = listing.EstimatedValue ?? 0.00m;
                 card.EstimatedValue = listing.EstimatedValue;
 
                 await App.Database.AddCardAsync(card);
