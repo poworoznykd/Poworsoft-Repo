@@ -124,15 +124,25 @@ namespace CollectIQ.Views
 
             int days = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
-            await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
-            InsightsOverlayControl.OnEstimatedValueReady = (value) =>
+            // First: wire up the callback
+            InsightsOverlayControl.OnEstimatedValueReady = async (value) =>
             {
-                if (value.HasValue)
+                if (!value.HasValue)
                 {
-                    selectedListing.Price = value.Value;
-                    selectedListing.EstimatedValue = value.Value;
+                    return;
                 }
+
+                // Update the selected listing
+                selectedListing.Price = value.Value;
+                selectedListing.EstimatedValue = InsightsOverlayControl.SuggestedValue;
+
+                // Properly await the async hide call
+                await InsightsOverlayControl.HideAsync();
             };
+
+            // Then: show the overlay
+            await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
+
 
         }
 
@@ -273,6 +283,7 @@ namespace CollectIQ.Views
 
             foreach (EbayListing listing in results)
             {
+                listing.EstimatedValue = listing.Price;
                 listings.Add(listing);
             }
         }

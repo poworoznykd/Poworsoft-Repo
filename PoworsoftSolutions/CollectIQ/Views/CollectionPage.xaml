@@ -51,7 +51,7 @@
                                        HeightRequest="14"
                                        WidthRequest="14" />
                                 <Label x:Name="CollectionCountLabel"
-                                       Text="0 cards"
+                                       Text="0 Cards"
                                        FontSize="11"
                                        TextColor="#CBD5F5" />
                             </HorizontalStackLayout>
@@ -62,7 +62,7 @@
                                        HeightRequest="14"
                                        WidthRequest="14" />
                                 <Label x:Name="CollectionValueLabel"
-                                       Text="Est. total $0"
+                                       Text="Est. Total Value: $0.00"
                                        FontSize="11"
                                        TextColor="#7CF9FF" />
                             </HorizontalStackLayout>

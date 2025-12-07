@@ -90,34 +90,34 @@
                     Padding="12,8"
                     Margin="16,6,16,0">
                 <Grid ColumnDefinitions="Auto,*,Auto"
-                        VerticalOptions="Center">
+                      VerticalOptions="Center">
 
                     <!-- "Filters" label -->
                     <Label Text="Filters"
                            VerticalTextAlignment="Center"
-                       Grid.Column="0"
-                       FontSize="12"
-                       FontAttributes="Bold"
-                       TextColor="#F2F6FF" />
+                           Grid.Column="0"
+                           FontSize="12"
+                           FontAttributes="Bold"
+                           TextColor="#F2F6FF" />
 
                     <!-- Summary (will shrink & truncate if needed) -->
                     <Label x:Name="FilterSummaryLabel"
-                       Grid.Column="1"
-                            VerticalTextAlignment="Center"
-                       Text="Sold, last 90 days, avg top 10"
-                       FontSize="11"
-                       TextColor="#6CD4FF"
-                       HorizontalOptions="FillAndExpand"
-                       LineBreakMode="TailTruncation" />    
+                           Grid.Column="1"
+                           VerticalTextAlignment="Center"
+                           Text="Sold, last 90 days, avg top 10"
+                           FontSize="11"
+                           TextColor="#6CD4FF"
+                           HorizontalOptions="FillAndExpand"
+                           LineBreakMode="TailTruncation" />
 
                     <!-- Adjust button - always visible -->
                     <Button x:Name="FilterButton"
-                        Grid.Column="2"
-                        Text="Adjust"
-                        Style="{StaticResource AuroraNeonButton}"
-                        HeightRequest="34"
-                        Padding="14,2"
-                        Clicked="OnFilterButtonClicked" />
+                            Grid.Column="2"
+                            Text="Adjust"
+                            Style="{StaticResource AuroraNeonButton}"
+                            HeightRequest="34"
+                            Padding="14,2"
+                            Clicked="OnFilterButtonClicked" />
                 </Grid>
             </Border>
 
@@ -221,13 +221,30 @@
                                            LineBreakMode="WordWrap"
                                            MaxLines="2" />
 
-                                    <!-- PRICE -->
-                                    <Label Grid.Column="1"
-                                           Grid.Row="1"
-                                           Text="{Binding Price, StringFormat='${0:F2}'}"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#6CD4FF" />
+                                    <!-- PRICE + EST PILL -->
+                                    <VerticalStackLayout Grid.Column="1"
+                                                         Grid.Row="1"
+                                                         Spacing="2">
+
+                                        <!-- PRICE -->
+                                        <Label Text="{Binding Price, StringFormat='${0:F2}'}"
+                                               FontSize="14"
+                                               FontAttributes="Bold"
+                                               TextColor="#6CD4FF" />
+
+                                        <Grid ColumnDefinitions="Auto,Auto"
+                                              IsVisible="{Binding IsSelected}">
+                                            <Label Grid.Column="0"
+                                                   TextColor="AliceBlue"
+                                                   Text="Est. "
+                                                   VerticalOptions="Center"
+                                                   Margin="0,0,4,0" />
+                                            <Label Grid.Column="1"
+                                                   TextColor="AliceBlue"
+                                                   VerticalOptions="Center"
+                                                   Text="{Binding EstimatedValueString}" />
+                                        </Grid>
+                                    </VerticalStackLayout>
 
                                     <!-- STATUS -->
                                     <Label Grid.Column="1"

@@ -35,6 +35,45 @@ namespace CollectIQ.Models
             }
         }
 
+        private decimal? estimatedValue;
+
+        /// <summary>
+        /// Indicates whether this listing is currently selected in the UI.
+        /// Used to drive Border highlight.
+        /// </summary>
+        public decimal? EstimatedValue
+        {
+            get => estimatedValue;
+            set
+            {
+                if (estimatedValue != value)
+                {
+                    estimatedValue = value;
+                    estimatedValueString = FormatPrice(estimatedValue, Currency);
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string? estimatedValueString;
+
+        /// <summary>
+        /// Indicates whether this listing is currently selected in the UI.
+        /// Used to drive Border highlight.
+        /// </summary>
+        public string? EstimatedValueString
+        {
+            get => estimatedValueString;
+            set
+            {
+                if (estimatedValueString != value)
+                {
+                    estimatedValueString = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -67,11 +106,6 @@ namespace CollectIQ.Models
         /// URL to open in the browser when user taps a card.
         /// </summary>
         public string Url { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Current or sold estimated value (numeric) after using insights.
-        /// </summary>
-        public decimal? EstimatedValue { get; set; }
 
         /// <summary>
         /// Current or sold price value (numeric).

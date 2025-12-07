@@ -11,11 +11,13 @@
 *     compatible storage.
 */
 
-using SQLite;
-using System.Text.Json;
+using CollectIQ.Domain.Entities;
 using CollectIQ.Models.Domain;
 using CollectIQ.Models.Domain.Entities;
-using CollectIQ.Domain.Entities;
+using SQLite;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace CollectIQ.Models
 {
@@ -23,11 +25,15 @@ namespace CollectIQ.Models
     /// Represents a single collectible card within a collection.
     /// Now composes real domain models through JSON-backed properties.
     /// </summary>
-    public sealed class Card : BaseEntity
+    public sealed class Card : BaseEntity, INotifyPropertyChanged
     {
-        // ============================================================
-        //        ORIGINAL FIELDS (All untouched, fully compatible)
-        // ============================================================
+        public event PropertyChangedEventHandler PropertyChanged;
+
+
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
 
         [Indexed]
         public string CollectionId { get; set; } = string.Empty;
@@ -123,7 +129,6 @@ namespace CollectIQ.Models
             get => SafeDeserialize<HighlightReel>(HighlightJson) ?? new HighlightReel();
             set => HighlightJson = SafeSerialize(value);
         }
-
 
         // ============================================================
         //   PRIVATE JSON HELPERS (Safe for nulls + bad data)

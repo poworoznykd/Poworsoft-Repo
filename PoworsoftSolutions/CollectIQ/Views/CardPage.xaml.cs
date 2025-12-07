@@ -14,7 +14,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Threading.Tasks;
+using static AndroidX.Core.Text.Util.LocalePreferences.FirstDayOfWeek;
 
 namespace CollectIQ.Views
 {
@@ -171,7 +173,17 @@ namespace CollectIQ.Views
                 : $"{yearText} {currentCard.Name}";
 
             CardTitleLabel.Text = title.Trim();
-            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+
+            // Safely handle missing estimated value
+            if (currentCard.EstimatedValue.HasValue)
+            {
+                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+            }
+            else
+            {
+                EstimatedValueLabel.Text = "$0.00";
+            }
+
             // Subtitle: Year · Team · Set · #
             List<string> parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(yearText)) parts.Add(yearText);
@@ -217,7 +229,15 @@ namespace CollectIQ.Views
                 currentCard.PurchasePrice = null;
             }
 
-            EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+            // Only update the label if we actually have an estimated value
+            if (currentCard.EstimatedValue.HasValue)
+            {
+                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+            }
+            else
+            {
+                EstimatedValueLabel.Text = "$0.00";
+            }
 
             currentCard.FrontImagePath = frontPath;
             currentCard.BackImagePath = backPath;
@@ -235,6 +255,7 @@ namespace CollectIQ.Views
                 currentCard.EstimatedValue = (decimal?)currentInsights.SuggestedPrice.Value;
             }
         }
+
 
         // ---------------------------------------------------------------------
         // IMAGE TAPS -> IMAGE VIEWER
@@ -403,10 +424,12 @@ namespace CollectIQ.Views
         private void ApplyInsightsToUi(CardInsights insights)
         {
             currentInsights = insights ?? new CardInsights();
-
+            if(currentCard.EstimatedValue.HasValue)
+                EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+            else
+                EstimatedValueLabel.Text = "$0.00";
             if (insights == null || insights.ListingCount <= 0 || !insights.SuggestedPrice.HasValue)
             {
-                EstimatedValueLabel.Text = "$0.00";
                 InsightsLastUpdatedLabel.Text = "(never)";
                 EbayResultLabel.Text = "No insights yet.";
                 if (currentCard != null)
@@ -563,19 +586,30 @@ namespace CollectIQ.Views
                     Status = "Active"
                 };
 
-                // Show reusable overlay with all the same comp data used for stats
+                CardInsightsOverlay.OnEstimatedValueReady = async (value) =>
+                {
+                    if (!value.HasValue)
+                    {
+                        return;
+                    }
+
+                    // Update the selected listing
+                    anchorListing.Price = value.Value;
+                    anchorListing.EstimatedValue = CardInsightsOverlay.SuggestedValue;
+                    // Safely update the label
+                    EstimatedValueLabel.Text = FormatCurrency(currentCard.EstimatedValue.Value, "USD");
+
+                    // Properly await the async hide call
+                    await CardInsightsOverlay.HideAsync();
+                };
+
+                // Then: show the overlay
                 await CardInsightsOverlay.ShowAsync(
                     anchorListing,
-                    priced,
+                    priced, 
                     listingTypeFilter: "sold",
                     daysRangeFilter: 90);
-                CardInsightsOverlay.OnEstimatedValueReady = (value) =>
-                {
-                    if (value.HasValue)
-                    {
-                        currentCard.EstimatedValue = value.Value;
-                    }
-                };
+
             }
             catch (Exception ex)
             {

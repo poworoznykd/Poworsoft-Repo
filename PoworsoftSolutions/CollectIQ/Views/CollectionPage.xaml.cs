@@ -41,6 +41,8 @@ namespace CollectIQ.Views
         {
             base.OnAppearing();
             await LoadCardsAsync();
+            CollectionCountLabel.Text = $"{Cards.Count} Cards";
+            CollectionValueLabel.Text = "Est. Total Value: $" + Cards.Sum(c => c.EstimatedValue ?? 0).ToString("0.00");
         }
 
         /// <summary>
@@ -67,6 +69,60 @@ namespace CollectIQ.Views
                 await DisplayAlert("Error", $"Failed to load collection: {ex.Message}", "OK");
             }
         }
+
+        /// <summary>
+        /// Swipe delete handler.
+        /// </summary>
+        private async void OnDeleteCard(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
+            {
+                bool confirm = await DisplayAlert("Confirm Delete",
+                    $"Delete '{card.Title}'?", "Delete", "Cancel");
+
+                if (!confirm) return;
+
+                try
+                {
+                    await database.DeleteCardAsync(card.Id);
+                    allCards.Remove(card);
+                    Cards.Remove(card);
+                    CollectionCountLabel.Text = $"{Cards.Count} Cards";
+                    CollectionValueLabel.Text = "Est. Total Value: $" + Cards.Sum(c => c.EstimatedValue ?? 0).ToString("0.00");
+                    EmptyMessage.IsVisible = Cards.Count == 0;
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Error", ex.Message, "OK");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens edit page.
+        /// </summary>
+        private async void OnEditCard(object sender, EventArgs e)
+        {
+            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
+                await Navigation.PushAsync(new CardPage(card));
+        }
+
+        /// <summary>
+        /// Navigates to Scan tab to add a card.
+        /// </summary>
+        private async void OnAddCardClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                await Shell.Current.GoToAsync("//ScanPage");
+            }
+            catch
+            {
+                await DisplayAlert("Error", "Unable to switch to Scan tab.", "OK");
+            }
+        }
+
+        #region Filtering
 
         /// <summary>
         /// Applies filters from the FilterOverlay control.
@@ -130,56 +186,7 @@ namespace CollectIQ.Views
             await FilterOverlay.ShowAsync();
         }
 
-        /// <summary>
-        /// Swipe delete handler.
-        /// </summary>
-        private async void OnDeleteCard(object sender, EventArgs e)
-        {
-            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
-            {
-                bool confirm = await DisplayAlert("Confirm Delete",
-                    $"Delete '{card.Title}'?", "Delete", "Cancel");
-
-                if (!confirm) return;
-
-                try
-                {
-                    await database.DeleteCardAsync(card.Id);
-                    allCards.Remove(card);
-                    Cards.Remove(card);
-
-                    EmptyMessage.IsVisible = Cards.Count == 0;
-                }
-                catch (Exception ex)
-                {
-                    await DisplayAlert("Error", ex.Message, "OK");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Opens edit page.
-        /// </summary>
-        private async void OnEditCard(object sender, EventArgs e)
-        {
-            if (sender is SwipeItem swipe && swipe.CommandParameter is Card card)
-                await Navigation.PushAsync(new CardPage(card));
-        }
-
-        /// <summary>
-        /// Navigates to Scan tab to add a card.
-        /// </summary>
-        private async void OnAddCardClicked(object sender, EventArgs e)
-        {
-            try
-            {
-                await Shell.Current.GoToAsync("//ScanPage");
-            }
-            catch
-            {
-                await DisplayAlert("Error", "Unable to switch to Scan tab.", "OK");
-            }
-        }
+        #endregion
 
         #region Exporting
         private async void OnExportCsvClicked(object sender, EventArgs e)
