@@ -661,6 +661,7 @@ namespace CollectIQ.Views
                 Card card = CardMetadataParser.Parse(listing);
                 card.Insights.SuggestedPrice = listing.EstimatedValue ?? 0.00m;
                 card.EstimatedValue = listing.EstimatedValue;
+                card.FrontImagePath = FrontImagePath;
 
                 await App.Database.AddCardAsync(card);
                 await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");

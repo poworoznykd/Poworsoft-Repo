@@ -9,6 +9,7 @@
 //     for inspection overlays. This version follows SET Coding Standards.
 //
 
+using CollectIQ.Models;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using SkiaSharp;
@@ -51,27 +52,79 @@ namespace CollectIQ.Views
         private string overlayFilePath = string.Empty;
         private Color currentColor;
 
-        // === CONSTRUCTOR ===
+        // Card integration (optional)
+        private readonly Card? owningCard;
+        private readonly bool isFrontImage;
+
+        // === CONSTRUCTORS ===
+
         /// <summary>
         /// FUNCTION: ImageViewerPage
         /// DESCRIPTION:
-        ///     Initializes the page, configures image and overlay,
-        ///     and loads any previously saved overlay image.
+        ///     Default constructor used by existing callers. Uses only the image
+        ///     path and stores overlays next to that image file. Front/back
+        ///     tracking is not enabled without a Card instance.
         /// PARAMETERS:
         ///     imagePath – Path of the image to display.
         /// RETURNS:
         ///     None.
         /// </summary>
         public ImageViewerPage(string imagePath)
+            : this(imagePath, null, true)
+        {
+        }
+
+        /// <summary>
+        /// FUNCTION: ImageViewerPage
+        /// DESCRIPTION:
+        ///     Full constructor that can optionally associate this viewer with
+        ///     a Card and a specific side (front/back). When a Card is provided,
+        ///     the overlay path is loaded from and saved back to the card’s
+        ///     FrontOverlayImagePath or BackOverlayImagePath fields.
+        /// PARAMETERS:
+        ///     imagePath  – Path of the image to display.
+        ///     card       – Card that owns this image (can be null).
+        ///     isFront    – True for front image / overlay, false for back.
+        /// RETURNS:
+        ///     None.
+        /// </summary>
+        public ImageViewerPage(string imagePath, Card? card, bool isFront)
         {
             InitializeComponent();
+
+            owningCard = card;
+            isFrontImage = isFront;
+
             ZoomImage.Source = ImageSource.FromFile(imagePath);
             ZoomImage.AnchorX = 0.5;
             ZoomImage.AnchorY = 0.5;
 
-            overlayFilePath = Path.Combine(
-                Path.GetDirectoryName(imagePath)!,
-                $"{Path.GetFileNameWithoutExtension(imagePath)}_overlay.png");
+            // Determine overlay path:
+            // 1) If we have a Card and it already has an overlay path, use that.
+            // 2) Otherwise, fall back to the legacy "<image>_overlay.png" path.
+            if (owningCard != null)
+            {
+                string cardOverlayPath = isFrontImage
+                    ? owningCard.FrontOverlayImagePath
+                    : owningCard.BackOverlayImagePath;
+
+                if (!string.IsNullOrWhiteSpace(cardOverlayPath))
+                {
+                    overlayFilePath = cardOverlayPath;
+                }
+                else
+                {
+                    overlayFilePath = Path.Combine(
+                        Path.GetDirectoryName(imagePath)!,
+                        $"{Path.GetFileNameWithoutExtension(imagePath)}_overlay.png");
+                }
+            }
+            else
+            {
+                overlayFilePath = Path.Combine(
+                    Path.GetDirectoryName(imagePath)!,
+                    $"{Path.GetFileNameWithoutExtension(imagePath)}_overlay.png");
+            }
 
             currentColor = COLOR_DEFAULT_RED;
             OverlayCanvas.Drawable = this;
@@ -232,6 +285,7 @@ namespace CollectIQ.Views
         ///     Saves all current overlay strokes by merging them with any
         ///     previously saved transparent overlay image. Ensures new drawings
         ///     are layered on top of existing ones without erasing prior work.
+        ///     If a Card was provided, updates the card's overlay path.
         /// PARAMETERS:
         ///     sender – Source of the event.
         ///     e – Event arguments.
@@ -243,7 +297,7 @@ namespace CollectIQ.Views
             try
             {
                 // If nothing new was drawn, no need to save again
-                if (completedStrokes.Count == 0)
+                if (completedStrokes.Count == 0 && File.Exists(overlayFilePath))
                 {
                     await DisplayAlert("No New Overlay", "No new drawing to save.", "OK");
                     return;
@@ -306,6 +360,19 @@ namespace CollectIQ.Views
                 using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
                 await File.WriteAllBytesAsync(overlayFilePath, data.ToArray());
 
+                // If we are associated with a Card, update its overlay path
+                if (owningCard != null)
+                {
+                    if (isFrontImage)
+                    {
+                        owningCard.FrontOverlayImagePath = overlayFilePath;
+                    }
+                    else
+                    {
+                        owningCard.BackOverlayImagePath = overlayFilePath;
+                    }
+                }
+
                 // Refresh in-memory bitmap so Draw() shows the new overlay
                 LoadOverlayIfExists();
 
@@ -325,6 +392,7 @@ namespace CollectIQ.Views
         /// FUNCTION: OnDeleteOverlayClicked
         /// DESCRIPTION:
         ///     Deletes the overlay PNG file and clears stored strokes.
+        ///     If a Card was provided, also clears its overlay path.
         /// </summary>
         private async void OnDeleteOverlayClicked(object sender, EventArgs e)
         {
@@ -340,6 +408,19 @@ namespace CollectIQ.Views
             overlayBitmap = null;
             completedStrokes.Clear();
             OverlayCanvas.Invalidate();
+
+            // Clear any stored overlay reference on the card
+            if (owningCard != null)
+            {
+                if (isFrontImage)
+                {
+                    owningCard.FrontOverlayImagePath = string.Empty;
+                }
+                else
+                {
+                    owningCard.BackOverlayImagePath = string.Empty;
+                }
+            }
 
             await DisplayAlert("Deleted", "Overlay has been deleted.", "OK");
         }

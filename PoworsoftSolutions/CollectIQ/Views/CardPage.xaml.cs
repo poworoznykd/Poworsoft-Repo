@@ -1,25 +1,33 @@
-﻿// -------------------------------------------------------------------------------------------------
-// File: CardPage.xaml.cs
-// Description: Detail / edit page for a single card. Shows front/back images, editable fields,
-//              and live eBay-based pricing insights via the shared InsightsOverlayControl.
-// -------------------------------------------------------------------------------------------------
+﻿//
+//  FILE            : CardPage.xaml.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-11-xx
+//  DESCRIPTION     :
+//      Detail / edit page for a single card. Shows front/back images,
+//      editable fields, and live eBay-based pricing insights via the
+//      shared InsightsOverlayControl. This version also wires up image
+//      capture and gallery picking for front/back images, saving them
+//      into the app's local storage. When "Take Photos" is used, it
+//      reuses the ScanPage camera UI and returns results via
+//      NavigationCache for a consistent look-and-feel.
+//
 
 using CollectIQ.Controls;
-using CollectIQ.Interfaces;
 using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
-using CollectIQ.ViewModels.Auth;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Media;
+using Microsoft.Maui.Storage;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading.Tasks;
-using static AndroidX.Core.Text.Util.LocalePreferences.FirstDayOfWeek;
 
 namespace CollectIQ.Views
 {
@@ -34,41 +42,121 @@ namespace CollectIQ.Views
         private bool isNewCard;
         private bool isBusy;
 
+        /*
+         * FUNCTION     : CardPage
+         * DESCRIPTION  :
+         *     Default constructor – delegates to the main constructor
+         *     with a null card, allowing XAML preview and simple usage.
+         * PARAMETERS   :
+         *     none
+         * RETURNS      :
+         *     none
+         */
         public CardPage()
             : this(null)
         {
         }
 
+        /*
+         * FUNCTION     : CardPage
+         * DESCRIPTION  :
+         *     Primary constructor which accepts an existing Card
+         *     instance or null to create a new card. Initializes
+         *     the view model, eBay service, and image paths.
+         * PARAMETERS   :
+         *     card - The card to edit, or null for a new card.
+         * RETURNS      :
+         *     none
+         */
         public CardPage(Card card)
         {
             InitializeComponent();
             viewModel = new CardPageViewModel(card);
             ebayService = new EbayService(new HttpClient());
             BindingContext = viewModel;
+
             frontPath = viewModel.SelectedCard.FrontImagePath;
             backPath = viewModel.SelectedCard.BackImagePath;
         }
 
+        /*
+         * FUNCTION     : OnAppearing
+         * DESCRIPTION  :
+         *     When the page becomes visible, this function ensures
+         *     that the front and back image previews reflect the
+         *     current paths stored on the selected card.
+         *     If we have just returned from ScanPage in "CardPage
+         *     workflow" mode, it pulls the captured front/back image
+         *     paths from NavigationCache and applies them first.
+         * PARAMETERS   :
+         *     sender - Event source
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private void OnAppearing(object sender, EventArgs e)
         {
             try
             {
-                if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.FrontImagePath))
+                // First: did ScanPage send us new paths via NavigationCache?
+                var navData = NavigationCache.Get<Dictionary<string, string?>>(nameof(CardPage));
+
+                if (navData != null)
                 {
-                    FrontImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.FrontImagePath);
+                    if (navData.TryGetValue("FrontPath", out var scannedFront) &&
+                        !string.IsNullOrWhiteSpace(scannedFront))
+                    {
+                        viewModel.SelectedCard.FrontImagePath = scannedFront;
+                        frontPath = scannedFront;
+                        FrontImagePreview.Source = ImageSource.FromFile(scannedFront);
+                    }
+
+                    if (navData.TryGetValue("BackPath", out var scannedBack) &&
+                        !string.IsNullOrWhiteSpace(scannedBack))
+                    {
+                        viewModel.SelectedCard.BackImagePath = scannedBack;
+                        backPath = scannedBack;
+                        BackImagePreview.Source = ImageSource.FromFile(scannedBack);
+                    }
+
+                    // Clear so it doesn't reapply on future appearances.
+                    NavigationCache.Clear(nameof(CardPage));
                 }
-                if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.BackImagePath))
+                else
                 {
-                    BackImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.BackImagePath);
+                    // No new scan data; just reflect whatever is already on the card.
+                    if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.FrontImagePath))
+                    {
+                        frontPath = viewModel.SelectedCard.FrontImagePath;
+                        FrontImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.FrontImagePath);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.BackImagePath))
+                    {
+                        backPath = viewModel.SelectedCard.BackImagePath;
+                        BackImagePreview.Source = ImageSource.FromFile(viewModel.SelectedCard.BackImagePath);
+                    }
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                //TODO - Do something with ex
+                // TODO - Optional: log ex using your logging strategy
+                Console.WriteLine($"[CardPage] OnAppearing failed to load images: {ex}");
             }
         }
 
-
+        /*
+         * FUNCTION     : OnFrontImageTapped
+         * DESCRIPTION  :
+         *     Handles tap on the front image preview. If a front
+         *     image path exists, opens the image viewer so the user
+         *     can zoom and annotate the front image.
+         * PARAMETERS   :
+         *     sender - Event source
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private async void OnFrontImageTapped(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(frontPath))
@@ -80,6 +168,18 @@ namespace CollectIQ.Views
             await Navigation.PushModalAsync(new ImageViewerPage(frontPath));
         }
 
+        /*
+         * FUNCTION     : OnBackImageTapped
+         * DESCRIPTION  :
+         *     Handles tap on the back image preview. If a back
+         *     image path exists, opens the image viewer so the user
+         *     can zoom and annotate the back image.
+         * PARAMETERS   :
+         *     sender - Event source
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private async void OnBackImageTapped(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(backPath))
@@ -91,22 +191,214 @@ namespace CollectIQ.Views
             await Navigation.PushModalAsync(new ImageViewerPage(backPath));
         }
 
-        // These stubs keep your existing buttons wired without breaking the app.
-        // You can swap them out later for your full camera / gallery flows.
-        private async void OnTakePhotos(object sender, EventArgs e)
+        /*
+         * FUNCTION     : SavePhotoToLocalAsync
+         * DESCRIPTION  :
+         *     Copies a captured or picked photo into the app's local
+         *     storage under a "CardImages" folder and returns the new
+         *     absolute file path. This isolates the app from any
+         *     temporary OS-managed locations.
+         * PARAMETERS   :
+         *     photo        - The FileResult returned by MediaPicker or FilePicker.
+         *     filePrefix   - A prefix such as "front" or "back" to embed
+         *                    in the filename.
+         * RETURNS      :
+         *     Task<string?> - The saved file path, or null if the copy fails.
+         */
+        private async Task<string?> SavePhotoToLocalAsync(FileResult photo, string filePrefix)
         {
-            await DisplayAlert("Not implemented", "Photo capture from the card page is not wired yet. You can still annotate existing images via the image viewer.", "OK");
+            if (photo == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                string appDataDir = FileSystem.AppDataDirectory;
+                string imagesDir = Path.Combine(appDataDir, "CardImages");
+
+                if (!Directory.Exists(imagesDir))
+                {
+                    Directory.CreateDirectory(imagesDir);
+                }
+
+                string extension = Path.GetExtension(photo.FileName);
+                if (string.IsNullOrWhiteSpace(extension))
+                {
+                    extension = ".jpg";
+                }
+
+                string fileName =
+                    $"{filePrefix}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}{extension}";
+
+                string destinationPath = Path.Combine(imagesDir, fileName);
+
+                await using (Stream sourceStream = await photo.OpenReadAsync())
+                await using (FileStream destinationStream = File.OpenWrite(destinationPath))
+                {
+                    await sourceStream.CopyToAsync(destinationStream);
+                }
+
+                return destinationPath;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CardPage] SavePhotoToLocalAsync failed: {ex}");
+                await DisplayAlert("Image Save Error",
+                    "Unable to save the selected photo. Please try again.",
+                    "OK");
+                return null;
+            }
         }
 
+        /*
+         * FUNCTION     : OnTakePhotos
+         * DESCRIPTION  :
+         *     Reuses the ScanPage camera UI to capture NEW front and
+         *     back images for this card. ScanPage runs in "CardPage
+         *     workflow" mode when given nameof(CardPage), saves the
+         *     images to local storage, and then drops the final
+         *     FrontPath / BackPath into NavigationCache before
+         *     returning here. OnAppearing picks those up and updates
+         *     the card + image previews.
+         * PARAMETERS   :
+         *     sender - Event source (button)
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
+        private async void OnTakePhotos(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                // Use ScanPage with the existing camera look and overlay.
+                // Passing nameof(CardPage) tells ScanPage to run the
+                // CardPage workflow (see ScanPage.HandleCardPageWorkflowAsync).
+                await Navigation.PushAsync(new ScanPage(nameof(CardPage)));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error",
+                    $"Unable to open the scan camera page: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        /*
+         * FUNCTION     : OnPickPhotos
+         * DESCRIPTION  :
+         *     Allows the user to choose front and back images from the
+         *     device photo library. The first selected image becomes the
+         *     FRONT, and the second (if present) becomes the BACK.
+         *     Images are copied into the app's local storage and the
+         *     card's image paths and previews are updated.
+         * PARAMETERS   :
+         *     sender - Event source (button)
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private async void OnPickPhotos(object sender, EventArgs e)
         {
-            await DisplayAlert("Not implemented", "Picking photos from the gallery on this page is not wired yet. Use your existing flow or image viewer for now.", "OK");
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                PickOptions options = new PickOptions
+                {
+                    PickerTitle = "Select front and back images for this card",
+                    FileTypes = FilePickerFileType.Images
+                };
+
+                var pickResults = await FilePicker.PickMultipleAsync(options);
+
+                if (pickResults == null)
+                {
+                    // user cancelled
+                    return;
+                }
+
+                var photos = pickResults.ToList();
+                if (photos.Count == 0)
+                {
+                    return;
+                }
+
+                // FRONT from first image
+                FileResult frontPhoto = photos[0];
+                string? savedFrontPath = await SavePhotoToLocalAsync(frontPhoto, "front");
+
+                if (!string.IsNullOrWhiteSpace(savedFrontPath))
+                {
+                    viewModel.SelectedCard.FrontImagePath = savedFrontPath;
+                    frontPath = savedFrontPath;
+                    FrontImagePreview.Source = ImageSource.FromFile(savedFrontPath);
+                }
+
+                // BACK from second image if present
+                if (photos.Count > 1)
+                {
+                    FileResult backPhoto = photos[1];
+                    string? savedBackPath = await SavePhotoToLocalAsync(backPhoto, "back");
+
+                    if (!string.IsNullOrWhiteSpace(savedBackPath))
+                    {
+                        viewModel.SelectedCard.BackImagePath = savedBackPath;
+                        backPath = savedBackPath;
+                        BackImagePreview.Source = ImageSource.FromFile(savedBackPath);
+                    }
+                }
+            }
+            catch (PermissionException)
+            {
+                await DisplayAlert("Permissions Required",
+                    "Storage/photos permission is required to pick images.",
+                    "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Pick Error",
+                    $"An error occurred while picking photos: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
         }
 
         // ---------------------------------------------------------------------
         // SAVE / DELETE
         // ---------------------------------------------------------------------
 
+        /*
+         * FUNCTION     : OnSave
+         * DESCRIPTION  :
+         *     Saves the current card (insert or update) to the SQLite
+         *     database using SqliteDatabase, then returns to the previous
+         *     page on success.
+         * PARAMETERS   :
+         *     sender - Event source (button)
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private async void OnSave(object sender, EventArgs e)
         {
             if (isBusy)
@@ -117,6 +409,7 @@ namespace CollectIQ.Views
             try
             {
                 isBusy = true;
+
                 if (viewModel.SelectedCard.Id != null)
                 {
                     await database.UpdateCardAsync(viewModel.SelectedCard);
@@ -140,6 +433,17 @@ namespace CollectIQ.Views
             }
         }
 
+        /*
+         * FUNCTION     : OnDelete
+         * DESCRIPTION  :
+         *     Deletes the current card from the SQLite database after
+         *     prompting the user for confirmation.
+         * PARAMETERS   :
+         *     sender - Event source (button)
+         *     e      - Event arguments
+         * RETURNS      :
+         *     void
+         */
         private async void OnDelete(object sender, EventArgs e)
         {
             if (viewModel.SelectedCard == null)
@@ -148,7 +452,11 @@ namespace CollectIQ.Views
                 return;
             }
 
-            bool confirm = await DisplayAlert("Delete Card", "Are you sure you want to remove this card from your collection?", "Delete", "Cancel");
+            bool confirm = await DisplayAlert("Delete Card",
+                "Are you sure you want to remove this card from your collection?",
+                "Delete",
+                "Cancel");
+
             if (!confirm)
             {
                 return;
@@ -198,10 +506,7 @@ namespace CollectIQ.Views
                 median = (prices[count / 2 - 1] + prices[count / 2]) / 2.0;
             }
 
-            // Simple heuristic suggested price: closer to median but nudged toward average
             double suggested = (median * 0.7) + (avg * 0.3);
-
-            // Confidence: more listings -> higher confidence, capped at 1.0
             double confidence = Math.Min(1.0, Math.Log10(count + 1) / 1.2);
 
             string summary = $"Based on {count} recent listings between ${min} USD and ${max} USD, " +
@@ -224,7 +529,6 @@ namespace CollectIQ.Views
                 };
         }
 
-
         private string BuildDefaultQueryFromCard()
         {
             List<string> parts = new List<string>();
@@ -239,7 +543,6 @@ namespace CollectIQ.Views
                 parts.Add(viewModel.SelectedCard.Name);
             }
 
-            // Avoid polluting search with sentinel text like "eBay Import"
             if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Set) &&
                 !string.Equals(viewModel.SelectedCard.Set.Trim(), "eBay Import", StringComparison.OrdinalIgnoreCase))
             {
@@ -264,10 +567,6 @@ namespace CollectIQ.Views
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
         }
 
-        // ============================================================
-        // eBay Insights (per-card) - uses shared overlay control
-        // ============================================================
-
         private async void OnRefreshInsightsClicked(object sender, EventArgs e)
         {
             if (isBusy)
@@ -279,7 +578,6 @@ namespace CollectIQ.Views
             {
                 isBusy = true;
 
-                // Build a query: use typed query if present; otherwise build from card fields
                 string query = string.IsNullOrWhiteSpace(EbayQueryEntry.Text)
                     ? BuildDefaultEbayQueryFromForm()
                     : EbayQueryEntry.Text.Trim();
@@ -295,7 +593,6 @@ namespace CollectIQ.Views
                 EbayQueryEntry.Text = query;
                 EbayResultLabel.Text = $"Searching eBay for \"{query}\"...";
 
-                // Fetch comps – using sold listings over last 90 days by default
                 var comps = await ebayService.SearchListingsAsync(
                     query,
                     limit: 80,
@@ -318,7 +615,6 @@ namespace CollectIQ.Views
                     return;
                 }
 
-                // Build insights from price list
                 var priceDoubles = priced
                     .Select(c => (double)c.Price!.Value)
                     .OrderBy(v => v)
@@ -329,13 +625,10 @@ namespace CollectIQ.Views
                     currency: "USD",
                     query: query);
 
-              
-
-                // Prepare anchor listing representing this card for the overlay
-                decimal anchorPriceDec = 
+                decimal anchorPriceDec =
                     viewModel.SelectedCard.Insights.SuggestedPrice.HasValue
-                    ? (decimal)Math.Round(viewModel.SelectedCard.Insights.SuggestedPrice.Value, 2)
-                    : priced.First().Price!.Value;
+                        ? (decimal)Math.Round(viewModel.SelectedCard.Insights.SuggestedPrice.Value, 2)
+                        : priced.First().Price!.Value;
 
                 var anchorListing = new EbayListing
                 {
@@ -351,26 +644,26 @@ namespace CollectIQ.Views
                         return;
                     }
 
-                    // Update the selected listing
                     anchorListing.Price = value.Value;
-                    if(CardInsightsOverlay?.InsightsData != null)
-                        anchorListing.EstimatedValue = CardInsightsOverlay.InsightsData.SuggestedPrice ?? 0.00m;
+
+                    if (CardInsightsOverlay?.InsightsData != null)
+                    {
+                        anchorListing.EstimatedValue =
+                            CardInsightsOverlay.InsightsData.SuggestedPrice ?? 0.00m;
+                    }
                     else
                     {
                         anchorListing.EstimatedValue = 0.00m;
                     }
 
-                    // Properly await the async hide call
                     await CardInsightsOverlay.HideAsync();
                 };
 
-                // Then: show the overlay
                 await CardInsightsOverlay.ShowAsync(
                     anchorListing,
-                    priced, 
+                    priced,
                     listingTypeFilter: "sold",
                     daysRangeFilter: 90);
-
             }
             catch (Exception ex)
             {
@@ -395,7 +688,6 @@ namespace CollectIQ.Views
             if (!string.IsNullOrWhiteSpace(TeamEntry.Text))
                 parts.Add(TeamEntry.Text.Trim());
 
-            // Do NOT include the sentinel "eBay Import" value in the query
             var setText = SetEntry.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(setText) &&
                 !string.Equals(setText, "eBay Import", StringComparison.OrdinalIgnoreCase))
@@ -412,9 +704,7 @@ namespace CollectIQ.Views
                 parts.Add($"{GradeCoEntry.Text.Trim()} {GradeEntry.Text.Trim()}");
             }
 
-            // "Josh Allen 2018 Prizm #205 PSA 10"
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
         }
-
     }
 }

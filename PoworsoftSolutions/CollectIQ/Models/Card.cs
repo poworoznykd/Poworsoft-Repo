@@ -170,6 +170,17 @@ namespace CollectIQ.Models
         public string FrontImagePath { get; set; } = string.Empty;
         public string BackImagePath { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Optional overlay image drawn over the front of the card
+        /// (e.g., condition markings) by ImageViewerPage.
+        /// </summary>
+        public string FrontOverlayImagePath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional overlay image drawn over the back of the card
+        /// (e.g., condition markings) by ImageViewerPage.
+        /// </summary>
+        public string BackOverlayImagePath { get; set; } = string.Empty;
         // --- Advanced fields ---
         public string Sport { get; set; } = string.Empty;
         public string Parallel { get; set; } = string.Empty;
