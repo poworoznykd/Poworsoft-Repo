@@ -369,19 +369,28 @@
                             </HorizontalStackLayout>
 
                             <!-- Query + Refresh -->
-                            <HorizontalStackLayout Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto"
+      ColumnSpacing="8">
+
                                 <Entry
-                                    x:Name="EbayQueryEntry"
-                                    Placeholder="Search phrase for this card…"
-                                    FontSize="13"
-                                    TextColor="#E2E8F0" />
+        Grid.Column="0"
+        x:Name="EbayQueryEntry"
+        Placeholder="Search phrase for this card…"
+        FontSize="13"
+        TextColor="#E2E8F0"
+        HorizontalOptions="FillAndExpand" />
+
                                 <!-- This button should fetch comps and then show the overlay -->
                                 <Button
-                                    Text="Refresh &amp; View"
-                                    Clicked="OnRefreshInsightsClicked"
-                                    Style="{StaticResource AuroraNeonButton}"
-                                    Padding="12,4" />
-                            </HorizontalStackLayout>
+        Grid.Column="1"
+        Text="Refresh"
+        Clicked="OnRefreshInsightsClicked"
+        Style="{StaticResource AuroraNeonButton}"
+        Padding="12,4"
+        HorizontalOptions="End"
+        MinimumWidthRequest="120" />
+                            </Grid>
+
 
                             <!-- Status / helper text -->
                             <Label
