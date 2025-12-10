@@ -1104,5 +1104,33 @@
             <Shadow Brush="#55FF5A5A" Radius="8" Offset="0,1" />
         </Setter>
     </Style>
+    
+    <!-- Aurora Neon Round Icon ImageButton (stable version) -->
+    <Style x:Key="AuroraNeonRoundIconButton" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <!-- Gradient background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#00E0FF" Offset="0.0" />
+                    <GradientStop Color="#0077B6" Offset="0.7" />
+                    <GradientStop Color="#80E6FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Border + shadow -->
+        <Setter Property="BorderColor" Value="#AA00E0FF" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6600E0FF" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
 
 </ResourceDictionary>

@@ -3,12 +3,14 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-18
-* UPDATED: 2025-12-04
+* UPDATED: 2025-12-09
 * DESCRIPTION:
 *     Handles live camera scanning of card front and back,
 *     saves captured images, and returns to the appropriate page
 *     (CardPage or eBay search) depending on source.
 *     Implements SET Coding Standards (Rev 1.11).
+*     This revision adds CaptureMode support so CardPage can
+*     request FrontOnly, BackOnly, or Both.
 */
 
 using System;
@@ -65,7 +67,8 @@ namespace CollectIQ.Views
         /// FUNCTION: ScanPage
         /// DESCRIPTION:
         ///     Overloaded constructor that allows specifying a return page
-        ///     (for example, CardPage for front + back capture).
+        ///     (for example, CardPage for front + back capture) using the
+        ///     default capture mode of "Both".
         /// PARAMETERS:
         ///     returnPageNameParam - The page name to return to after captures.
         /// RETURNS:
@@ -75,10 +78,35 @@ namespace CollectIQ.Views
         public ScanPage(string returnPageNameParam)
         {
             InitializeComponent();
+            viewModel = new ScanPageViewModel
+            {
+                ReturnPageName = returnPageNameParam,
+                CaptureMode = "both"
+            };
+
+            BindingContext = viewModel;
+        }
+
+        /// <summary>
+        /// FUNCTION: ScanPage
+        /// DESCRIPTION:
+        ///     Overloaded constructor that allows specifying both the
+        ///     return page and the capture mode ("Both", "FrontOnly",
+        ///     or "BackOnly") for CardPage workflows.
+        /// PARAMETERS:
+        ///     returnPageNameParam - The page name to return to.
+        ///     captureModeParam    - Capture mode string.
+        /// RETURNS:
+        ///     None.
+        /// </summary>
+        public ScanPage(string returnPageNameParam, string captureModeParam)
+        {
+            InitializeComponent();
 
             viewModel = new ScanPageViewModel
             {
-                ReturnPageName = returnPageNameParam
+                ReturnPageName = returnPageNameParam,
+                CaptureMode = captureModeParam
             };
 
             BindingContext = viewModel;
@@ -254,7 +282,10 @@ namespace CollectIQ.Views
         ///     Captures card images using CameraView, saves them locally,
         ///     and navigates to the appropriate page.
         ///     - If launched with ReturnPageName = CardPage:
-        ///         captures FRONT then BACK and returns both paths.
+        ///         capture mode decides whether we capture:
+        ///           * Both: FRONT then BACK
+        ///           * FrontOnly: FRONT only
+        ///           * BackOnly: BACK only
         ///     - Otherwise (eBay flow):
         ///         captures only FRONT and navigates to EbaySearchPage
         ///         using search_by_image.
@@ -277,6 +308,14 @@ namespace CollectIQ.Views
             {
                 viewModel.IsScanning = false;
 
+                // Determine if this is a CardPage workflow up front so
+                // we can also use it for naming the saved file.
+                bool isCardPageWorkflow =
+                    !string.IsNullOrWhiteSpace(viewModel.ReturnPageName) &&
+                    viewModel.ReturnPageName.Equals(
+                        nameof(CardPage),
+                        StringComparison.OrdinalIgnoreCase);
+
                 using var captureCancellationTokenSource =
                     new CancellationTokenSource(TimeSpan.FromSeconds(4));
                 using var imageStream =
@@ -293,9 +332,22 @@ namespace CollectIQ.Views
                 string cardPhotosFolder = Path.Combine(FileSystem.AppDataDirectory, "CardPhotos");
                 Directory.CreateDirectory(cardPhotosFolder);
 
-                string fileName = viewModel.IsCapturingBack
-                    ? $"card_back_{Guid.NewGuid()}.jpg"
-                    : $"card_front_{Guid.NewGuid()}.jpg";
+                string fileName;
+
+                // Decide file name (front/back) based on capture mode.
+                if (isCardPageWorkflow &&
+                    string.Equals(viewModel.CaptureMode, "BackOnly", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName = $"card_back_{Guid.NewGuid()}.jpg";
+                }
+                else if (viewModel.IsCapturingBack)
+                {
+                    fileName = $"card_back_{Guid.NewGuid()}.jpg";
+                }
+                else
+                {
+                    fileName = $"card_front_{Guid.NewGuid()}.jpg";
+                }
 
                 string savedPath = Path.Combine(cardPhotosFolder, fileName);
 
@@ -303,12 +355,6 @@ namespace CollectIQ.Views
                 {
                     await imageStream.CopyToAsync(fileStream);
                 }
-
-                bool isCardPageWorkflow =
-                    !string.IsNullOrWhiteSpace(viewModel.ReturnPageName) &&
-                    viewModel.ReturnPageName.Equals(
-                        nameof(CardPage),
-                        StringComparison.OrdinalIgnoreCase);
 
                 if (isCardPageWorkflow)
                 {
@@ -334,9 +380,15 @@ namespace CollectIQ.Views
         /// <summary>
         /// FUNCTION: HandleCardPageWorkflowAsync
         /// DESCRIPTION:
-        ///     CardPage flow: first capture is FRONT, second capture is BACK.
-        ///     After both are captured, paths are placed into NavigationCache
-        ///     and control returns to CardPage.
+        ///     CardPage flow:
+        ///       - CaptureMode = "Both":
+        ///           first capture is FRONT, second capture is BACK.
+        ///           After both are captured, paths are placed into NavigationCache
+        ///           and control returns to CardPage.
+        ///       - CaptureMode = "FrontOnly":
+        ///           single capture used as FRONT only.
+        ///       - CaptureMode = "BackOnly":
+        ///           single capture used as BACK only.
         /// PARAMETERS:
         ///     savedPath - The file system path of the latest capture.
         /// RETURNS:
@@ -345,6 +397,45 @@ namespace CollectIQ.Views
         /// <param name="savedPath">Captured image path.</param>
         private async Task HandleCardPageWorkflowAsync(string savedPath)
         {
+            string mode = (viewModel.CaptureMode ?? "Both").Trim();
+
+            // --- FRONT ONLY ---
+            if (string.Equals(mode, "FrontOnly", StringComparison.OrdinalIgnoreCase))
+            {
+                viewModel.FrontImagePath = savedPath;
+
+                var resultFrontOnly = new Dictionary<string, string>
+                {
+                    { "FrontPath", viewModel.FrontImagePath },
+                    { "BackPath", viewModel.BackImagePath ?? string.Empty }
+                };
+
+                NavigationCache.Set(nameof(CardPage), resultFrontOnly);
+
+                await DisplayAlert("Captured", "Front side captured successfully.", "OK");
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
+
+            // --- BACK ONLY ---
+            if (string.Equals(mode, "BackOnly", StringComparison.OrdinalIgnoreCase))
+            {
+                viewModel.BackImagePath = savedPath;
+
+                var resultBackOnly = new Dictionary<string, string>
+                {
+                    { "FrontPath", viewModel.FrontImagePath ?? string.Empty },
+                    { "BackPath", viewModel.BackImagePath }
+                };
+
+                NavigationCache.Set(nameof(CardPage), resultBackOnly);
+
+                await DisplayAlert("Captured", "Back side captured successfully.", "OK");
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
+
+            // --- BOTH (existing behaviour) ---
             if (!viewModel.IsCapturingBack)
             {
                 viewModel.FrontImagePath = savedPath;

@@ -3,11 +3,12 @@
  * PROJECT: CollectIQ (Mobile Application)
  * PROGRAMMER: Darryl Poworoznyk
  * FIRST VERSION: 2025-12-04
- * UPDATED: 2025-12-04
+ * UPDATED: 2025-12-09
  * DESCRIPTION:
  *     View model for ScanPage. Manages scanning state and
  *     captured image paths for front and back card images,
- *     as well as the return-page workflow flag.
+ *     as well as the return-page workflow flag and capture mode
+ *     (Both, FrontOnly, BackOnly) for CardPage workflows.
  */
 
 using System;
@@ -25,6 +26,7 @@ namespace CollectIQ.ViewModels
      *     - Whether a capture is in progress
      *     - Captured image paths (front and back)
      *     - Return page name for workflow routing
+     *     - Capture mode: "Both", "FrontOnly", or "BackOnly"
      */
     public class ScanPageViewModel : INotifyPropertyChanged
     {
@@ -38,6 +40,9 @@ namespace CollectIQ.ViewModels
         private string frontImagePath = string.Empty;
         private string backImagePath = string.Empty;
         private string? returnPageName;
+
+        // NEW: capture mode, defaults to "Both" for existing behaviour.
+        private string captureMode = "Both";
 
         // =========================
         // Properties
@@ -89,7 +94,7 @@ namespace CollectIQ.ViewModels
             {
                 if (!string.Equals(frontImagePath, value, StringComparison.Ordinal))
                 {
-                    frontImagePath = value;
+                    frontImagePath = value ?? string.Empty;
                     OnPropertyChanged();
                 }
             }
@@ -102,7 +107,7 @@ namespace CollectIQ.ViewModels
             {
                 if (!string.Equals(backImagePath, value, StringComparison.Ordinal))
                 {
-                    backImagePath = value;
+                    backImagePath = value ?? string.Empty;
                     OnPropertyChanged();
                 }
             }
@@ -116,6 +121,28 @@ namespace CollectIQ.ViewModels
                 if (!string.Equals(returnPageName, value, StringComparison.Ordinal))
                 {
                     returnPageName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the capture mode for CardPage workflows.
+        /// Allowed values:
+        ///   - "Both"      : capture front then back (existing behaviour)
+        ///   - "FrontOnly" : capture a single front image
+        ///   - "BackOnly"  : capture a single back image
+        /// </summary>
+        public string CaptureMode
+        {
+            get { return captureMode; }
+            set
+            {
+                string normalized = string.IsNullOrWhiteSpace(value) ? "Both" : value;
+
+                if (!string.Equals(captureMode, normalized, StringComparison.Ordinal))
+                {
+                    captureMode = normalized;
                     OnPropertyChanged();
                 }
             }

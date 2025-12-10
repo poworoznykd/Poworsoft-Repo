@@ -3,6 +3,7 @@
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-11-xx
+//  UPDATED         : 2025-12-09
 //  DESCRIPTION     :
 //      Detail / edit page for a single card. Shows front/back images,
 //      editable fields, and live eBay-based pricing insights via the
@@ -11,6 +12,12 @@
 //      into the app's local storage. When "Take Photos" is used, it
 //      reuses the ScanPage camera UI and returns results via
 //      NavigationCache for a consistent look-and-feel.
+//
+//      2025-12-09:
+//      - Added per-side camera and gallery handlers so that small icon
+//        buttons under each image can capture or pick FRONT / BACK
+//        independently using ScanPage (FrontOnly / BackOnly) or
+//        FilePicker, respectively.
 //
 
 using CollectIQ.Controls;
@@ -254,18 +261,11 @@ namespace CollectIQ.Views
         /*
          * FUNCTION     : OnTakePhotos
          * DESCRIPTION  :
-         *     Reuses the ScanPage camera UI to capture NEW front and
-         *     back images for this card. ScanPage runs in "CardPage
-         *     workflow" mode when given nameof(CardPage), saves the
-         *     images to local storage, and then drops the final
-         *     FrontPath / BackPath into NavigationCache before
-         *     returning here. OnAppearing picks those up and updates
-         *     the card + image previews.
-         * PARAMETERS   :
-         *     sender - Event source (button)
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
+         *     Legacy handler that reuses ScanPage camera UI to capture
+         *     NEW front and back images for this card in a single flow.
+         *     CardPage now also exposes per-side camera icons which use
+         *     FrontOnly / BackOnly capture modes (see OnScanFrontClicked
+         *     and OnScanBackClicked).
          */
         private async void OnTakePhotos(object sender, EventArgs e)
         {
@@ -295,19 +295,62 @@ namespace CollectIQ.Views
             }
         }
 
+        private async void OnTakeFrontPhoto(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+                await Navigation.PushAsync(new ScanPage(nameof(CardPage),"FrontOnly"));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error",
+                    $"Unable to open the scan camera page: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        private async void OnTakeBackPhoto(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+                await Navigation.PushAsync(new ScanPage(nameof(CardPage), "BackOnly"));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error",
+                    $"Unable to open the scan camera page: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
         /*
          * FUNCTION     : OnPickPhotos
          * DESCRIPTION  :
-         *     Allows the user to choose front and back images from the
-         *     device photo library. The first selected image becomes the
-         *     FRONT, and the second (if present) becomes the BACK.
-         *     Images are copied into the app's local storage and the
-         *     card's image paths and previews are updated.
-         * PARAMETERS   :
-         *     sender - Event source (button)
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
+         *     Legacy handler that attempts to pick both FRONT and BACK
+         *     images in a single multi-select flow. Some platforms or
+         *     galleries do not reliably return multiple images, which is
+         *     why CardPage now also exposes per-side gallery pickers
+         *     (OnPickFrontPhotoClicked / OnPickBackPhotoClicked).
          */
         private async void OnPickPhotos(object sender, EventArgs e)
         {
@@ -375,6 +418,80 @@ namespace CollectIQ.Views
             {
                 await DisplayAlert("Pick Error",
                     $"An error occurred while picking photos: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        /*
+         * FUNCTION     : OnScanFrontClicked
+         * DESCRIPTION  :
+         *     Opens ScanPage in CardPage workflow with CaptureMode = "FrontOnly"
+         *     so the user can capture just the FRONT image using the camera.
+         * PARAMETERS   :
+         *     sender - The camera icon button under the front image.
+         *     e      - Event arguments.
+         * RETURNS      :
+         *     void
+         */
+        private async void OnScanFrontClicked(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                await Navigation.PushAsync(
+                    new ScanPage(nameof(CardPage), "FrontOnly"));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error",
+                    $"Unable to open the scan camera page for the front image: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        /*
+         * FUNCTION     : OnScanBackClicked
+         * DESCRIPTION  :
+         *     Opens ScanPage in CardPage workflow with CaptureMode = "BackOnly"
+         *     so the user can capture just the BACK image using the camera.
+         * PARAMETERS   :
+         *     sender - The camera icon button under the back image.
+         *     e      - Event arguments.
+         * RETURNS      :
+         *     void
+         */
+        private async void OnScanBackClicked(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                await Navigation.PushAsync(
+                    new ScanPage(nameof(CardPage), "BackOnly"));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Navigation Error",
+                    $"Unable to open the scan camera page for the back image: {ex.Message}",
                     "OK");
             }
             finally
@@ -668,6 +785,136 @@ namespace CollectIQ.Views
             catch (Exception ex)
             {
                 await DisplayAlert("eBay Insights Error", ex.Message, "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        /*
+  * FUNCTION     : OnPickFrontPhotoClicked
+  * DESCRIPTION  :
+  *     Allows the user to choose a single FRONT image from the
+  *     device photo library. The selected image is copied into
+  *     the app's local storage and the card's FrontImagePath and
+  *     preview are updated.
+  * PARAMETERS   :
+  *     sender - The folder icon button under the front image.
+  *     e      - Event arguments.
+  * RETURNS      :
+  *     void
+  */
+        private async void OnPickFrontPhotoClicked(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                PickOptions options = new PickOptions
+                {
+                    PickerTitle = "Select FRONT image for this card",
+                    FileTypes = FilePickerFileType.Images
+                };
+
+                FileResult result = await FilePicker.PickAsync(options);
+
+                if (result == null)
+                {
+                    // user cancelled
+                    return;
+                }
+
+                string? savedFrontPath = await SavePhotoToLocalAsync(result, "front");
+
+                if (!string.IsNullOrWhiteSpace(savedFrontPath))
+                {
+                    viewModel.SelectedCard.FrontImagePath = savedFrontPath;
+                    frontPath = savedFrontPath;
+                    FrontImagePreview.Source = ImageSource.FromFile(savedFrontPath);
+                }
+            }
+            catch (PermissionException)
+            {
+                await DisplayAlert("Permissions Required",
+                    "Storage/photos permission is required to pick a front image.",
+                    "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Pick Error",
+                    $"An error occurred while picking the front image: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        /*
+         * FUNCTION     : OnPickBackPhotoClicked
+         * DESCRIPTION  :
+         *     Allows the user to choose a single BACK image from the
+         *     device photo library. The selected image is copied into
+         *     the app's local storage and the card's BackImagePath and
+         *     preview are updated.
+         * PARAMETERS   :
+         *     sender - The folder icon button under the back image.
+         *     e      - Event arguments.
+         * RETURNS      :
+         *     void
+         */
+        private async void OnPickBackPhotoClicked(object sender, EventArgs e)
+        {
+            if (isBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                PickOptions options = new PickOptions
+                {
+                    PickerTitle = "Select BACK image for this card",
+                    FileTypes = FilePickerFileType.Images
+                };
+
+                FileResult result = await FilePicker.PickAsync(options);
+
+                if (result == null)
+                {
+                    // user cancelled
+                    return;
+                }
+
+                string? savedBackPath = await SavePhotoToLocalAsync(result, "back");
+
+                if (!string.IsNullOrWhiteSpace(savedBackPath))
+                {
+                    viewModel.SelectedCard.BackImagePath = savedBackPath;
+                    backPath = savedBackPath;
+                    BackImagePreview.Source = ImageSource.FromFile(savedBackPath);
+                }
+            }
+            catch (PermissionException)
+            {
+                await DisplayAlert("Permissions Required",
+                    "Storage/photos permission is required to pick a back image.",
+                    "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Pick Error",
+                    $"An error occurred while picking the back image: {ex.Message}",
+                    "OK");
             }
             finally
             {

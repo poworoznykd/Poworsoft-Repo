@@ -52,7 +52,7 @@
                                     MaxLines="2" />
 
                                 <Border
-                                    Style="{StaticResource AuroraGlassBorder_Green}"
+                                    Style="{StaticResource AuroraGlassBorder}"
                                     Grid.Column="1"
                                     HorizontalOptions="End"
                                     VerticalOptions="Center"
@@ -144,20 +144,60 @@
                     </Grid>
 
                     <!-- Photo actions -->
-                    <HorizontalStackLayout
-                        Spacing="12"
-                        HorizontalOptions="Center">
-                        <Button
-                            Text="Take Photos"
-                            Clicked="OnTakePhotos"
-                            Style="{StaticResource AuroraNeonButton}"
-                            Padding="14,4" />
-                        <Button
-                            Text="Pick Photos"
-                            Clicked="OnPickPhotos"
-                            Style="{StaticResource AuroraNeonButton}"
-                            Padding="14,4" />
-                    </HorizontalStackLayout>
+                    <Grid ColumnDefinitions="*,*"
+                          ColumnSpacing="12">
+
+                        <!-- Front actions -->
+                        <HorizontalStackLayout
+                            Grid.Column="0"
+                            Spacing="12"
+                            HorizontalOptions="Center">
+                            <ImageButton
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="36"
+                                WidthRequest="36"
+                                CornerRadius="18"
+                                BackgroundColor="#0F172A"
+                                Padding="6"
+                                Source="camera_icon.png"
+                                Clicked="OnTakeFrontPhoto" />
+                            <ImageButton
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="36"
+                                WidthRequest="36"
+                                CornerRadius="18"
+                                BackgroundColor="#0F172A"
+                                Padding="6"
+                                Source="folder_icon.png"
+                                Clicked="OnPickFrontPhotoClicked" />
+                        </HorizontalStackLayout>
+
+                        <!-- Back actions -->
+                        <HorizontalStackLayout
+                            Grid.Column="1"
+                            Spacing="12"
+                            HorizontalOptions="Center">
+                            <ImageButton
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="36"
+                                WidthRequest="36"
+                                CornerRadius="18"
+                                BackgroundColor="#0F172A"
+                                Padding="6"
+                                Source="camera_icon.png"
+                                Clicked="OnTakeBackPhoto" />
+                            <ImageButton
+                                 Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="36"
+                                WidthRequest="36"
+                                CornerRadius="18"
+                                BackgroundColor="#0F172A"
+                                Padding="6"
+                                Source="folder_icon.png"
+                                Clicked="OnPickBackPhotoClicked" />
+                        </HorizontalStackLayout>
+
+                    </Grid>
 
                     <!-- Card details (editable form) -->
                     <Border Style="{StaticResource AuroraGlassBorder}">
