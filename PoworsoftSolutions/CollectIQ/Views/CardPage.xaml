@@ -21,9 +21,10 @@
                     Spacing="16">
 
                     <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
+                    <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
                     <Border Style="{StaticResource AuroraGlassBorder}">
                         <Grid RowDefinitions="Auto,Auto"
-                              ColumnSpacing="4">
+                            ColumnSpacing="4">
 
                             <!-- Title row -->
                             <Label
@@ -35,10 +36,10 @@
                                 TextColor="#F2F6FF"
                                 LineBreakMode="WordWrap" />
 
-                            <!-- Subtitle + Est Value chip row -->
+                            <!-- Subtitle + Est Value chip row + Highlight icon -->
                             <Grid
                                 Grid.Row="1"
-                                ColumnDefinitions="*,Auto"
+                                ColumnDefinitions="*,Auto,Auto"
                                 ColumnSpacing="8"
                                 VerticalOptions="Center">
 
@@ -58,22 +59,32 @@
                                     VerticalOptions="Center"
                                     Padding="10,6">
                                     <VerticalStackLayout
-                                        HorizontalOptions="Center">
+                                         HorizontalOptions="Center">
                                         <Label TextColor="White"
-                                               Text="Est. Value"
-                                               FontSize="11"
-                                               HorizontalTextAlignment="Center" />
+                                           Text="Est. Value"
+                                           FontSize="11"
+                                           HorizontalTextAlignment="Center" />
                                         <Label TextColor="White"
-                                               x:Name="EstimatedValueLabel"
-                                               Text="{Binding SelectedCard.EstimatedValue, StringFormat='${0:0.00} USD'}" 
-                                               FontSize="18"
-                                               FontAttributes="Bold"
-                                               HorizontalTextAlignment="Center" />
+                                           x:Name="EstimatedValueLabel"
+                                           Text="{Binding SelectedCard.EstimatedValue, StringFormat='${0:0.00} USD'}"
+                                           FontSize="18"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="Center" />      
                                     </VerticalStackLayout>
                                 </Border>
+
+                                <!-- Highlight reel icon button -->
+                                <ImageButton
+                                    Clicked="OnHighlightClicked"
+                                    Grid.Column="2"
+                                    Style="{StaticResource AuroraNeonRoundIconButton}"
+                                    Source="highlight_icon_3.png"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Center" />
                             </Grid>
                         </Grid>
                     </Border>
+
 
                     <!-- Front / Back images row -->
                     <Grid ColumnDefinitions="*,*"
@@ -370,25 +381,25 @@
 
                             <!-- Query + Refresh -->
                             <Grid ColumnDefinitions="*,Auto"
-      ColumnSpacing="8">
+                                ColumnSpacing="8">
 
                                 <Entry
-        Grid.Column="0"
-        x:Name="EbayQueryEntry"
-        Placeholder="Search phrase for this card…"
-        FontSize="13"
-        TextColor="#E2E8F0"
-        HorizontalOptions="FillAndExpand" />
+                                    Grid.Column="0"
+                                    x:Name="EbayQueryEntry"
+                                    Placeholder="Search phrase for this card…"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    HorizontalOptions="FillAndExpand" />    
 
                                 <!-- This button should fetch comps and then show the overlay -->
                                 <Button
-        Grid.Column="1"
-        Text="Refresh"
-        Clicked="OnRefreshInsightsClicked"
-        Style="{StaticResource AuroraNeonButton}"
-        Padding="12,4"
-        HorizontalOptions="End"
-        MinimumWidthRequest="120" />
+                                    Grid.Column="1"
+                                    Text="Refresh"
+                                    Clicked="OnRefreshInsightsClicked"
+                                    Style="{StaticResource AuroraNeonButton}"
+                                    Padding="12,4"
+                                    HorizontalOptions="End"
+                                    MinimumWidthRequest="120" />
                             </Grid>
 
 

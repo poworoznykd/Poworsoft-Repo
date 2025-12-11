@@ -21,10 +21,13 @@
 //
 
 using CollectIQ.Controls;
+using CollectIQ.Domain.Entities;
 using CollectIQ.Models;
+using CollectIQ.Models.Domain.Entities;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
+using FreakyKit.Utils;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Media;
 using Microsoft.Maui.Storage;
@@ -953,5 +956,120 @@ namespace CollectIQ.Views
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
         }
+
+        /*
+* FUNCTION     : OnHighlightClicked
+* DESCRIPTION  :
+*     Handles the highlight button click from CardPage. It:
+*         1. Attempts to use any existing player-level HighlightReel.
+*         2. Falls back to card-level highlights if present.
+*         3. If none exist, it calls HighlightService to search YouTube,
+*            attaches the found reel to both Player and Card, saves the
+*            card, and then navigates to the CollectIQ-styled
+*            HighlightPlayerPage.
+* PARAMETERS   :
+*     sender - the control that raised the event.
+*     e      - event arguments.
+* RETURNS      :
+*     none
+*/
+        private async void OnHighlightClicked(object sender, EventArgs e)
+        {
+            if (isBusy || viewModel?.SelectedCard == null)
+            {
+                return;
+            }
+
+            try
+            {
+                isBusy = true;
+
+                Card card = viewModel.SelectedCard;
+
+                // ------------------------------------------------------------
+                // 1) Try existing player-level highlight reel first.
+                // ------------------------------------------------------------
+                Player player = card.Player ?? new Player();
+                if (string.IsNullOrWhiteSpace(player.FullName))
+                {
+                    player.FullName = card.Name ?? string.Empty;
+                }
+
+                HighlightReel playerReel = player.HighlightReel ?? new HighlightReel();
+                HighlightClip? existingPlayerClip = playerReel.Clips
+                    .FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.VideoUrl));
+
+                if (existingPlayerClip != null && playerReel.Clips.Count > 0)
+                {
+                    await Navigation.PushAsync(new HighlightPlayerPage(card, playerReel, 0));
+                    return;
+                }
+
+                // ------------------------------------------------------------
+                // 2) Fall back to card-level highlights.
+                // ------------------------------------------------------------
+                HighlightReel cardReel = card.Highlights ?? new HighlightReel();
+                HighlightClip? existingCardClip = cardReel.Clips
+                    .FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.VideoUrl));
+
+                if (existingCardClip != null && cardReel.Clips.Count > 0)
+                {
+                    await Navigation.PushAsync(new HighlightPlayerPage(card, cardReel, 0));
+                    return;
+                }
+
+                // ------------------------------------------------------------
+                // 3) We have no stored highlights; search YouTube.
+                // ------------------------------------------------------------
+                string searchQuery = viewModel.BuildHighlightSearchQuery();
+
+                if (string.IsNullOrWhiteSpace(searchQuery))
+                {
+                    await DisplayAlert(
+                        "Highlights",
+                        "Please fill in at least the player/character name before searching for highlights.",
+                        "OK");
+                    return;
+                }
+
+                HighlightService highlightService = new HighlightService();
+                HighlightReel? foundReel =
+                    await highlightService.FindHighlightReelAsync(searchQuery);
+
+                if (foundReel == null || foundReel.Clips.Count == 0)
+                {
+                    await DisplayAlert(
+                        "Highlights",
+                        "Sorry, no suitable highlight reel could be found for this card.",
+                        "OK");
+                    return;
+                }
+
+                // Attach the reel to the Player and Card domain models.
+                player.HighlightReel = foundReel;
+                card.Player = player;      // Updates PlayerJson
+
+                card.Highlights = foundReel;   // Updates HighlightJson
+
+                // Persist using existing save mechanism.
+                OnSave(sender, e);
+
+                // Navigate to our CollectIQ-styled highlight player page.
+                await Navigation.PushAsync(new HighlightPlayerPage(card, foundReel, 0));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert(
+                    "Highlights Error",
+                    $"An error occurred while searching for highlights: {ex.Message}",
+                    "OK");
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+
     }
 }

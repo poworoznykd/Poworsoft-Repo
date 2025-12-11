@@ -123,6 +123,9 @@
     <MauiXaml Update="Views\CollectionPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
+    <MauiXaml Update="Views\HighlightPlayerPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
     <MauiXaml Update="Views\ImageViewerPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
