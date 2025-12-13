@@ -47,9 +47,21 @@
     <!-- OCR language data -->
     <None Remove="eng.traineddata" />
     <None Remove="tessdata\eng.traineddata" />
+    <MauiAsset Include="Resources\Data\NBA_players.csv">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </MauiAsset>
+    <MauiAsset Include="Resources\Data\NFL_players.csv">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </MauiAsset>
+    <MauiAsset Include="Resources\Data\NHL_players.csv">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </MauiAsset>
     <Content Include="tessdata\eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <MauiAsset Include="Resources\Data\MLB_players.csv">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </MauiAsset>
     <MauiAsset Include="eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </MauiAsset>

@@ -1074,6 +1074,29 @@
 
     </Style>
 
+    <Style x:Key="AuroraEntry_Blue" TargetType="Entry">
+        <!-- Typography / colour to match AuroraLabel_Blue -->
+        <Setter Property="TextColor" Value="#4BE7F2" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <!-- Field look -->
+        <Setter Property="BackgroundColor" Value="#111827" />
+        <Setter Property="PlaceholderColor" Value="#64748B" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <!-- Soft neon glow, same idea as AuroraLabel_Blue -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533E6FF"
+                    Radius="8"
+                    Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    
     <Style x:Key="AuroraLabel_Blue" TargetType="Label">
         <Setter Property="TextColor" Value="#4BE7F2" />
         <Setter Property="FontAttributes" Value="Bold" />

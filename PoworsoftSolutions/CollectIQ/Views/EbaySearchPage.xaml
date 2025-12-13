@@ -215,11 +215,11 @@
                                     <!-- TITLE -->
                                     <Label Grid.Column="1"
                                            Text="{Binding DisplayTitle}"
-                                           FontSize="14"
+                                           FontSize="12"
                                            FontAttributes="Bold"
                                            TextColor="#F9FDFF"
                                            LineBreakMode="WordWrap"
-                                           MaxLines="2" />
+                                           MaxLines="5" />
 
                                     <!-- PRICE + EST PILL -->
                                     <VerticalStackLayout Grid.Column="1"

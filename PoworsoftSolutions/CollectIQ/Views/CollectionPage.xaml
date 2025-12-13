@@ -154,97 +154,98 @@
 
                         <!-- CARD ITEM (Aurora glass card style) -->
                         <Border Style="{StaticResource AuroraGlassBorder}"
-                                Margin="16,6,16,0"
-                                Padding="10">
+        Margin="16,6,16,0"
+        Padding="10">
 
                             <Grid ColumnDefinitions="80,*,Auto"
-                                  RowDefinitions="Auto,Auto,Auto"
-                                  ColumnSpacing="10">
+          RowDefinitions="Auto,Auto,Auto"
+          ColumnSpacing="10">
 
                                 <!-- CARD IMAGE -->
                                 <Border Grid.RowSpan="3"
-                                        Grid.Column="0"
-                                        StrokeThickness="0"
-                                        Background="#0E1115"
-                                        StrokeShape="RoundRectangle 8">
+                Grid.Column="0"
+                StrokeThickness="0"
+                Background="#0E1115"
+                StrokeShape="RoundRectangle 8">
                                     <Image Source="{Binding FrontImagePath}"
-                                           WidthRequest="72"
-                                           HeightRequest="100"
-                                           Aspect="AspectFill"
-                                           Opacity="0.97" />
+                   WidthRequest="72"
+                   HeightRequest="100"
+                   Aspect="AspectFill"
+                   Opacity="0.97" />
                                 </Border>
 
-                                <!-- CARD NAME / TITLE -->
+                                <!-- LINE 1: PLAYER NAME -->
                                 <Label Grid.Row="0"
-                                       Grid.Column="1"
-                                       Text="{Binding Name}"
-                                       FontSize="16"
-                                       FontAttributes="Bold"
-                                       TextColor="#F2F6FF"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="2" />
+               Grid.Column="1"
+               Text="{Binding Name}"
+               FontSize="16"
+               FontAttributes="Bold"
+               TextColor="#F2F6FF"
+               LineBreakMode="TailTruncation"
+               MaxLines="2" />
 
-                                <!-- EST. VALUE CHIP -->
+                                <!-- EST. VALUE CHIP (unchanged) -->
                                 <Border Grid.Row="0"
-                                        Grid.Column="2"
-                                        HorizontalOptions="End"
-                                        VerticalOptions="Center"
-                                        Padding="8,4"
-                                        StrokeShape="RoundRectangle 10"
-                                        BackgroundColor="#132A3F">
+                Grid.Column="2"
+                HorizontalOptions="End"
+                VerticalOptions="Center"
+                Padding="8,4"
+                StrokeShape="RoundRectangle 10"
+                BackgroundColor="#132A3F">
                                     <HorizontalStackLayout Spacing="4"
-                                                           VerticalOptions="Center">
+                                   VerticalOptions="Center">
                                         <Label Text="Est."
-                                               FontSize="10"
-                                               TextColor="#A0AEC0" />
+                       FontSize="10"
+                       TextColor="#A0AEC0" />
                                         <Label Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
-                                               FontSize="13"
-                                               FontAttributes="Bold"
-                                               TextColor="#7CF9FF" />
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       TextColor="#7CF9FF" />
                                     </HorizontalStackLayout>
                                 </Border>
 
-                                <!-- PLAYER / TEAM / YEAR ROW -->
+                                <!-- LINE 2: SET · #NUMBER -->
                                 <Label Grid.Row="1"
-                                       Grid.Column="1"
-                                       Grid.ColumnSpan="2"
-                                       FontSize="12"
-                                       TextColor="#A0AEC0"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="1">
+               Grid.Column="1"
+               Grid.ColumnSpan="2"
+               FontSize="12"
+               TextColor="#A0AEC0"
+               LineBreakMode="TailTruncation"
+               MaxLines="1">
                                     <Label.FormattedText>
                                         <FormattedString>
-                                            <Span Text="{Binding Player}" />
+                                            <Span Text="{Binding Set}" />
                                             <Span Text=" · " />
+                                            <Span Text="{Binding Number, StringFormat='# {0}'}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+
+                                <!-- LINE 3 LEFT: TEAM · SPORT · YEAR -->
+                                <Label Grid.Row="2"
+               Grid.Column="1"
+               FontSize="11"
+               TextColor="#7C8A93"
+               LineBreakMode="TailTruncation"
+               MaxLines="1">
+                                    <Label.FormattedText>
+                                        <FormattedString>
                                             <Span Text="{Binding Team}" />
+                                            <Span Text=" · " />
+                                            <Span Text="{Binding Sport}" />
                                             <Span Text=" · " />
                                             <Span Text="{Binding Year}" />
                                         </FormattedString>
                                     </Label.FormattedText>
                                 </Label>
 
-                                <!-- SET / GRADE ROW -->
+                                <!-- LINE 3 RIGHT: GRADE (unchanged) -->
                                 <Label Grid.Row="2"
-                                       Grid.Column="1"
-                                       FontSize="11"
-                                       TextColor="#7C8A93"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="1">
-                                    <Label.FormattedText>
-                                        <FormattedString>
-                                            <Span Text="{Binding Set}" />
-                                            <Span Text="  " />
-                                            <Span Text="{Binding Number, StringFormat='# {0}'}" />
-                                        </FormattedString>
-                                    </Label.FormattedText>
-                                </Label>
-
-                                <Label Grid.Row="2"
-                                       Grid.Column="2"
-                                       FontSize="11"
-                                       TextColor="#CBD5F5"
-                                       HorizontalTextAlignment="End"
-                                       HorizontalOptions="End">
+               Grid.Column="2"
+               FontSize="11"
+               TextColor="#CBD5F5"
+               HorizontalTextAlignment="End"
+               HorizontalOptions="End">
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="{Binding GradeCompany}" />
@@ -253,8 +254,10 @@
                                         </FormattedString>
                                     </Label.FormattedText>
                                 </Label>
+
                             </Grid>
                         </Border>
+
                     </SwipeView>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

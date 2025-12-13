@@ -22,12 +22,23 @@
 *
 *     Result: feels like an in-app highlight hub, while actual playback
 *     happens in the dedicated YouTube environment (most reliable).
+*
+*     UPDATED (auto YouTube search):
+*         - If no clips are supplied in the HighlightReel, the page will
+*           call the YouTube Data API and search for:
+*               "{playerName} career highlights"
+*           using card.Player.FullName or card.Name.
+*         - The top results are converted into HighlightClip objects.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CollectIQ.Models;
 using CollectIQ.Models.Domain.Entities;
 using Microsoft.Maui.ApplicationModel;
@@ -43,8 +54,10 @@ namespace CollectIQ.Views
     {
         private readonly Card card;
         private readonly HighlightReel highlightReel;
+        private readonly int requestedStartIndex;
 
         private int currentIndex;
+        private bool isInitialized;
 
         /*
         * FUNCTION     : HighlightPlayerPage
@@ -71,10 +84,43 @@ namespace CollectIQ.Views
 
             if (highlightReel.Clips == null)
             {
-                highlightReel.Clips = new System.Collections.Generic.List<HighlightClip>();
+                highlightReel.Clips = new List<HighlightClip>();
             }
 
-            // Only keep clips that actually have a URL.
+            // Remember the requested starting index; we will clamp it later
+            // after clips (possibly from YouTube) have been loaded.
+            requestedStartIndex = startIndex;
+        }
+
+        /*
+        * FUNCTION     : OnAppearing
+        * DESCRIPTION  :
+        *     Performs async initialization once:
+        *       - Builds header
+        *       - If no clips, auto-searches YouTube for
+        *           "{playerName} career highlights"
+        *       - Builds clip strip + first clip UI, or exits if still empty.
+        */
+        protected override async void OnAppearing()
+        {
+            base.OnAppearing();
+
+            if (isInitialized)
+            {
+                return;
+            }
+
+            isInitialized = true;
+
+            InitializeCardHeader();
+
+            // If we do not have any clips, try to populate them from YouTube.
+            if (highlightReel.Clips == null || highlightReel.Clips.Count == 0)
+            {
+                await TryPopulateHighlightsFromYouTubeAsync();
+            }
+
+            // Drop any null / empty-URL clips.
             highlightReel.Clips =
                 highlightReel.Clips
                     .Where(c => c != null && !string.IsNullOrWhiteSpace(c.VideoUrl))
@@ -82,15 +128,17 @@ namespace CollectIQ.Views
 
             if (highlightReel.Clips.Count == 0)
             {
-                DisplayAlert(
+                await DisplayAlert(
                     "Highlights",
                     "No playable highlight clips are available for this card.",
-                    "OK").ContinueWith(_ => Navigation.PopAsync());
+                    "OK");
 
+                await Navigation.PopAsync();
                 return;
             }
 
             // Clamp starting index into valid range.
+            int startIndex = requestedStartIndex;
             if (startIndex < 0)
             {
                 startIndex = 0;
@@ -103,9 +151,58 @@ namespace CollectIQ.Views
 
             currentIndex = startIndex;
 
-            InitializeCardHeader();
             BuildClipStrip();
             UpdateCurrentClipUi();
+        }
+
+        /*
+        * FUNCTION     : TryPopulateHighlightsFromYouTubeAsync
+        * DESCRIPTION  :
+        *     If the supplied HighlightReel has no clips, this method
+        *     queries the YouTube Data API for "{playerName} career highlights"
+        *     and converts the first few results into HighlightClip objects.
+        */
+        private async Task TryPopulateHighlightsFromYouTubeAsync()
+        {
+            // Determine the best available player name.
+            string playerName = card.Player?.FullName;
+
+            if (string.IsNullOrWhiteSpace(playerName))
+            {
+                playerName = card.Name;
+            }
+
+            if (string.IsNullOrWhiteSpace(playerName))
+            {
+                return;
+            }
+
+            string query = $"{playerName} career highlights";
+
+            try
+            {
+                YouTubeHighlightService service = new YouTubeHighlightService();
+
+                IList<HighlightClip> clips =
+                    await service.SearchHighlightsAsync(query, maxResults: 5);
+
+                if (clips != null && clips.Count > 0)
+                {
+                    highlightReel.Clips = clips.ToList();
+
+                    // Also push back onto the card so you can persist this
+                    // into HighlightJson via Card.Highlights.
+                    card.Highlights = new HighlightReel
+                    {
+                        Clips = clips.ToList()
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[HIGHLIGHTS] YouTube search failed: {ex.Message}");
+            }
         }
 
         /*
@@ -125,10 +222,21 @@ namespace CollectIQ.Views
 
             // Subtitle similar to CardPage:
             // e.g. "2020 - BUF - Prizm Silver - #36"
-            string yearPart = string.IsNullOrWhiteSpace(card.Year.ToString()) ? string.Empty : card.Year.ToString().Trim();
-            string teamPart = string.IsNullOrWhiteSpace(card.Team) ? string.Empty : card.Team.Trim();
-            string setPart = string.IsNullOrWhiteSpace(card.Set) ? string.Empty : card.Set.Trim();
-            string numPart = string.IsNullOrWhiteSpace(card.Number) ? string.Empty : card.Number.Trim();
+            string yearPart = card.Year.HasValue
+                ? card.Year.Value.ToString(CultureInfo.InvariantCulture)
+                : string.Empty;
+
+            string teamPart = string.IsNullOrWhiteSpace(card.Team)
+                ? string.Empty
+                : card.Team.Trim();
+
+            string setPart = string.IsNullOrWhiteSpace(card.Set)
+                ? string.Empty
+                : card.Set.Trim();
+
+            string numPart = string.IsNullOrWhiteSpace(card.Number)
+                ? string.Empty
+                : card.Number.Trim();
 
             string[] subtitlePieces = new[]
             {
@@ -331,11 +439,6 @@ namespace CollectIQ.Views
         * DESCRIPTION  :
         *     Pops this page from the navigation stack and returns to the
         *     card detail view.
-        * PARAMETERS   :
-        *     sender - the back button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private async void OnBackClicked(object sender, EventArgs e)
         {
@@ -347,11 +450,6 @@ namespace CollectIQ.Views
         * DESCRIPTION  :
         *     Allows tapping anywhere on the pseudo-player surface to
         *     trigger playback (same as Play button).
-        * PARAMETERS   :
-        *     sender - the tap recognizer.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private void OnPlaySurfaceTapped(object sender, TappedEventArgs e)
         {
@@ -362,11 +460,6 @@ namespace CollectIQ.Views
         * FUNCTION     : OnPrevClipClicked
         * DESCRIPTION  :
         *     Moves to the previous highlight clip (if any).
-        * PARAMETERS   :
-        *     sender - the button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private void OnPrevClipClicked(object sender, EventArgs e)
         {
@@ -386,11 +479,6 @@ namespace CollectIQ.Views
         * FUNCTION     : OnNextClipClicked
         * DESCRIPTION  :
         *     Moves to the next highlight clip (if any).
-        * PARAMETERS   :
-        *     sender - the button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private void OnNextClipClicked(object sender, EventArgs e)
         {
@@ -411,11 +499,6 @@ namespace CollectIQ.Views
         * DESCRIPTION  :
         *     Opens the current highlight clip using Launcher so the
         *     native YouTube app or browser handles playback.
-        * PARAMETERS   :
-        *     sender - the Play button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private async void OnPlayClicked(object sender, EventArgs e)
         {
@@ -452,11 +535,6 @@ namespace CollectIQ.Views
         * FUNCTION     : OnCopyLinkClicked
         * DESCRIPTION  :
         *     Copies the current clip's URL to the clipboard.
-        * PARAMETERS   :
-        *     sender - the Copy button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private async void OnCopyLinkClicked(object sender, EventArgs e)
         {
@@ -498,11 +576,6 @@ namespace CollectIQ.Views
         * DESCRIPTION  :
         *     Invokes the platform share sheet for the current highlight
         *     clip URL.
-        * PARAMETERS   :
-        *     sender - the Share button.
-        *     e      - event args.
-        * RETURNS      :
-        *     none
         */
         private async void OnShareClicked(object sender, EventArgs e)
         {
@@ -547,10 +620,6 @@ namespace CollectIQ.Views
         *         - watch?v=VIDEO_ID
         *         - youtu.be/VIDEO_ID
         *         - embed/VIDEO_ID
-        * PARAMETERS   :
-        *     url - raw YouTube URL.
-        * RETURNS      :
-        *     string - extracted video ID or String.Empty if not found.
         */
         private static string ExtractYouTubeVideoId(string url)
         {
@@ -593,6 +662,111 @@ namespace CollectIQ.Views
             }
 
             return string.Empty;
+        }
+
+        // ==================================================================
+        //   INNER SERVICE: YOUTUBE HIGHLIGHT SEARCH
+        // ==================================================================
+
+        /// <summary>
+        /// Thin wrapper around the YouTube Data API v3 search endpoint.
+        /// Given a text query (e.g. "Josh Allen career highlights") it
+        /// returns a list of HighlightClip objects built from the results.
+        /// </summary>
+        private sealed class YouTubeHighlightService
+        {
+            // TODO: move this to secure storage / config.
+            private const string ApiKey = "YOUR_YOUTUBE_API_KEY_HERE";
+
+            private static readonly HttpClient httpClient = new HttpClient();
+
+            /// <summary>
+            /// Searches YouTube for highlight clips.
+            /// </summary>
+            /// <param name="query">Search text, e.g. "Josh Allen career highlights".</param>
+            /// <param name="maxResults">Maximum number of clips to return.</param>
+            /// <returns>List of HighlightClip objects.</returns>
+            public async Task<IList<HighlightClip>> SearchHighlightsAsync(
+                string query,
+                int maxResults = 5)
+            {
+                List<HighlightClip> clips = new List<HighlightClip>();
+
+                if (string.IsNullOrWhiteSpace(ApiKey) ||
+                    string.IsNullOrWhiteSpace(query))
+                {
+                    return clips;
+                }
+
+                string url =
+                    "https://www.googleapis.com/youtube/v3/search" +
+                    "?part=snippet" +
+                    "&type=video" +
+                    $"&maxResults={maxResults}" +
+                    $"&q={Uri.EscapeDataString(query)}" +
+                    $"&key={ApiKey}";
+
+                try
+                {
+                    string json = await httpClient.GetStringAsync(url);
+
+                    using JsonDocument doc = JsonDocument.Parse(json);
+                    JsonElement root = doc.RootElement;
+
+                    if (!root.TryGetProperty("items", out JsonElement items))
+                    {
+                        return clips;
+                    }
+
+                    foreach (JsonElement item in items.EnumerateArray())
+                    {
+                        if (!item.TryGetProperty("id", out JsonElement idElem) ||
+                            !idElem.TryGetProperty("videoId", out JsonElement vidElem))
+                        {
+                            continue;
+                        }
+
+                        string videoId = vidElem.GetString() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(videoId))
+                        {
+                            continue;
+                        }
+
+                        string title = string.Empty;
+                        string description = string.Empty;
+
+                        if (item.TryGetProperty("snippet", out JsonElement snip))
+                        {
+                            if (snip.TryGetProperty("title", out JsonElement t))
+                            {
+                                title = t.GetString() ?? string.Empty;
+                            }
+
+                            if (snip.TryGetProperty("description", out JsonElement d))
+                            {
+                                description = d.GetString() ?? string.Empty;
+                            }
+                        }
+
+                        HighlightClip clip = new HighlightClip
+                        {
+                            VideoUrl = $"https://www.youtube.com/watch?v={videoId}",
+                            Description = string.IsNullOrWhiteSpace(title)
+                                ? "Career highlight"
+                                : title
+                        };
+
+                        clips.Add(clip);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[YOUTUBE] Error during search: {ex.Message}");
+                }
+
+                return clips;
+            }
         }
     }
 }

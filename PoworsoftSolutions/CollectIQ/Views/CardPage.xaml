@@ -222,12 +222,13 @@
 
                             <Grid
                                 ColumnDefinitions="Auto,*"
-                                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                 ColumnSpacing="10"
                                 RowSpacing="6">
 
                                 <!-- Player -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="0"
                                     Grid.Column="0"
                                     Text="Player"
@@ -235,6 +236,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="PlayerEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Name}"
                                     Grid.Row="0"
                                     Grid.Column="1"
@@ -244,6 +246,7 @@
 
                                 <!-- Year -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="1"
                                     Grid.Column="0"
                                     Text="Year"
@@ -251,6 +254,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="YearEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Year}"
                                     Grid.Row="1"
                                     Grid.Column="1"
@@ -261,6 +265,7 @@
 
                                 <!-- Set -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="2"
                                     Grid.Column="0"
                                     Text="Set"
@@ -268,6 +273,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="SetEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Set}"
                                     Grid.Row="2"
                                     Grid.Column="1"
@@ -277,6 +283,7 @@
 
                                 <!-- Number -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="3"
                                     Grid.Column="0"
                                     Text="#"
@@ -284,6 +291,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="NumberEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Number}"
                                     Grid.Row="3"
                                     Grid.Column="1"
@@ -293,6 +301,7 @@
 
                                 <!-- Team -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="4"
                                     Grid.Column="0"
                                     Text="Team"
@@ -300,6 +309,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="TeamEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Team}"
                                     Grid.Row="4"
                                     Grid.Column="1"
@@ -309,6 +319,7 @@
 
                                 <!-- Grade company -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="5"
                                     Grid.Column="0"
                                     Text="Grader"
@@ -316,6 +327,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="GradeCoEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.GradeCompany}"   
                                     Grid.Row="5"
                                     Grid.Column="1"
@@ -325,6 +337,7 @@
 
                                 <!-- Grade -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="6"
                                     Grid.Column="0"
                                     Text="Grade"
@@ -332,6 +345,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="GradeEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Grade}"
                                     Grid.Row="6"
                                     Grid.Column="1"
@@ -342,6 +356,7 @@
 
                                 <!-- Purchase price -->
                                 <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="7"
                                     Grid.Column="0"
                                     Text="Purchase"
@@ -349,6 +364,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="PriceEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.PurchasePrice, StringFormat='{0:0.00}'}"
                                     Grid.Row="7"
                                     Grid.Column="1"
@@ -356,6 +372,24 @@
                                     Keyboard="Numeric"
                                     TextColor="#E2E8F0"
                                     Placeholder="What you paid" />
+                                <!-- Sport -->
+                                <Label
+                                    Style="{StaticResource AuroraLabel_Blue}"
+                                    Grid.Row="8"
+                                    Grid.Column="0"
+                                    Text="Sport"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="SportEntry"
+                                    Style="{StaticResource AuroraEntry_Blue}"
+                                     Text="{Binding SelectedCard.Sport}"
+                                    Grid.Row="8"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    Keyboard="Numeric"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="e.g. Football, Basketball, Pokémon" />
                             </Grid>
                         </VerticalStackLayout>
                     </Border>

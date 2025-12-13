@@ -46,111 +46,91 @@ namespace CollectIQ.ViewModels
         }
 
         /*
- * FUNCTION     : BuildHighlightSearchQuery
- * DESCRIPTION  :
- *     Builds a YouTube search query for the current card, using:
- *         - Player or card name
- *         - Sport (e.g., football, hockey, basketball, Pokémon)
- *         - Team and year (when available)
- *     The goal is to bias results toward professional highlight reels,
- *     not random unrelated content.
- * PARAMETERS   :
- *     none
- * RETURNS      :
- *     string - the search query to send to HighlightService.
- */
+   * FUNCTION     : BuildHighlightSearchQuery
+   * DESCRIPTION  :
+   *     Builds a YouTube search query for this card's highlight reel.
+   *     - For sports cards, we bias toward game highlights.
+   *     - For Pokémon, we bias toward TCG / character highlights.
+   * PARAMETERS   :
+   *     none
+   * RETURNS      :
+   *     string  - query string suitable for YouTube search.
+   */
         public string BuildHighlightSearchQuery()
         {
-            Card card = selectedCard;
-            if (card == null)
+            if (SelectedCard == null)
             {
                 return string.Empty;
             }
 
-            // Prefer player full name if available; otherwise fall back to card.Name.
+            // Prefer Player.FullName, fall back to card.Name
             string playerName = string.Empty;
-
-            if (card.Player != null &&
-                !string.IsNullOrWhiteSpace(card.Player.FullName))
+            if (SelectedCard.Player != null &&
+                !string.IsNullOrWhiteSpace(SelectedCard.Player.FullName))
             {
-                playerName = card.Player.FullName.Trim();
+                playerName = SelectedCard.Player.FullName.Trim();
             }
-            else if (!string.IsNullOrWhiteSpace(card.Name))
+            else if (!string.IsNullOrWhiteSpace(SelectedCard.Name))
             {
-                playerName = card.Name.Trim();
-            }
-
-            string sport = card.Sport?.Trim() ?? string.Empty;
-            string team = card.Team?.Trim() ?? string.Empty;
-            string year = card.Year.ToString()?.Trim() ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(playerName))
-            {
-                // If we do not even know the player/character name, there is no
-                // sensible highlight search to perform.
-                return string.Empty;
+                playerName = SelectedCard.Name.Trim();
             }
 
-            StringBuilder queryBuilder = new StringBuilder();
-            queryBuilder.Append(playerName);
+            string sport = SelectedCard.Sport?.Trim() ?? string.Empty;
+            string team = SelectedCard.Team?.Trim() ?? string.Empty;
+            string year = SelectedCard.Year.ToString()?.Trim() ?? string.Empty;
 
-            // Sport-specific tuning.
-            if (!string.IsNullOrWhiteSpace(sport))
-            {
-                string lowerSport = sport.ToLowerInvariant();
+            bool isPokemon =
+                sport.Contains("pokemon", StringComparison.OrdinalIgnoreCase) ||
+                playerName.Contains("pokemon", StringComparison.OrdinalIgnoreCase);
 
-                if (lowerSport.Contains("football"))
-                {
-                    // e.g. "Riley Leonard football highlights"
-                    queryBuilder.Append(" football highlights");
-                }
-                else if (lowerSport.Contains("hockey"))
-                {
-                    queryBuilder.Append(" hockey highlights");
-                }
-                else if (lowerSport.Contains("basketball"))
-                {
-                    queryBuilder.Append(" basketball highlights");
-                }
-                else if (lowerSport.Contains("baseball"))
-                {
-                    queryBuilder.Append(" baseball highlights");
-                }
-                else if (lowerSport.Contains("soccer"))
-                {
-                    queryBuilder.Append(" soccer highlights");
-                }
-                else if (lowerSport.Contains("pokemon"))
-                {
-                    // Pokémon: we care more about TCG-oriented videos.
-                    queryBuilder.Append(" pokemon tcg card highlights");
-                }
-                else
-                {
-                    queryBuilder.Append(" highlights");
-                }
-            }
-            else
-            {
-                // No sport set: still bias toward highlight reels but keep it generic.
-                queryBuilder.Append(" highlights");
-            }
+            var parts = new List<string>();
 
-            if (!string.IsNullOrWhiteSpace(team))
+            if (!string.IsNullOrWhiteSpace(playerName))
             {
-                queryBuilder.Append(' ');
-                queryBuilder.Append(team);
+                parts.Add(playerName);
             }
 
             if (!string.IsNullOrWhiteSpace(year))
             {
-                queryBuilder.Append(' ');
-                queryBuilder.Append(year);
+                parts.Add(year);
             }
 
-            return queryBuilder.ToString().Trim();
-        }
+            if (!string.IsNullOrWhiteSpace(team) &&
+                !isPokemon) // teams usually don’t matter for Pokémon
+            {
+                parts.Add(team);
+            }
 
+            if (!string.IsNullOrWhiteSpace(sport))
+            {
+                parts.Add(sport);
+            }
+
+            string baseQuery = string.Join(" ", parts);
+
+            if (isPokemon)
+            {
+                // Pokémon bias – character + TCG + highlight gameplay
+                if (!baseQuery.Contains("pokemon", StringComparison.OrdinalIgnoreCase))
+                {
+                    baseQuery += " Pokémon";
+                }
+
+                baseQuery += " TCG highlights";
+            }
+            else
+            {
+                // Sports bias – actual highlight reel, not someone’s vlog
+                if (!baseQuery.Contains("highlight", StringComparison.OrdinalIgnoreCase))
+                {
+                    baseQuery += " highlight reel";
+                }
+
+                baseQuery += " full game best plays";
+            }
+
+            return baseQuery.Trim();
+        }
 
 
     }

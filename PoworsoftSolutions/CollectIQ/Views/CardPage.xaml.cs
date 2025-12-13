@@ -3,7 +3,7 @@
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-11-xx
-//  UPDATED         : 2025-12-09
+//  UPDATED         : 2025-12-13
 //  DESCRIPTION     :
 //      Detail / edit page for a single card. Shows front/back images,
 //      editable fields, and live eBay-based pricing insights via the
@@ -18,6 +18,12 @@
 //        buttons under each image can capture or pick FRONT / BACK
 //        independently using ScanPage (FrontOnly / BackOnly) or
 //        FilePicker, respectively.
+//
+//      2025-12-13:
+//      - Integrated Player / HighlightReel composition with Card.
+//      - Added YouTube highlight search for `Player.Name career highlights`.
+//      - Refactored save logic into SaveCardInternalAsync so highlights
+//        can be persisted without re-entrancy issues.
 //
 
 using CollectIQ.Controls;
@@ -161,11 +167,6 @@ namespace CollectIQ.Views
          *     Handles tap on the front image preview. If a front
          *     image path exists, opens the image viewer so the user
          *     can zoom and annotate the front image.
-         * PARAMETERS   :
-         *     sender - Event source
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
          */
         private async void OnFrontImageTapped(object sender, EventArgs e)
         {
@@ -184,11 +185,6 @@ namespace CollectIQ.Views
          *     Handles tap on the back image preview. If a back
          *     image path exists, opens the image viewer so the user
          *     can zoom and annotate the back image.
-         * PARAMETERS   :
-         *     sender - Event source
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
          */
         private async void OnBackImageTapped(object sender, EventArgs e)
         {
@@ -206,14 +202,7 @@ namespace CollectIQ.Views
          * DESCRIPTION  :
          *     Copies a captured or picked photo into the app's local
          *     storage under a "CardImages" folder and returns the new
-         *     absolute file path. This isolates the app from any
-         *     temporary OS-managed locations.
-         * PARAMETERS   :
-         *     photo        - The FileResult returned by MediaPicker or FilePicker.
-         *     filePrefix   - A prefix such as "front" or "back" to embed
-         *                    in the filename.
-         * RETURNS      :
-         *     Task<string?> - The saved file path, or null if the copy fails.
+         *     absolute file path.
          */
         private async Task<string?> SavePhotoToLocalAsync(FileResult photo, string filePrefix)
         {
@@ -266,9 +255,6 @@ namespace CollectIQ.Views
          * DESCRIPTION  :
          *     Legacy handler that reuses ScanPage camera UI to capture
          *     NEW front and back images for this card in a single flow.
-         *     CardPage now also exposes per-side camera icons which use
-         *     FrontOnly / BackOnly capture modes (see OnScanFrontClicked
-         *     and OnScanBackClicked).
          */
         private async void OnTakePhotos(object sender, EventArgs e)
         {
@@ -281,9 +267,6 @@ namespace CollectIQ.Views
             {
                 isBusy = true;
 
-                // Use ScanPage with the existing camera look and overlay.
-                // Passing nameof(CardPage) tells ScanPage to run the
-                // CardPage workflow (see ScanPage.HandleCardPageWorkflowAsync).
                 await Navigation.PushAsync(new ScanPage(nameof(CardPage)));
             }
             catch (Exception ex)
@@ -308,7 +291,7 @@ namespace CollectIQ.Views
             try
             {
                 isBusy = true;
-                await Navigation.PushAsync(new ScanPage(nameof(CardPage),"FrontOnly"));
+                await Navigation.PushAsync(new ScanPage(nameof(CardPage), "FrontOnly"));
             }
             catch (Exception ex)
             {
@@ -350,10 +333,7 @@ namespace CollectIQ.Views
          * FUNCTION     : OnPickPhotos
          * DESCRIPTION  :
          *     Legacy handler that attempts to pick both FRONT and BACK
-         *     images in a single multi-select flow. Some platforms or
-         *     galleries do not reliably return multiple images, which is
-         *     why CardPage now also exposes per-side gallery pickers
-         *     (OnPickFrontPhotoClicked / OnPickBackPhotoClicked).
+         *     images in a single multi-select flow.
          */
         private async void OnPickPhotos(object sender, EventArgs e)
         {
@@ -429,17 +409,6 @@ namespace CollectIQ.Views
             }
         }
 
-        /*
-         * FUNCTION     : OnScanFrontClicked
-         * DESCRIPTION  :
-         *     Opens ScanPage in CardPage workflow with CaptureMode = "FrontOnly"
-         *     so the user can capture just the FRONT image using the camera.
-         * PARAMETERS   :
-         *     sender - The camera icon button under the front image.
-         *     e      - Event arguments.
-         * RETURNS      :
-         *     void
-         */
         private async void OnScanFrontClicked(object sender, EventArgs e)
         {
             if (isBusy)
@@ -466,17 +435,6 @@ namespace CollectIQ.Views
             }
         }
 
-        /*
-         * FUNCTION     : OnScanBackClicked
-         * DESCRIPTION  :
-         *     Opens ScanPage in CardPage workflow with CaptureMode = "BackOnly"
-         *     so the user can capture just the BACK image using the camera.
-         * PARAMETERS   :
-         *     sender - The camera icon button under the back image.
-         *     e      - Event arguments.
-         * RETURNS      :
-         *     void
-         */
         private async void OnScanBackClicked(object sender, EventArgs e)
         {
             if (isBusy)
@@ -508,16 +466,34 @@ namespace CollectIQ.Views
         // ---------------------------------------------------------------------
 
         /*
+         * FUNCTION     : SaveCardInternalAsync
+         * DESCRIPTION  :
+         *     Core save logic shared by OnSave and OnHighlightClicked.
+         *     Does not manipulate isBusy or show UI alerts.
+         */
+        private async Task SaveCardInternalAsync()
+        {
+            if (viewModel?.SelectedCard == null)
+            {
+                return;
+            }
+
+            if (viewModel.SelectedCard.Id != null)
+            {
+                await database.UpdateCardAsync(viewModel.SelectedCard);
+            }
+            else
+            {
+                await database.AddCardAsync(viewModel.SelectedCard);
+                isNewCard = false;
+            }
+        }
+
+        /*
          * FUNCTION     : OnSave
          * DESCRIPTION  :
          *     Saves the current card (insert or update) to the SQLite
-         *     database using SqliteDatabase, then returns to the previous
-         *     page on success.
-         * PARAMETERS   :
-         *     sender - Event source (button)
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
+         *     database and returns to the previous page on success.
          */
         private async void OnSave(object sender, EventArgs e)
         {
@@ -530,15 +506,7 @@ namespace CollectIQ.Views
             {
                 isBusy = true;
 
-                if (viewModel.SelectedCard.Id != null)
-                {
-                    await database.UpdateCardAsync(viewModel.SelectedCard);
-                }
-                else
-                {
-                    await database.AddCardAsync(viewModel.SelectedCard);
-                    isNewCard = false;
-                }
+                await SaveCardInternalAsync();
 
                 await DisplayAlert("Saved", "Card has been saved to your collection.", "OK");
                 await Navigation.PopAsync();
@@ -558,11 +526,6 @@ namespace CollectIQ.Views
          * DESCRIPTION  :
          *     Deletes the current card from the SQLite database after
          *     prompting the user for confirmation.
-         * PARAMETERS   :
-         *     sender - Event source (button)
-         *     e      - Event arguments
-         * RETURNS      :
-         *     void
          */
         private async void OnDelete(object sender, EventArgs e)
         {
@@ -609,6 +572,8 @@ namespace CollectIQ.Views
                         QueryUsed = query,
                         Summary = "No prices available for this query."
                     };
+
+                return;
             }
 
             double min = prices.First();
@@ -796,18 +761,11 @@ namespace CollectIQ.Views
         }
 
         /*
-  * FUNCTION     : OnPickFrontPhotoClicked
-  * DESCRIPTION  :
-  *     Allows the user to choose a single FRONT image from the
-  *     device photo library. The selected image is copied into
-  *     the app's local storage and the card's FrontImagePath and
-  *     preview are updated.
-  * PARAMETERS   :
-  *     sender - The folder icon button under the front image.
-  *     e      - Event arguments.
-  * RETURNS      :
-  *     void
-  */
+         * FUNCTION     : OnPickFrontPhotoClicked
+         * DESCRIPTION  :
+         *     Allows the user to choose a single FRONT image from the
+         *     device photo library.
+         */
         private async void OnPickFrontPhotoClicked(object sender, EventArgs e)
         {
             if (isBusy)
@@ -864,14 +822,7 @@ namespace CollectIQ.Views
          * FUNCTION     : OnPickBackPhotoClicked
          * DESCRIPTION  :
          *     Allows the user to choose a single BACK image from the
-         *     device photo library. The selected image is copied into
-         *     the app's local storage and the card's BackImagePath and
-         *     preview are updated.
-         * PARAMETERS   :
-         *     sender - The folder icon button under the back image.
-         *     e      - Event arguments.
-         * RETURNS      :
-         *     void
+         *     device photo library.
          */
         private async void OnPickBackPhotoClicked(object sender, EventArgs e)
         {
@@ -930,13 +881,19 @@ namespace CollectIQ.Views
             var parts = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(PlayerEntry.Text))
+            {
                 parts.Add(PlayerEntry.Text.Trim());
+            }
 
             if (!string.IsNullOrWhiteSpace(YearEntry.Text))
+            {
                 parts.Add(YearEntry.Text.Trim());
+            }
 
             if (!string.IsNullOrWhiteSpace(TeamEntry.Text))
+            {
                 parts.Add(TeamEntry.Text.Trim());
+            }
 
             var setText = SetEntry.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(setText) &&
@@ -946,7 +903,9 @@ namespace CollectIQ.Views
             }
 
             if (!string.IsNullOrWhiteSpace(NumberEntry.Text))
+            {
                 parts.Add("#" + NumberEntry.Text.Trim());
+            }
 
             if (!string.IsNullOrWhiteSpace(GradeCoEntry.Text) &&
                 !string.IsNullOrWhiteSpace(GradeEntry.Text))
@@ -958,21 +917,16 @@ namespace CollectIQ.Views
         }
 
         /*
-* FUNCTION     : OnHighlightClicked
-* DESCRIPTION  :
-*     Handles the highlight button click from CardPage. It:
-*         1. Attempts to use any existing player-level HighlightReel.
-*         2. Falls back to card-level highlights if present.
-*         3. If none exist, it calls HighlightService to search YouTube,
-*            attaches the found reel to both Player and Card, saves the
-*            card, and then navigates to the CollectIQ-styled
-*            HighlightPlayerPage.
-* PARAMETERS   :
-*     sender - the control that raised the event.
-*     e      - event arguments.
-* RETURNS      :
-*     none
-*/
+         * FUNCTION     : OnHighlightClicked
+         * DESCRIPTION  :
+         *     Handles the highlight button click from CardPage. It:
+         *         1. Attempts to use any existing player-level HighlightReel.
+         *         2. Falls back to card-level highlights if present.
+         *         3. If none exist, it searches YouTube for
+         *            "PlayerName career highlights", attaches the found
+         *            reel to both Player and Card, saves the card, and
+         *            then navigates to HighlightPlayerPage.
+         */
         private async void OnHighlightClicked(object sender, EventArgs e)
         {
             if (isBusy || viewModel?.SelectedCard == null)
@@ -996,8 +950,13 @@ namespace CollectIQ.Views
                 }
 
                 HighlightReel playerReel = player.HighlightReel ?? new HighlightReel();
-                HighlightClip? existingPlayerClip = playerReel.Clips
-                    .FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.VideoUrl));
+                if (playerReel.Clips == null)
+                {
+                    playerReel.Clips = new List<HighlightClip>();
+                }
+
+                HighlightClip existingPlayerClip = playerReel.Clips
+                    .FirstOrDefault(c => c != null && !string.IsNullOrWhiteSpace(c.VideoUrl));
 
                 if (existingPlayerClip != null && playerReel.Clips.Count > 0)
                 {
@@ -1009,8 +968,13 @@ namespace CollectIQ.Views
                 // 2) Fall back to card-level highlights.
                 // ------------------------------------------------------------
                 HighlightReel cardReel = card.Highlights ?? new HighlightReel();
-                HighlightClip? existingCardClip = cardReel.Clips
-                    .FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.VideoUrl));
+                if (cardReel.Clips == null)
+                {
+                    cardReel.Clips = new List<HighlightClip>();
+                }
+
+                HighlightClip existingCardClip = cardReel.Clips
+                    .FirstOrDefault(c => c != null && !string.IsNullOrWhiteSpace(c.VideoUrl));
 
                 if (existingCardClip != null && cardReel.Clips.Count > 0)
                 {
@@ -1021,22 +985,29 @@ namespace CollectIQ.Views
                 // ------------------------------------------------------------
                 // 3) We have no stored highlights; search YouTube.
                 // ------------------------------------------------------------
-                string searchQuery = viewModel.BuildHighlightSearchQuery();
+                string playerName = card.Name;
 
-                if (string.IsNullOrWhiteSpace(searchQuery))
+                if (string.IsNullOrWhiteSpace(playerName))
+                {
+                    playerName = player.FullName;
+                }
+
+                if (string.IsNullOrWhiteSpace(playerName))
                 {
                     await DisplayAlert(
                         "Highlights",
-                        "Please fill in at least the player/character name before searching for highlights.",
+                        "Please fill in the Player/Name field before searching for highlights.",
                         "OK");
                     return;
                 }
 
+                string searchQuery = $"{playerName} career highlights";
+
                 HighlightService highlightService = new HighlightService();
-                HighlightReel? foundReel =
+                HighlightReel foundReel =
                     await highlightService.FindHighlightReelAsync(searchQuery);
 
-                if (foundReel == null || foundReel.Clips.Count == 0)
+                if (foundReel == null || foundReel.Clips == null || foundReel.Clips.Count == 0)
                 {
                     await DisplayAlert(
                         "Highlights",
@@ -1047,12 +1018,12 @@ namespace CollectIQ.Views
 
                 // Attach the reel to the Player and Card domain models.
                 player.HighlightReel = foundReel;
-                card.Player = player;      // Updates PlayerJson
+                card.Player = player;          // Updates PlayerJson
 
                 card.Highlights = foundReel;   // Updates HighlightJson
 
-                // Persist using existing save mechanism.
-                OnSave(sender, e);
+                // Persist using shared save logic (no navigation or alert).
+                await SaveCardInternalAsync();
 
                 // Navigate to our CollectIQ-styled highlight player page.
                 await Navigation.PushAsync(new HighlightPlayerPage(card, foundReel, 0));
@@ -1069,7 +1040,5 @@ namespace CollectIQ.Views
                 isBusy = false;
             }
         }
-
-
     }
 }
