@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+* FILE: ScanPage.xaml
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-10-18
+* UPDATED: 2025-11-09
+* DESCRIPTION:
+*     Defines the user interface for scanning a trading card’s front and back
+*     using the live camera feed. Includes visual scan line animation,
+*     capture controls, and manual entry navigation.
+-->
+
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+             x:Class="CollectIQ.Views.ScanPage"
+             BackgroundColor="#05080D"
+             Title="Scan Card"
+             Disappearing="OnDisappearing">
+
+    <!-- === Root Grid Layout === -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto,80" Padding="0" RowSpacing="15">
+
+        <!-- === Live Camera Feed === -->
+        <toolkit:CameraView
+            x:Name="CameraView"
+            Grid.Row="0"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            WidthRequest="340"
+            HeightRequest="400"
+            BackgroundColor="Black"
+            CameraFlashMode="Off"
+            MediaCaptured="Camera_MediaCaptured"
+            Margin="20" />
+
+        <!-- === Animated Scan Line Overlay === -->
+        <BoxView x:Name="ScanLine"
+                 HeightRequest="3"
+                 BackgroundColor="#00FF88"
+                 Opacity="0.9"
+                 VerticalOptions="Start"
+                 HorizontalOptions="FillAndExpand"
+                 Margin="30,25,30,0" />
+
+        <!-- === Bottom Controls === -->
+        <Grid Grid.Row="1"
+              Padding="0,20,0,25"
+              RowDefinitions="Auto,Auto"
+              ColumnDefinitions="*,*">
+
+            <!-- === Capture Button === -->
+            <Button x:Name="ScanButton"
+                    Style="{StaticResource AccentButtonGreen}"
+                    Grid.ColumnSpan="2"
+                    Clicked="OnScanClicked"
+                    BackgroundColor="Transparent"
+                    BorderColor="#00FF88"
+                    BorderWidth="4"
+                    WidthRequest="88"
+                    HeightRequest="88"
+                    CornerRadius="44"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End">
+                <Button.Shadow>
+                    <Shadow Brush="#00FF88" Radius="25" />
+                </Button.Shadow>
+            </Button>
+
+            <!-- === Manual Entry Button === -->
+            <Button x:Name="ManualButton"
+                    Style="{StaticResource AccentButton_AuroraBlue}"
+                    Text="Add Manually"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    BackgroundColor="#001020"
+                    TextColor="White"
+                    BorderColor="#00B4FF"
+                    BorderWidth="2"
+                    CornerRadius="12"
+                    HeightRequest="50"
+                    Clicked="OnAddManuallyClicked"
+                    Margin="0,20,0,0" />
+
+            <!-- === Status Label === -->
+            <Label x:Name="ResultLabel"
+                   Text="Ready to scan..."
+                   FontSize="16"
+                   Grid.Row="1"
+                   Grid.Column="1"
+                   TextColor="#A8EFFF"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End" />
+        </Grid>
+
+        <controls:FuturisticNavBar Grid.Row="4" Margin="0,12,0,0"/>
+    </Grid>
+</ContentPage>

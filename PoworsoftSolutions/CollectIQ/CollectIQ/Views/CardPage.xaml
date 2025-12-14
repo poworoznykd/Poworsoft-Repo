@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Views.CardPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:CollectIQ.Views.Controls"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    Title="Card Detail"
+    Appearing="OnAppearing">
+
+    <Grid RowDefinitions="*,Auto" BackgroundColor="#050814">
+
+        <!-- MAIN CONTENT -->
+        <Grid Grid.Row="0">
+            <ScrollView>
+                <VerticalStackLayout
+                    Padding="16,12,16,24"
+                    Spacing="16">
+
+                    <!-- HEADER: TITLE + SUBTITLE + EST VALUE CHIP -->
+                    <Border Style="{StaticResource AuroraGlassBorder}">
+                        <Grid RowDefinitions="Auto,Auto" ColumnSpacing="4">
+
+                            <!-- Title row -->
+                            <Label
+                                x:Name="CardTitleLabel"
+                                Grid.Row="0"
+                                Text="Card Title"
+                                FontSize="20"
+                                FontAttributes="Bold"
+                                TextColor="#F2F6FF"
+                                LineBreakMode="WordWrap" />
+
+                            <!-- Subtitle + Est Value chip row -->
+                            <Grid
+                                Grid.Row="1"
+                                ColumnDefinitions="*,Auto"
+                                ColumnSpacing="8"
+                                VerticalOptions="Center">
+
+                                <Label
+                                    x:Name="CardSubtitleLabel"
+                                    Grid.Column="0"
+                                    Text="Year · Team · Set · #"
+                                    FontSize="12"
+                                    TextColor="#A0AEC0"
+                                    LineBreakMode="TailTruncation"
+                                    MaxLines="2" />
+
+                                <Border
+                                    Style="{StaticResource AuroraGlassBorder_Green}"
+                                    Grid.Column="1"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Center"
+                                    Padding="10,6">
+                                    <VerticalStackLayout
+                                        HorizontalOptions="Center">
+                                        <Label TextColor="White"
+                                            Text="Est. Value"
+                                            FontSize="11"
+                                            HorizontalTextAlignment="Center" />
+                                        <Label TextColor="White"
+                                            x:Name="EstimatedValueLabel"
+                                            Text="$0.00"
+                                            FontSize="18"
+                                            FontAttributes="Bold"
+                                            HorizontalTextAlignment="Center" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Front / Back images row -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <!-- Front -->
+                        <Border
+                            Style="{StaticResource AuroraGlassBorder}">
+                            <Grid>
+                                <Image
+                                    x:Name="FrontImagePreview"
+                                    Aspect="AspectFill"
+                                    Opacity="0.96" />
+                                <Grid
+                                    x:Name="FrontImageOverlay"
+                                    Background="#66000000"
+                                    IsVisible="False" />
+                                <VerticalStackLayout
+                                    Spacing="4"
+                                    VerticalOptions="End"
+                                    Padding="4,6"
+                                    Background="#66000000">
+                                    <Label
+                                        Text="Front"
+                                        FontSize="11"
+                                        TextColor="#E2E8F0" />
+                                    <Label
+                                        Text="Tap to annotate"
+                                        FontSize="9"
+                                        TextColor="#A0AEC0" />
+                                </VerticalStackLayout>
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnFrontImageTapped" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                        </Border>
+
+                        <!-- Back -->
+                        <Border
+                            Style="{StaticResource AuroraGlassBorder}"
+                            Grid.Column="1">
+                            <Grid>
+                                <Image
+                                    x:Name="BackImagePreview"
+                                    Aspect="AspectFill"
+                                    Opacity="0.96" />
+                                <Grid
+                                    x:Name="BackImageOverlay"
+                                    Background="#66000000"
+                                    IsVisible="False" />
+                                <VerticalStackLayout
+                                    Spacing="4"
+                                    VerticalOptions="End"
+                                    Padding="4,6"
+                                    Background="#66000000">
+                                    <Label
+                                        Text="Back"
+                                        FontSize="11"
+                                        TextColor="#E2E8F0" />
+                                    <Label
+                                        Text="Tap to annotate"
+                                        FontSize="9"
+                                        TextColor="#A0AEC0" />
+                                </VerticalStackLayout>
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnBackImageTapped" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Photo actions -->
+                    <HorizontalStackLayout
+                        Spacing="12"
+                        HorizontalOptions="Center">
+                        <Button
+                            Text="Take Photos"
+                            Clicked="OnTakePhotos"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="14,4" />
+                        <Button
+                            Text="Pick Photos"
+                            Clicked="OnPickPhotos"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="14,4" />
+                    </HorizontalStackLayout>
+
+                    <!-- Card details (editable form) -->
+                    <Border Style="{StaticResource AuroraGlassBorder}">
+                        <VerticalStackLayout Spacing="8">
+
+                            <Label
+                                Text="Card Details"
+                                FontAttributes="Bold"
+                                TextColor="#E2E8F0"
+                                FontSize="14" />
+
+                            <Grid
+                                ColumnDefinitions="Auto,*"
+                                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                ColumnSpacing="10"
+                                RowSpacing="6">
+
+                                <!-- Player -->
+                                <Label
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Text="Player"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="PlayerEntry"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="Player name" />
+
+                                <!-- Year -->
+                                <Label
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Text="Year"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="YearEntry"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    Keyboard="Numeric"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="e.g. 2020" />
+
+                                <!-- Set -->
+                                <Label
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    Text="Set"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="SetEntry"
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="e.g. Prizm Silver" />
+
+                                <!-- Number -->
+                                <Label
+                                    Grid.Row="3"
+                                    Grid.Column="0"
+                                    Text="#"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="NumberEntry"
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="Card number" />
+
+                                <!-- Team -->
+                                <Label
+                                    Grid.Row="4"
+                                    Grid.Column="0"
+                                    Text="Team"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="TeamEntry"
+                                    Grid.Row="4"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="Team" />
+
+                                <!-- Grade company -->
+                                <Label
+                                    Grid.Row="5"
+                                    Grid.Column="0"
+                                    Text="Grader"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="GradeCoEntry"
+                                    Grid.Row="5"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="PSA, BGS, SGC…" />
+
+                                <!-- Grade -->
+                                <Label
+                                    Grid.Row="6"
+                                    Grid.Column="0"
+                                    Text="Grade"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="GradeEntry"
+                                    Grid.Row="6"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    Keyboard="Numeric"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="e.g. 9.5" />
+
+                                <!-- Purchase price -->
+                                <Label
+                                    Grid.Row="7"
+                                    Grid.Column="0"
+                                    Text="Purchase"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    x:Name="PriceEntry"
+                                    Grid.Row="7"
+                                    Grid.Column="1"
+                                    FontSize="13"
+                                    Keyboard="Numeric"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="What you paid" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- eBay insights section -->
+                    <Border Style="{StaticResource AuroraGlassBorder}">
+                        <VerticalStackLayout Spacing="10">
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Label
+                                    Text="eBay Insights"
+                                    FontAttributes="Bold"
+                                    FontSize="14"
+                                    TextColor="#E2E8F0" />
+                                <Label
+                                    x:Name="InsightsLastUpdatedLabel"
+                                    Text="(never)"
+                                    FontSize="11"
+                                    TextColor="#A0AEC0" />
+                            </HorizontalStackLayout>
+
+                            <HorizontalStackLayout Spacing="8">
+                                <Entry
+                                    x:Name="EbayQueryEntry"
+                                    Placeholder="Search phrase for this card…"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0" />
+                                <Button
+                                    Text="Refresh"
+                                    Clicked="OnRefreshInsightsClicked"
+                                    Style="{StaticResource AuroraNeonButton}"
+                                    Padding="12,4"/>
+                            </HorizontalStackLayout>
+
+                            <Label
+                                x:Name="EbayResultLabel"
+                                Text=""
+                                FontSize="11"
+                                TextColor="#A0AEC0" />
+
+                            <!-- Compact metrics grid -->
+                            <Grid
+                                ColumnDefinitions="*,*"
+                                RowDefinitions="Auto,Auto,Auto"
+                                ColumnSpacing="16"
+                                RowSpacing="4">
+
+                                <!-- Count -->
+                                <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                                    <Label
+                                        Text="Listings"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsCountLabelCard"
+                                        Text="0"
+                                        FontSize="14"
+                                        FontAttributes="Bold"
+                                        TextColor="#F2F6FF" />
+                                </VerticalStackLayout>
+
+                                <!-- Range -->
+                                <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                                    <Label
+                                        Text="Range"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsRangeLabelCard"
+                                        Text="$0 - $0"
+                                        FontSize="14"
+                                        FontAttributes="Bold"
+                                        TextColor="#F2F6FF" />
+                                </VerticalStackLayout>
+
+                                <!-- Min -->
+                                <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                                    <Label
+                                        Text="Min"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsMinLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+
+                                <!-- Max -->
+                                <VerticalStackLayout Grid.Row="1" Grid.Column="1">
+                                    <Label
+                                        Text="Max"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsMaxLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+
+                                <!-- Median -->
+                                <VerticalStackLayout Grid.Row="2" Grid.Column="0">
+                                    <Label
+                                        Text="Median"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsMedianLabelCard"
+                                        Text="$0"
+                                        FontSize="13"
+                                        TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+
+                                <!-- Suggested -->
+                                <VerticalStackLayout Grid.Row="2" Grid.Column="1">
+                                    <Label
+                                        Text="Suggested"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        x:Name="InsightsEstimatedValueLabel"
+                                        Text="$0"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="#7CF9FF" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <!-- Sparkline graph (mirrors EbaySearchPage visual language) -->
+                            <Grid
+                                HeightRequest="80"
+                                Margin="0,8,0,4">
+                                <!-- Baseline -->
+                                <BoxView
+                                    HeightRequest="1.5"
+                                    VerticalOptions="End"
+                                    Margin="0,6,0,6"
+                                    BackgroundColor="#333333" />
+                                <!-- Bars -->
+                                <FlexLayout
+                                    x:Name="InsightsGraphLayout"
+                                    AlignItems="End"
+                                    JustifyContent="SpaceEvenly"
+                                    Margin="0,0,0,4" />
+                            </Grid>
+
+                            <!-- Summary line -->
+                            <Label
+                                x:Name="InsightsSummaryLabelCard"
+                                Text="No insights yet."
+                                FontSize="11"
+                                TextColor="#A0AEC0"
+                                LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Save / delete actions -->
+                    <HorizontalStackLayout
+                        Spacing="12"
+                        HorizontalOptions="Center">
+                        <Button
+                            Text="Save Card"
+                            Clicked="OnSave"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="18,6"/>
+                        <Button
+                            Style="{StaticResource AuroraNeonButton_Red}"
+                            Text="Delete"
+                            Clicked="OnDelete"
+                            Padding="16,6" />
+                    </HorizontalStackLayout>
+
+                </VerticalStackLayout>
+            </ScrollView>
+        </Grid>
+
+        <!-- Bottom nav bar -->
+        <controls:FuturisticNavBar
+            Grid.Row="1"
+            Margin="0,8,0,0" />
+
+    </Grid>
+</ContentPage>

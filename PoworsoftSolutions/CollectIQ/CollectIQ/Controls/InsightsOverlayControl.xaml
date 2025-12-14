@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CollectIQ.Controls.InsightsOverlayControl"
+             x:Name="Root">
+
+    <Grid>
+
+        <!-- SCRIM -->
+        <BoxView x:Name="InsightsScrim"
+                 IsVisible="False"
+                 Opacity="0"
+                 BackgroundColor="#CC000000">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnScrimTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <!-- FLOATING GLASS PANEL -->
+        <Border x:Name="InsightsOverlay"
+                IsVisible="False"
+                Style="{StaticResource AuroraGlassBorder}"
+                BackgroundColor="#FF0B1120"
+                Padding="16"
+                Opacity="0"
+                TranslationY="60"
+                Margin="16"
+                HorizontalOptions="FillAndExpand"
+                VerticalOptions="End">
+
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
+                  ColumnDefinitions="*,Auto">
+
+                <!-- HEADER -->
+                <Grid Grid.Row="0" Grid.ColumnSpan="2"
+                      ColumnDefinitions="*,Auto">
+                    <Label Text="Market Insights"
+                           Grid.Column="0"
+                           FontAttributes="Bold"
+                           FontSize="14"
+                           TextColor="#E2E8F0" />
+
+                    <Image Grid.Column="1"
+                           Source="close_icon.png"
+                           HeightRequest="20"
+                           WidthRequest="20"
+                           HorizontalOptions="End">
+                        <Image.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCloseTapped" />
+                        </Image.GestureRecognizers>
+                    </Image>
+                </Grid>
+
+                <!-- FILTER BAR -->
+                <HorizontalStackLayout Grid.Row="1"
+                                       Grid.ColumnSpan="2"
+                                       Spacing="10"
+                                       Padding="0,6,0,6"
+                                       HorizontalOptions="Center">
+
+                    <!-- Active Button -->
+                    <Border x:Name="BtnActive"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="8,4"
+                            GestureRecognizers="{StaticResource TapActiveFilter}">
+                        <Label Text="Active"
+                               TextColor="#BCE8FF"
+                               FontSize="12"
+                               HorizontalOptions="Center" />
+                    </Border>
+
+                    <!-- Sold Button -->
+                    <Border x:Name="BtnSold"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="8,4"
+                            GestureRecognizers="{StaticResource TapSoldFilter}">
+                        <Label Text="Sold"
+                               TextColor="#BCE8FF"
+                               FontSize="12"
+                               HorizontalOptions="Center" />
+                    </Border>
+
+                    <!-- Both Button -->
+                    <Border x:Name="BtnBoth"
+                            Style="{StaticResource AuroraNeonButton}"
+                            Padding="8,4"
+                            GestureRecognizers="{StaticResource TapBothFilter}">
+                        <Label Text="Both"
+                               TextColor="#BCE8FF"
+                               FontSize="12"
+                               HorizontalOptions="Center" />
+                    </Border>
+
+                </HorizontalStackLayout>
+
+                <!-- TITLE -->
+                <Label x:Name="InsightsTitleLabel"
+                       Grid.Row="2"
+                       Grid.ColumnSpan="2"
+                       Text="Card Title"
+                       TextColor="#E2E8F0"
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       Margin="0,6,0,6"
+                       LineBreakMode="TailTruncation" />
+
+                <!-- METRICS GRID -->
+                <Grid Grid.Row="3"
+                      Grid.ColumnSpan="2"
+                      ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto,Auto,Auto"
+                      ColumnSpacing="16"
+                      RowSpacing="4"
+                      Margin="0,0,0,6">
+
+                    <!-- COUNT -->
+                    <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                        <Label Text="Listings"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsCountValue"
+                               Text="0"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="#F2F6FF" />
+                    </VerticalStackLayout>
+
+                    <!-- RANGE -->
+                    <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                        <Label Text="Range"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsRangeLabel"
+                               Text="$0 - $0"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="#F2F6FF" />
+                    </VerticalStackLayout>
+
+                    <!-- MIN -->
+                    <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                        <Label Text="Min"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsMinValue"
+                               Text="$0"
+                               FontSize="13"
+                               TextColor="#E2E8F0" />
+                    </VerticalStackLayout>
+
+                    <!-- MAX -->
+                    <VerticalStackLayout Grid.Row="1" Grid.Column="1">
+                        <Label Text="Max"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsMaxValue"
+                               Text="$0"
+                               FontSize="13"
+                               TextColor="#E2E8F0" />
+                    </VerticalStackLayout>
+
+                    <!-- AVG -->
+                    <VerticalStackLayout Grid.Row="2" Grid.Column="0">
+                        <Label Text="Avg"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsAvgValue"
+                               Text="$0"
+                               FontSize="13"
+                               TextColor="#E2E8F0" />
+                    </VerticalStackLayout>
+
+                    <!-- MEDIAN -->
+                    <VerticalStackLayout Grid.Row="2" Grid.Column="1">
+                        <Label Text="Median"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsMedianValue"
+                               Text="$0"
+                               FontSize="13"
+                               TextColor="#E2E8F0" />
+                    </VerticalStackLayout>
+
+                    <!-- SUGGESTED -->
+                    <VerticalStackLayout Grid.Row="3" Grid.Column="0">
+                        <Label Text="Suggested"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsSuggestedValue"
+                               Text="$0"
+                               FontAttributes="Bold"
+                               FontSize="13"
+                               TextColor="#7CF9FF" />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Grid.Row="3" Grid.Column="1">
+                        <Label Text=""
+                               FontSize="11" />
+                        <Label Text=""
+                               FontSize="13" />
+                    </VerticalStackLayout>
+
+                </Grid>
+
+                <!-- SUMMARY -->
+                <VerticalStackLayout Grid.Row="4"
+                                     Grid.ColumnSpan="2"
+                                     Spacing="2">
+                    <Label x:Name="InsightsSummaryLabel"
+                           Text="No insights yet."
+                           FontSize="11"
+                           TextColor="#A0AEC0" />
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label x:Name="InsightsStatsLabel"
+                               Text="Count / Avg / Min / Max"
+                               FontSize="11"
+                               TextColor="#A0AEC0" />
+                        <Label x:Name="InsightsRangeLabelCard"
+                               Text="(Range / days)"
+                               FontSize="11"
+                               TextColor="#7CF9FF"
+                               HorizontalOptions="EndAndExpand" />
+                    </HorizontalStackLayout>
+
+                    <BoxView HeightRequest="1"
+                             BackgroundColor="#333333"
+                             Margin="0,4,0,0" />
+                </VerticalStackLayout>
+
+                <!-- GRAPH -->
+                <Grid Grid.Row="5"
+                      Grid.ColumnSpan="2"
+                      HeightRequest="80"
+                      Margin="0,8,0,4">
+
+                    <BoxView HeightRequest="1.5"
+                             VerticalOptions="End"
+                             Margin="0,6,0,6"
+                             BackgroundColor="#333333" />
+
+                    <FlexLayout x:Name="InsightsGraphLayout"
+                                AlignItems="End"
+                                JustifyContent="SpaceEvenly"
+                                Margin="0,0,0,4" />
+                </Grid>
+
+                <!-- LIST -->
+                <CollectionView x:Name="InsightsListView"
+                                Grid.Row="6"
+                                Grid.ColumnSpan="2"
+                                HeightRequest="240">
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <SwipeView>
+                                <SwipeView.RightItems>
+                                    <SwipeItems Mode="Reveal">
+                                        <SwipeItem Text="Remove"
+                                                   BackgroundColor="#8B0000"
+                                                   CommandParameter="{Binding .}"
+                                                   Invoked="OnRemoveCompSwipe" />
+                                    </SwipeItems>
+                                </SwipeView.RightItems>
+
+                                <Frame BackgroundColor="#141821"
+                                       BorderColor="#2D3748"
+                                       CornerRadius="10"
+                                       Padding="8"
+                                       Margin="0,4">
+
+                                    <Grid ColumnDefinitions="*,Auto"
+                                          RowDefinitions="Auto,Auto">
+
+                                        <Label Grid.Row="0"
+                                               Grid.Column="0"
+                                               Text="{Binding Title}"
+                                               FontSize="13"
+                                               TextColor="#E2E8F0"
+                                               LineBreakMode="TailTruncation"
+                                               MaxLines="2" />
+
+                                        <Label Grid.Row="1"
+                                               Grid.Column="0"
+                                               Text="{Binding SoldDateDisplay}"
+                                               FontSize="11"
+                                               TextColor="#A0AEC0" />
+
+                                        <VerticalStackLayout Grid.Row="0"
+                                                             Grid.Column="1"
+                                                             Grid.RowSpan="2"
+                                                             Spacing="2"
+                                                             HorizontalOptions="End"
+                                                             VerticalOptions="Center">
+
+                                            <Label Text="{Binding Price, StringFormat='${0:F2}'}"
+                                                   TextColor="#7CF9FF"
+                                                   FontSize="14"
+                                                   FontAttributes="Bold"
+                                                   HorizontalTextAlignment="End" />
+
+                                            <Label Text="{Binding Status}"
+                                                   TextColor="#CBD5F5"
+                                                   FontSize="11"
+                                                   HorizontalTextAlignment="End" />
+                                        </VerticalStackLayout>
+
+                                    </Grid>
+                                </Frame>
+
+                            </SwipeView>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+
+                </CollectionView>
+
+            </Grid>
+        </Border>
+
+    </Grid>
+</ContentView>

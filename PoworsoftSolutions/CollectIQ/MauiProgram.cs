@@ -51,6 +51,10 @@ namespace CollectIQ
             builder.Services.AddSingleton<IUserRoleBehavior, RegularRoleBehavior>();
             builder.Services.AddSingleton<IUserRoleBehavior, GuestRoleBehavior>();
 
+            // App-wide mode tracking (Collect / Inspect / Trade)
+            builder.Services.AddSingleton<AppModeService>();
+
+
 
 #if ANDROID
             NavigationViewHandler.Mapper.AppendToMapping("CustomNavBarColors", (handler, view) =>

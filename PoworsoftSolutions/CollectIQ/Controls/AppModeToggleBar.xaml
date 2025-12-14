@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="CollectIQ.Controls.AppModeToggleBar"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Root"
+    BackgroundColor="Transparent">
+
+    <!-- Glassy container so it looks like it belongs with the dashboard cards -->
+    <Border
+        Style="{StaticResource AuroraGlassBorder}"
+        Margin="12,6,12,4"
+        Padding="12,8"
+        StrokeShape="RoundRectangle 18">
+
+        <Grid ColumnDefinitions="*,Auto"
+              ColumnSpacing="16"
+              VerticalOptions="Center">
+
+            <!-- LEFT: Title + current lane -->
+            <VerticalStackLayout
+                Grid.Column="0"
+                Spacing="2"
+                VerticalOptions="Center">
+
+                <!-- Tiny tag so we don’t spam the word 'Mode' -->
+                <Label
+                    Text="CollectIQ lanes"
+                    Style="{StaticResource AuroraLabel_Blue}"
+                    FontSize="11" />
+
+                <Label
+                    x:Name="CurrentModeLabel"
+                    Text="Collecting lane"
+                    FontSize="11"
+                    TextColor="#9FB3C8" />
+            </VerticalStackLayout>
+
+            <!-- RIGHT: Three neon round buttons -->
+            <HorizontalStackLayout
+                Grid.Column="1"
+                Spacing="12"
+                VerticalOptions="Center">
+
+                <!-- COLLECT -->
+                <VerticalStackLayout Spacing="4"
+                                     HorizontalOptions="Center">
+                    <ImageButton
+                        x:Name="CollectButton"
+                        Style="{StaticResource AuroraNeonRoundIconButton}"
+                        Source="collect_icon.png"
+                        Clicked="OnCollectClicked" />
+                    <Label
+                        x:Name="CollectLabel"
+                        Text="COLLECT"
+                        FontSize="10"
+                        HorizontalTextAlignment="Center"
+                        TextColor="#4BE7F2" />
+                </VerticalStackLayout>
+
+                <!-- INSPECT -->
+                <VerticalStackLayout Spacing="4"
+                                     HorizontalOptions="Center">
+                    <ImageButton
+                        x:Name="InspectButton"
+                        Style="{StaticResource AuroraNeonRoundIconButton}"
+                        Source="inspect_icon.png"
+                        Clicked="OnInspectClicked" />
+                    <Label
+                        x:Name="InspectLabel"
+                        Text="INSPECT"
+                        FontSize="10"
+                        HorizontalTextAlignment="Center"
+                        TextColor="#64748B" />
+                </VerticalStackLayout>
+
+                <!-- TRADE (parked for later, but visible) -->
+                <VerticalStackLayout Spacing="4"
+                                     HorizontalOptions="Center">
+                    <ImageButton
+                        x:Name="TradeButton"
+                        Style="{StaticResource AuroraNeonRoundIconButton}"
+                        Source="trade_icon.png"
+                        Clicked="OnTradeClicked" />
+                    <Label
+                        x:Name="TradeLabel"
+                        Text="TRADE"
+                        FontSize="10"
+                        HorizontalTextAlignment="Center"
+                        TextColor="#64748B" />
+                </VerticalStackLayout>
+
+            </HorizontalStackLayout>
+        </Grid>
+    </Border>
+</ContentView>

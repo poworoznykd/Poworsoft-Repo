@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net9.0-android</TargetFrameworks>
@@ -30,48 +30,24 @@
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-android|AnyCPU'">
-    <EmbedAssembliesIntoApk>False</EmbedAssembliesIntoApk>
-	<_MauiForceXamlCForDebug>true</_MauiForceXamlCForDebug>
-  </PropertyGroup>
-
   <ItemGroup>
     <!-- Icons and splash -->
     <MauiIcon Include="Resources\AppIcon\appicon.png" />
     <MauiSplashScreen Include="Resources\Splash\splash.png" Color="#0B0B0D" BaseSize="128,128" />
 
     <!-- Images -->
-    <MauiImage Include="Resources\Images\**\*" />
+    <MauiImage Include="Resources\Images\*" />
     <AndroidResource Remove="Platforms\Android\Resources\values\styles.xml" />
 
     <!-- OCR language data -->
     <None Remove="eng.traineddata" />
     <None Remove="tessdata\eng.traineddata" />
-    <MauiAsset Include="Resources\Data\NBA_players.csv">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </MauiAsset>
-    <MauiAsset Include="Resources\Data\NFL_players.csv">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </MauiAsset>
-    <MauiAsset Include="Resources\Data\NHL_players.csv">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </MauiAsset>
     <Content Include="tessdata\eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <MauiAsset Include="Resources\Data\MLB_players.csv">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </MauiAsset>
     <MauiAsset Include="eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </MauiAsset>
-    <MauiAsset Include="Resources\Raw\secure.json" LogicalName="secure.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </MauiAsset>
-	<None Update="Resources\Raw\secure.json">
-	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	</None>
-
 
     <MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
   </ItemGroup>
@@ -80,7 +56,6 @@
     <!-- Core Dependencies -->
     <PackageReference Include="CommunityToolkit.Maui" Version="12.2.0" />
     <PackageReference Include="CommunityToolkit.Maui.Camera" Version="3.0.2" />
-    <PackageReference Include="FreakyControls" Version="0.6.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
@@ -102,9 +77,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Views\CardPage.xaml.cs">
-      <DependentUpon>CardPage.xaml</DependentUpon>
-    </Compile>
     <Compile Update="Views\CollectionPage.xaml.cs">
       <DependentUpon>CollectionPage.xaml</DependentUpon>
     </Compile>
@@ -114,34 +86,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <MauiXaml Update="Controls\FilterOverlayControl.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Controls\InsightsOverlayControl.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Controls\AppModeToggleBar.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Views\CardPage.xaml">
+    <MauiXaml Update="Views\AddCardPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\AuthSheet.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Controls\FuturisticNavBar.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\DashboardPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\CollectionPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Views\HighlightPlayerPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-    <MauiXaml Update="Views\ImageViewerPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\LandingPage.xaml">
@@ -154,10 +108,5 @@
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
   </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Views\Controls\" />
-  </ItemGroup>
-
 
 </Project>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="CollectIQ.Controls.FuturisticNavBar"
+    BackgroundColor="Transparent"
+    HeightRequest="90">
+
+    <!-- Gradient background to blend page content into the nav bar -->
+    <Grid RowDefinitions="Auto"
+          Padding="0,0,0,4"
+          VerticalOptions="End">
+
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <!-- Top: almost transparent, lets page content show through -->
+                <GradientStop Color="#00050814" Offset="0.0" />
+                <!-- Bottom: solid page background (#050814) -->
+                <GradientStop Color="#FF050814" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <!-- Aurora-style glass pill nav -->
+        <Border Style="{StaticResource AuroraGlassBorder}"
+                Margin="16,0,16,0"
+                Padding="18,8"
+                VerticalOptions="End">
+
+            <Grid RowDefinitions="Auto"
+                  ColumnDefinitions="*,*,*,*"
+                  ColumnSpacing="28"
+                  VerticalOptions="Center">
+
+                <!-- Home -->
+                <VerticalStackLayout x:Name="HomeWrapper"
+                                     Spacing="4"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Path x:Name="HomeIcon"
+                          Data="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+                          Stroke="#7CF9FF"
+                          StrokeThickness="2"
+                          HeightRequest="24"
+                          WidthRequest="28"
+                          HorizontalOptions="Center" />
+                    <Label Text="Home"
+                           FontSize="11"
+                           TextColor="#E2E8F0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+
+                <!-- Scan -->
+                <VerticalStackLayout x:Name="ScanWrapper"
+                                     Spacing="4"
+                                     Grid.Column="1"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Path x:Name="ScanIcon"
+                          Data="M3 4v6h2V6h4V4H3zm12 0v2h4v4h2V4h-6zM3 14v6h6v-2H5v-4H3zm16 0v4h-4v2h6v-6h-2z"
+                          Stroke="#A0AEC0"
+                          StrokeThickness="2"
+                          HeightRequest="24"
+                          WidthRequest="28"
+                          HorizontalOptions="Center" />
+                    <Label Text="Scan"
+                           FontSize="11"
+                           TextColor="#A0AEC0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+
+                <!-- Collection -->
+                <VerticalStackLayout x:Name="CollectionWrapper"
+                                     Spacing="4"
+                                     Grid.Column="2"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Path x:Name="CollectionIcon"
+                          Data="M4 4h16v2H4V4zm0 4h16v2H4V8zm0 4h10v2H4v-2z"
+                          Stroke="#A0AEC0"
+                          StrokeThickness="2"
+                          HeightRequest="24"
+                          WidthRequest="28"
+                          HorizontalOptions="Center" />
+                    <Label Text="Collection"
+                           FontSize="11"
+                           TextColor="#A0AEC0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+
+                <!-- Search -->
+                <VerticalStackLayout x:Name="SearchWrapper"
+                                     Spacing="4"
+                                     Grid.Column="3"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Path x:Name="SearchIcon"
+                          Data="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16a6.471 6.471 0 004.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+                          Stroke="#A0AEC0"
+                          StrokeThickness="2"
+                          HeightRequest="24"
+                          WidthRequest="28"
+                          HorizontalOptions="Center" />
+                    <Label Text="Search"
+                           FontSize="11"
+                           TextColor="#A0AEC0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentView>
