@@ -63,10 +63,11 @@
                                      HorizontalOptions="Center">
                     <ImageButton
                         x:Name="InspectButton"
-                        Style="{StaticResource AuroraNeonRoundIconButton}"
+                        Style="{StaticResource AuroraNeonRoundIconButton_Purple}"
                         Source="inspect_icon.png"
                         Clicked="OnInspectClicked" />
                     <Label
+                        Style="{StaticResource AuroraLabel_Purple}"
                         x:Name="InspectLabel"
                         Text="INSPECT"
                         FontSize="10"
@@ -79,7 +80,7 @@
                                      HorizontalOptions="Center">
                     <ImageButton
                         x:Name="TradeButton"
-                        Style="{StaticResource AuroraNeonRoundIconButton}"
+                        Style="{StaticResource AuroraNeonRoundIconButton_Amber}"
                         Source="trade_icon.png"
                         Clicked="OnTradeClicked" />
                     <Label

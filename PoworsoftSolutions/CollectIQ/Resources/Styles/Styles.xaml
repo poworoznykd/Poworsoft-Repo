@@ -1156,4 +1156,258 @@
         </Setter>
     </Style>
 
+
+    <!-- ===================== -->
+    <!--  PURPLE VARIANTS      -->
+    <!-- ===================== -->
+
+    <!-- Aurora Neon Holographic Button – PURPLE -->
+    <Style x:Key="AuroraNeonButton_Purple" TargetType="Button">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Soft violet -->
+                    <GradientStop Color="#C084FC" Offset="0.0" />
+                    <!-- Deep purple -->
+                    <GradientStop Color="#7C3AED" Offset="0.7" />
+                    <!-- Light lavender glow -->
+                    <GradientStop Color="#E9D5FF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCB794F4" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA7C3AED" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="TextColor" Value="#FDF4FF" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#E5C4FF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#D17C3AED" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#F5EFFE" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#E67C3AED" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Neon Round Icon ImageButton – PURPLE -->
+    <Style x:Key="AuroraNeonRoundIconButton_Purple" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#C084FC" Offset="0.0" />
+                    <GradientStop Color="#7C3AED" Offset="0.7" />
+                    <GradientStop Color="#E9D5FF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCB794F4" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA7C3AED" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Purple" TargetType="Label">
+        <Setter Property="TextColor" Value="#E9D5FF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#663B0764" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraEntry_Purple" TargetType="Entry">
+        <Setter Property="TextColor" Value="#E9D5FF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <Setter Property="BackgroundColor" Value="#171227" />
+        <Setter Property="PlaceholderColor" Value="#9F7AEA" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#663B0764" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================== -->
+    <!--  TRADE / AMBER VARS   -->
+    <!-- ===================== -->
+
+    <!-- Aurora Neon Holographic Button – AMBER (Trade) -->
+    <Style x:Key="AuroraNeonButton_Amber" TargetType="Button">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Warm amber / gold -->
+                    <GradientStop Color="#FBBF24" Offset="0.0" />
+                    <!-- Deeper orange -->
+                    <GradientStop Color="#F97316" Offset="0.7" />
+                    <!-- Soft highlight -->
+                    <GradientStop Color="#FEF3C7" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCFACC15" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AAF97316" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="TextColor" Value="#FFFBEB" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#FFFDE68A" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CCF97316" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#FFF9F5" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DDF97316" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Neon Round Icon ImageButton – AMBER (Trade) -->
+    <Style x:Key="AuroraNeonRoundIconButton_Amber" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FBBF24" Offset="0.0" />
+                    <GradientStop Color="#F97316" Offset="0.7" />
+                    <GradientStop Color="#FEF3C7" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCFACC15" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AAF97316" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Amber" TargetType="Label">
+        <Setter Property="TextColor" Value="#FEF3C7" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6649240F" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraEntry_Amber" TargetType="Entry">
+        <Setter Property="TextColor" Value="#FEF3C7" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <Setter Property="BackgroundColor" Value="#1F1308" />
+        <Setter Property="PlaceholderColor" Value="#F59E0B" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6649240F" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aliases used by the BOTTOM nav bar -->
+    <Style x:Key="AuroraNeonButton_Current" TargetType="Button"
+           BasedOn="{StaticResource AuroraNeonButton}" />
+
+    <Style x:Key="AuroraNeonRoundIconButton_Current" TargetType="ImageButton"
+           BasedOn="{StaticResource AuroraNeonRoundIconButton}" />
+
+    <Style x:Key="AuroraLabel_Current" TargetType="Label"
+           BasedOn="{StaticResource AuroraLabel_Blue}" />
+
+    <Style x:Key="AuroraEntry_Current" TargetType="Entry"
+           BasedOn="{StaticResource AuroraEntry_Blue}" />
+
+
+
 </ResourceDictionary>

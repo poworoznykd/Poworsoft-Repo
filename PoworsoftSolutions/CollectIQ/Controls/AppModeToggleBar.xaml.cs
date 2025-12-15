@@ -7,17 +7,25 @@
 //      Futuristic top lane toggle for CollectIQ.
 //      - Three neon round buttons: COLLECT, INSPECT, TRADE
 //      - Visually highlights the active lane
-//      - Raises ModeChanged so pages can react later
+//      - Syncs with AppModeService so the rest of the app (e.g. bottom nav)
+//        can react to mode changes.
+//      - Raises ModeChanged for any listeners on the page.
 //
-
 using System;
 using CollectIQ.Navigation;
+using CollectIQ.Services;
+using CollectIQ.Utilities;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Controls
 {
     public partial class AppModeToggleBar : ContentView
     {
+        /// <summary>
+        /// Backing service that holds the global app mode.
+        /// </summary>
+        private readonly AppModeService appModeService;
+
         /// <summary>
         /// Currently selected lane.
         /// </summary>
@@ -32,7 +40,50 @@ namespace CollectIQ.Controls
         public AppModeToggleBar()
         {
             InitializeComponent();
-            ApplyModeVisuals(AppMode.Collect);
+
+            // Resolve the central mode service from DI via ServiceHelper.
+            appModeService = ServiceHelper.Services?.GetService(typeof(AppModeService)) as AppModeService;
+
+            if (appModeService != null)
+            {
+                // Start from whatever the service says.
+                CurrentMode = appModeService.CurrentMode;
+                ApplyModeVisuals(CurrentMode);
+
+                // Listen for mode changes coming from somewhere else (e.g. future settings page).
+                appModeService.ModeChanged += OnAppModeServiceModeChanged;
+            }
+            else
+            {
+                // Fallback: default to Collect if service is not available.
+                ApplyModeVisuals(AppMode.Collect);
+            }
+        }
+
+        /*
+         * FUNCTION     : OnAppModeServiceModeChanged
+         * DESCRIPTION  :
+         *     Handles mode changes raised by AppModeService so that the
+         *     top toggle stays in sync even if some other component
+         *     changes the mode.
+         * PARAMETERS   :
+         *     sender - Event source (AppModeService)
+         *     mode   - Newly selected AppMode
+         * RETURNS     :
+         *     void
+         */
+        private void OnAppModeServiceModeChanged(object sender, AppMode mode)
+        {
+            if (CurrentMode == mode)
+            {
+                return;
+            }
+
+            CurrentMode = mode;
+            ApplyModeVisuals(mode);
+
+            // Bubble the event up to any subscribers.
+            ModeChanged?.Invoke(this, mode);
         }
 
         // ------------------------------------------------------------
@@ -58,6 +109,18 @@ namespace CollectIQ.Controls
         //  MODE MANAGEMENT
         // ------------------------------------------------------------
 
+        /*
+         * FUNCTION     : SetMode
+         * DESCRIPTION  :
+         *     Central helper for changing the current mode from this
+         *     control. Updates visuals, raises the local ModeChanged
+         *     event, and pushes the new mode into AppModeService so the
+         *     rest of the app (e.g. bottom nav) updates.
+         * PARAMETERS   :
+         *     newMode - The newly selected application mode.
+         * RETURNS     :
+         *     void
+         */
         private void SetMode(AppMode newMode)
         {
             if (CurrentMode == newMode)
@@ -68,11 +131,15 @@ namespace CollectIQ.Controls
             CurrentMode = newMode;
             ApplyModeVisuals(newMode);
 
+            // Notify any page-level subscribers.
             ModeChanged?.Invoke(this, newMode);
 
-            // If you wire up an AppModeService later, you can also do:
-            // var svc = Helpers.ServiceHelper.GetService<AppModeService>();
-            // svc?.SetMode(newMode);
+            // Push into the central mode service so all other listeners (bottom nav, etc.)
+            // get notified and update their UI.
+            if (appModeService != null && appModeService.CurrentMode != newMode)
+            {
+                appModeService.CurrentMode = newMode;
+            }
         }
 
         /// <summary>

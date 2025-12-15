@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Pages.InspectCenteringPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:CollectIQ.ViewModels"
+    x:DataType="vm:InspectCenteringViewModel"
+    Title="Centering"
+    BackgroundColor="#050814">
+
+    <Grid RowDefinitions="Auto,*,Auto"
+          Padding="16,12,16,20">
+
+        <!-- HEADER / SUMMARY -->
+        <Grid Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="0,0,0,8">
+
+            <!-- Thumbnail -->
+            <Border WidthRequest="64" HeightRequest="88"
+                    Stroke="#883F3BF5"
+                    StrokeThickness="1.5"
+                    BackgroundColor="#111827"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Center">
+                <Image Aspect="AspectFill"
+                       Source="{Binding CardThumbnailSource}" />
+            </Border>
+
+            <!-- Text summary -->
+            <VerticalStackLayout Grid.Column="1"
+                                 Spacing="2"
+                                 VerticalOptions="Center">
+                <Label Text="{Binding CardTitle}"
+                       FontSize="14"
+                       FontAttributes="Bold"
+                       TextColor="#E2E8F0" />
+                <Label Text="{Binding CardSubtitle}"
+                       FontSize="12"
+                       TextColor="#A0AEC0" />
+                <Label Text="{Binding CenteringSummary}"
+                       FontSize="12"
+                       TextColor="#C4B5FD" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- MAIN CANVAS: IMAGE + GUIDES -->
+        <Grid Row="1"
+              x:Name="cardCanvas"
+              Margin="0,4,0,8"
+              BackgroundColor="Transparent"
+              SizeChanged="OnCardCanvasSizeChanged">
+
+            <!-- Card image (zoomable) -->
+            <Grid>
+                <Image x:Name="cardImage"
+                       Aspect="AspectFit"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       Source="{Binding CardImageSource}">
+                    <Image.GestureRecognizers>
+                        <PinchGestureRecognizer PinchUpdated="OnCardImagePinchUpdated" />
+                    </Image.GestureRecognizers>
+                </Image>
+            </Grid>
+
+            <!-- Overlay guides -->
+            <Grid x:Name="guideOverlay"
+                  InputTransparent="False">
+
+                <!-- Vertical guides -->
+                <BoxView x:Name="leftGuide"
+                         WidthRequest="2"
+                         HorizontalOptions="Start"
+                         VerticalOptions="Fill"
+                         Color="#C4B5FD"
+                         Opacity="0.9">
+                    <BoxView.GestureRecognizers>
+                        <PanGestureRecognizer PanUpdated="OnHorizontalGuidePanUpdated" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+
+                <BoxView x:Name="rightGuide"
+                         WidthRequest="2"
+                         HorizontalOptions="End"
+                         VerticalOptions="Fill"
+                         Color="#C4B5FD"
+                         Opacity="0.9">
+                    <BoxView.GestureRecognizers>
+                        <PanGestureRecognizer PanUpdated="OnHorizontalGuidePanUpdated" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+
+                <!-- Horizontal guides -->
+                <BoxView x:Name="topGuide"
+                         HeightRequest="2"
+                         VerticalOptions="Start"
+                         HorizontalOptions="Fill"
+                         Color="#C4B5FD"
+                         Opacity="0.9">
+                    <BoxView.GestureRecognizers>
+                        <PanGestureRecognizer PanUpdated="OnVerticalGuidePanUpdated" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+
+                <BoxView x:Name="bottomGuide"
+                         HeightRequest="2"
+                         VerticalOptions="End"
+                         HorizontalOptions="Fill"
+                         Color="#C4B5FD"
+                         Opacity="0.9">
+                    <BoxView.GestureRecognizers>
+                        <PanGestureRecognizer PanUpdated="OnVerticalGuidePanUpdated" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+            </Grid>
+        </Grid>
+
+        <!-- HUD / RESULTS -->
+        <Border Grid.Row="2"
+                Stroke="#553F3BF5"
+                StrokeThickness="1.5"
+                BackgroundColor="#111827"
+                Padding="12,10"
+                StrokeShape="RoundRectangle 20">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+
+                <!-- Horizontal centering -->
+                <Label Grid.Row="0" Grid.Column="0"
+                       Text="Horizontal"
+                       FontSize="12"
+                       TextColor="#E5E7EB" />
+                <Label Grid.Row="0" Grid.Column="1"
+                       Text="{Binding HorizontalRatioText}"
+                       FontSize="12"
+                       HorizontalTextAlignment="End"
+                       TextColor="#C4B5FD" />
+
+                <!-- Vertical centering -->
+                <Label Grid.Row="1" Grid.Column="0"
+                       Text="Vertical"
+                       FontSize="12"
+                       TextColor="#E5E7EB" />
+                <Label Grid.Row="1" Grid.Column="1"
+                       Text="{Binding VerticalRatioText}"
+                       FontSize="12"
+                       HorizontalTextAlignment="End"
+                       TextColor="#C4B5FD" />
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

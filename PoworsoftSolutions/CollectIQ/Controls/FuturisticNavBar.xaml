@@ -31,80 +31,134 @@
                   ColumnSpacing="28"
                   VerticalOptions="Center">
 
-                <!-- Home -->
-                <VerticalStackLayout x:Name="HomeWrapper"
+                <!-- SLOT 1 -->
+                <VerticalStackLayout x:Name="Slot1Wrapper"
                                      Spacing="4"
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center">
-                    <Path x:Name="HomeIcon"
-                          Data="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
-                          Stroke="#7CF9FF"
-                          StrokeThickness="2"
-                          HeightRequest="24"
-                          WidthRequest="28"
-                          HorizontalOptions="Center" />
-                    <Label Text="Home"
-                           FontSize="11"
-                           TextColor="#E2E8F0"
+
+                    <!-- Icon container so we can glow the border -->
+                    <Border x:Name="Slot1IconContainer"
+                            StrokeThickness="0"
+                            Stroke="Transparent"
+                            Background="Transparent"
+                            Padding="4">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+
+                        <Image x:Name="Slot1Icon"
+                               Source="home_icon.png"
+                               HeightRequest="24"
+                               WidthRequest="28"
+                               HorizontalOptions="Center"
+                               Aspect="AspectFit"
+                               Opacity="0.85" />
+                    </Border>
+
+                    <Label x:Name="Slot1Label"
+                           Text="Home"
+                           FontSize="8"
+                           TextColor="#0ACAF9"
                            HorizontalOptions="Center" />
                 </VerticalStackLayout>
 
-                <!-- Scan -->
-                <VerticalStackLayout x:Name="ScanWrapper"
+                <!-- SLOT 2 -->
+                <VerticalStackLayout x:Name="Slot2Wrapper"
                                      Spacing="4"
                                      Grid.Column="1"
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center">
-                    <Path x:Name="ScanIcon"
-                          Data="M3 4v6h2V6h4V4H3zm12 0v2h4v4h2V4h-6zM3 14v6h6v-2H5v-4H3zm16 0v4h-4v2h6v-6h-2z"
-                          Stroke="#A0AEC0"
-                          StrokeThickness="2"
-                          HeightRequest="24"
-                          WidthRequest="28"
-                          HorizontalOptions="Center" />
-                    <Label Text="Scan"
-                           FontSize="11"
-                           TextColor="#A0AEC0"
+
+                    <Border x:Name="Slot2IconContainer"
+                            StrokeThickness="0"
+                            Stroke="Transparent"
+                            Background="Transparent"
+                            Padding="4">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+
+                        <Image x:Name="Slot2Icon"
+                               Source="scan_icon.png"
+                               HeightRequest="24"
+                               WidthRequest="28"
+                               HorizontalOptions="Center"
+                               Aspect="AspectFit"
+                               Opacity="0.85" />
+                    </Border>
+
+                    <Label x:Name="Slot2Label"
+                           Text="Scan"
+                           FontSize="8"
+                           TextColor="#0ACAF9"
                            HorizontalOptions="Center" />
                 </VerticalStackLayout>
 
-                <!-- Collection -->
-                <VerticalStackLayout x:Name="CollectionWrapper"
+                <!-- SLOT 3 -->
+                <VerticalStackLayout x:Name="Slot3Wrapper"
                                      Spacing="4"
                                      Grid.Column="2"
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center">
-                    <Path x:Name="CollectionIcon"
-                          Data="M4 4h16v2H4V4zm0 4h16v2H4V8zm0 4h10v2H4v-2z"
-                          Stroke="#A0AEC0"
-                          StrokeThickness="2"
-                          HeightRequest="24"
-                          WidthRequest="28"
-                          HorizontalOptions="Center" />
-                    <Label Text="Collection"
-                           FontSize="11"
-                           TextColor="#A0AEC0"
+
+                    <Border x:Name="Slot3IconContainer"
+                            StrokeThickness="0"
+                            Stroke="Transparent"
+                            Background="Transparent"
+                            Padding="4">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+
+                        <Image x:Name="Slot3Icon"
+                               Source="collection_icon.png"
+                               HeightRequest="24"
+                               WidthRequest="28"
+                               HorizontalOptions="Center"
+                               Aspect="AspectFit"
+                               Opacity="0.85" />
+                    </Border>
+
+                    <Label x:Name="Slot3Label"
+                           Text="Collection"
+                           FontSize="8"
+                           TextColor="#0ACAF9"
                            HorizontalOptions="Center" />
                 </VerticalStackLayout>
 
-                <!-- Search -->
-                <VerticalStackLayout x:Name="SearchWrapper"
+                <!-- SLOT 4 -->
+                <VerticalStackLayout x:Name="Slot4Wrapper"
                                      Spacing="4"
                                      Grid.Column="3"
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center">
-                    <Path x:Name="SearchIcon"
-                          Data="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16a6.471 6.471 0 004.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-                          Stroke="#A0AEC0"
-                          StrokeThickness="2"
-                          HeightRequest="24"
-                          WidthRequest="28"
-                          HorizontalOptions="Center" />
-                    <Label Text="Search"
-                           FontSize="11"
-                           TextColor="#A0AEC0"
+
+                    <Border x:Name="Slot4IconContainer"
+                            StrokeThickness="0"
+                            Stroke="Transparent"
+                            Background="Transparent"
+                            Padding="4">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+
+                        <Image x:Name="Slot4Icon"
+                               Source="search_icon.png"
+                               HeightRequest="24"
+                               WidthRequest="28"
+                               HorizontalOptions="Center"
+                               Aspect="AspectFit"
+                               Opacity="0.85" />
+                    </Border>
+
+                    <Label x:Name="Slot4Label"
+                           Text="Search"
+                           FontSize="8"
+                           TextColor="#0ACAF9"
                            HorizontalOptions="Center" />
                 </VerticalStackLayout>
+
             </Grid>
         </Border>
     </Grid>
