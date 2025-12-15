@@ -1,254 +1,296 @@
-﻿//
-//  FILE            : InspectCenteringViewModel.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2025-12-14
-//  DESCRIPTION     :
-//      ViewModel for the Inspect Centering page.
-//      - Tracks card title / subtitle / images.
-//      - Maintains horizontal and vertical centering metrics.
-//      - Exposes formatted ratio text and a combined summary.
-//      - Intended to be driven by the page's gesture events,
-//        which provide the calculated border insets in pixels.
-//
+﻿/*
+* FILE: InspectCenteringViewModel.cs
+* PROJECT: CollectIQ (Mobile Application)
+* PROGRAMMER: Darryl Poworoznyk
+* FIRST VERSION: 2025-12-14
+* DESCRIPTION:
+*     View model backing the InspectCenteringPage.
+*     - Exposes card image, centering metrics, and recommendations.
+*     - Provides Auto Analyze and Manual Fine-Tune commands.
+*     - Currently uses placeholder logic; ready to plug in
+*       machine vision (OpenCV / EmguCV / etc.) for real analysis.
+*/
 
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 
-namespace CollectIQ.ViewModels
+namespace CollectIQ.Views
 {
     public class InspectCenteringViewModel : INotifyPropertyChanged
     {
-        // -----------------------------------------------------------------
+        // ============================================================
         //  FIELDS
-        // -----------------------------------------------------------------
-
-        private string cardTitle;
-        private string cardSubtitle;
-        private string centeringSummary;
-
-        private string horizontalRatioText;
-        private string verticalRatioText;
+        // ============================================================
 
         private ImageSource cardImageSource;
-        private ImageSource cardThumbnailSource;
+        private double horizontalCenterPercent;
+        private double verticalCenterPercent;
+        private string centeringSummary;
+        private string horizontalCenteringText;
+        private string verticalCenteringText;
+        private string recommendation;
+        private double zoomLevel;
+        private double tolerance;
 
-        private double lastLeftInset;
-        private double lastRightInset;
-        private double lastTopInset;
-        private double lastBottomInset;
+        // ============================================================
+        //  CONSTRUCTOR
+        // ============================================================
 
-        // -----------------------------------------------------------------
-        //  PUBLIC PROPERTIES
-        // -----------------------------------------------------------------
-
-        public string CardTitle
+        public InspectCenteringViewModel()
         {
-            get => cardTitle;
-            set => SetProperty(ref cardTitle, value);
+            // Placeholder sample card image; you can bind a real card later.
+            cardImageSource = "sample_card_front.png";
+
+            // Start at “perfect” to show format.
+            horizontalCenterPercent = 50.0;
+            verticalCenterPercent = 50.0;
+            zoomLevel = 1.4;
+            tolerance = 3.0;
+
+            UpdateTextFromMetrics();
+
+            AnalyzeCommand = new Command(ExecuteAnalyze);
+            ManualCommand = new Command(ExecuteManual);
         }
 
-        public string CardSubtitle
+        // ============================================================
+        //  PUBLIC PROPERTIES
+        // ============================================================
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public ImageSource CardImageSource
         {
-            get => cardSubtitle;
-            set => SetProperty(ref cardSubtitle, value);
+            get { return cardImageSource; }
+            set
+            {
+                if (cardImageSource != value)
+                {
+                    cardImageSource = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Horizontal centering in percent (50% is perfect).
+        /// </summary>
+        public double HorizontalCenterPercent
+        {
+            get { return horizontalCenterPercent; }
+            set
+            {
+                if (Math.Abs(horizontalCenterPercent - value) > double.Epsilon)
+                {
+                    horizontalCenterPercent = value;
+                    OnPropertyChanged();
+                    UpdateTextFromMetrics();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Vertical centering in percent (50% is perfect).
+        /// </summary>
+        public double VerticalCenterPercent
+        {
+            get { return verticalCenterPercent; }
+            set
+            {
+                if (Math.Abs(verticalCenterPercent - value) > double.Epsilon)
+                {
+                    verticalCenterPercent = value;
+                    OnPropertyChanged();
+                    UpdateTextFromMetrics();
+                }
+            }
         }
 
         public string CenteringSummary
         {
-            get => centeringSummary;
-            set => SetProperty(ref centeringSummary, value);
+            get { return centeringSummary; }
+            private set
+            {
+                if (centeringSummary != value)
+                {
+                    centeringSummary = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
-        public string HorizontalRatioText
+        public string HorizontalCenteringText
         {
-            get => horizontalRatioText;
-            set => SetProperty(ref horizontalRatioText, value);
+            get { return horizontalCenteringText; }
+            private set
+            {
+                if (horizontalCenteringText != value)
+                {
+                    horizontalCenteringText = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
-        public string VerticalRatioText
+        public string VerticalCenteringText
         {
-            get => verticalRatioText;
-            set => SetProperty(ref verticalRatioText, value);
+            get { return verticalCenteringText; }
+            private set
+            {
+                if (verticalCenteringText != value)
+                {
+                    verticalCenteringText = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
-        public ImageSource CardImageSource
+        public string Recommendation
         {
-            get => cardImageSource;
-            set => SetProperty(ref cardImageSource, value);
+            get { return recommendation; }
+            private set
+            {
+                if (recommendation != value)
+                {
+                    recommendation = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
-        public ImageSource CardThumbnailSource
+        /// <summary>
+        /// Zoom factor for the card preview (bound to slider).
+        /// </summary>
+        public double ZoomLevel
         {
-            get => cardThumbnailSource;
-            set => SetProperty(ref cardThumbnailSource, value);
+            get { return zoomLevel; }
+            set
+            {
+                if (Math.Abs(zoomLevel - value) > double.Epsilon)
+                {
+                    zoomLevel = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
-        // -----------------------------------------------------------------
-        //  CONSTRUCTOR
-        // -----------------------------------------------------------------
-
-        public InspectCenteringViewModel()
+        /// <summary>
+        /// Tolerance in percent for what counts as "well centered".
+        /// </summary>
+        public double Tolerance
         {
-            // Default text – you can override this when loading a card.
-            CardTitle = "Player Name • 2020 Prizm";
-            CardSubtitle = "Base • Silver Prizm";
-            CenteringSummary = "Drag the lines to match the printed borders.";
-
-            HorizontalRatioText = "Left 50% / Right 50%";
-            VerticalRatioText = "Top 50% / Bottom 50%";
+            get { return tolerance; }
+            set
+            {
+                if (Math.Abs(tolerance - value) > double.Epsilon)
+                {
+                    tolerance = value;
+                    OnPropertyChanged();
+                    UpdateTextFromMetrics();
+                }
+            }
         }
 
-        // -----------------------------------------------------------------
-        //  PUBLIC METHODS
-        // -----------------------------------------------------------------
+        // ============================================================
+        //  COMMANDS
+        // ============================================================
+
+        public ICommand AnalyzeCommand { get; }
+
+        public ICommand ManualCommand { get; }
+
+        // ============================================================
+        //  COMMAND HANDLERS
+        // ============================================================
 
         /*
-         * FUNCTION     : InitializeFromCard
+         * FUNCTION     : ExecuteAnalyze
          * DESCRIPTION  :
-         *     Allows the caller to populate this ViewModel with card data.
-         *     You can wire this to your Card model when navigating to the
-         *     Inspect Centering page.
+         *     Placeholder "auto analyze" logic. Right now it generates
+         *     centered values with a small random offset to simulate
+         *     what a real CV pipeline might return. Replace this with
+         *     actual image processing (e.g., OpenCV) once integrated.
          */
-        public void InitializeFromCard(
-            ImageSource mainImage,
-            ImageSource thumbnailImage,
-            string title,
-            string subtitle)
+        private void ExecuteAnalyze()
         {
-            CardImageSource = mainImage;
-            CardThumbnailSource = thumbnailImage;
-            CardTitle = title;
-            CardSubtitle = subtitle;
+            // Simulate a slight off-center result to show the flow.
+            Random random = new Random();
+
+            double maxOffset = Tolerance; // e.g., +/- 3% by default
+            double offsetX = random.NextDouble() * maxOffset * 2 - maxOffset;
+            double offsetY = random.NextDouble() * maxOffset * 2 - maxOffset;
+
+            HorizontalCenterPercent = 50.0 + offsetX;
+            VerticalCenterPercent = 50.0 + offsetY;
+
+            UpdateTextFromMetrics();
         }
 
         /*
-         * FUNCTION     : UpdateHorizontalInsets
+         * FUNCTION     : ExecuteManual
          * DESCRIPTION  :
-         *     Accepts the measured left and right border insets in pixels
-         *     and computes the horizontal centering percentages.
-         *     This method is typically called by the page after the user
-         *     drags the left/right guides.
+         *     Placeholder for a future "manual fine-tune" mode where
+         *     the user can drag guides or input precise edge distances.
+         *     For now it simply nudges the tolerance and refreshes
+         *     the summary so the button actually does something.
          */
-        public void UpdateHorizontalInsets(double leftInsetPixels, double rightInsetPixels)
+        private void ExecuteManual()
         {
-            if (leftInsetPixels < 0)
+            // Simple UX placeholder: tighten tolerance a bit to show
+            // that more strict grading is possible.
+            if (Tolerance > 1.0)
             {
-                leftInsetPixels = 0;
+                Tolerance -= 0.5;
             }
 
-            if (rightInsetPixels < 0)
-            {
-                rightInsetPixels = 0;
-            }
-
-            lastLeftInset = leftInsetPixels;
-            lastRightInset = rightInsetPixels;
-
-            double totalBorder = leftInsetPixels + rightInsetPixels;
-
-            double leftPercent;
-            double rightPercent;
-
-            if (totalBorder <= 0.5)
-            {
-                leftPercent = 50.0;
-                rightPercent = 50.0;
-            }
-            else
-            {
-                leftPercent = (leftInsetPixels / totalBorder) * 100.0;
-                rightPercent = 100.0 - leftPercent;
-            }
-
-            leftPercent = Math.Round(leftPercent, 1);
-            rightPercent = Math.Round(rightPercent, 1);
-
-            HorizontalRatioText = $"Left {leftPercent}% / Right {rightPercent}%";
-
-            UpdateSummary();
+            UpdateTextFromMetrics();
         }
 
-        /*
-         * FUNCTION     : UpdateVerticalInsets
-         * DESCRIPTION  :
-         *     Accepts the measured top and bottom border insets in pixels
-         *     and computes the vertical centering percentages.
-         *     This method is typically called by the page after the user
-         *     drags the top/bottom guides.
-         */
-        public void UpdateVerticalInsets(double topInsetPixels, double bottomInsetPixels)
-        {
-            if (topInsetPixels < 0)
-            {
-                topInsetPixels = 0;
-            }
-
-            if (bottomInsetPixels < 0)
-            {
-                bottomInsetPixels = 0;
-            }
-
-            lastTopInset = topInsetPixels;
-            lastBottomInset = bottomInsetPixels;
-
-            double totalBorder = topInsetPixels + bottomInsetPixels;
-
-            double topPercent;
-            double bottomPercent;
-
-            if (totalBorder <= 0.5)
-            {
-                topPercent = 50.0;
-                bottomPercent = 50.0;
-            }
-            else
-            {
-                topPercent = (topInsetPixels / totalBorder) * 100.0;
-                bottomPercent = 100.0 - topPercent;
-            }
-
-            topPercent = Math.Round(topPercent, 1);
-            bottomPercent = Math.Round(bottomPercent, 1);
-
-            VerticalRatioText = $"Top {topPercent}% / Bottom {bottomPercent}%";
-
-            UpdateSummary();
-        }
-
-        // -----------------------------------------------------------------
+        // ============================================================
         //  PRIVATE HELPERS
-        // -----------------------------------------------------------------
+        // ============================================================
 
-        /*
-         * FUNCTION     : UpdateSummary
-         * DESCRIPTION  :
-         *     Builds a concise overview string from the current horizontal
-         *     and vertical ratio text and stores it in CenteringSummary.
-         */
-        private void UpdateSummary()
+        private void UpdateTextFromMetrics()
         {
-            CenteringSummary =
-                $"Horizontal: {HorizontalRatioText}   •   Vertical: {VerticalRatioText}";
-        }
+            double deltaX = Math.Abs(HorizontalCenterPercent - 50.0);
+            double deltaY = Math.Abs(VerticalCenterPercent - 50.0);
 
-        // -----------------------------------------------------------------
-        //  INotifyPropertyChanged IMPLEMENTATION
-        // -----------------------------------------------------------------
+            HorizontalCenteringText =
+                $"{HorizontalCenterPercent:F1}% (Δ {deltaX:F1}%)";
+            VerticalCenteringText =
+                $"{VerticalCenterPercent:F1}% (Δ {deltaY:F1}%)";
 
-        public event PropertyChangedEventHandler PropertyChanged;
+            double worstDelta = Math.Max(deltaX, deltaY);
 
-        private void SetProperty<T>(ref T backingField, T value,
-            [CallerMemberName] string propertyName = "")
-        {
-            if (Equals(backingField, value))
+            string grade;
+            string detail;
+
+            if (worstDelta <= Tolerance)
             {
-                return;
+                grade = "Excellent";
+                detail = "Centering looks very strong and should meet most grading thresholds.";
+            }
+            else if (worstDelta <= Tolerance + 3)
+            {
+                grade = "Good";
+                detail = "Slightly off-center but still within a range many graders accept.";
+            }
+            else
+            {
+                grade = "Poor";
+                detail = "Noticeable centering issues. This may hold the overall grade back.";
             }
 
-            backingField = value;
+            CenteringSummary = $"Centering Grade: {grade} (ΔX {deltaX:F1}%, ΔY {deltaY:F1}%)";
+            Recommendation = detail;
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }

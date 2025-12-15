@@ -16,16 +16,24 @@
              Title="Scan Card"
              Disappearing="OnDisappearing">
 
-    <!-- 3 rows:
-         0 = scrollable header + scan frame
-         1 = controls (scan / manual / status)
-         2 = nav bar -->
-    <Grid RowDefinitions="*,Auto,Auto">
+    <!-- 4 rows now:
+         0 = top mode toggle bar (Collect / Inspect / Trade)
+         1 = scrollable header + scan frame
+         2 = controls (scan / manual / status)
+         3 = bottom futuristic nav bar -->
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+        <!-- ========================= -->
+        <!-- TOP MODE TOGGLE BAR       -->
+        <!-- ========================= -->
+        <controls:AppModeToggleBar
+            Grid.Row="0"
+            Margin="0,0,0,4" />
 
         <!-- ========================= -->
         <!-- SCROLLABLE TOP CONTENT    -->
         <!-- ========================= -->
-        <ScrollView Grid.Row="0">
+        <ScrollView Grid.Row="1">
             <VerticalStackLayout
                 Padding="16,16,16,8"
                 Spacing="18">
@@ -138,7 +146,7 @@
         <!-- CONTROLS ROW              -->
         <!-- ========================= -->
         <VerticalStackLayout
-            Grid.Row="1"
+            Grid.Row="2"
             Spacing="10"
             Padding="0,0,0,6">
 
@@ -188,7 +196,7 @@
         <!-- FUTURISTIC NAV BAR        -->
         <!-- ========================= -->
         <controls:FuturisticNavBar
-            Grid.Row="2"
+            Grid.Row="3"
             Margin="0,8,0,0" />
     </Grid>
 </ContentPage>

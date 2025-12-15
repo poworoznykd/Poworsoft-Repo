@@ -3,10 +3,12 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-25
+* UPDATED: 2025-12-14
 * DESCRIPTION:
 *     Defines the global navigation structure and visual theme
 *     for the CollectIQ mobile application. Registers routes for
-*     all pages and applies consistent shell color styling.
+*     all pages and applies consistent shell color styling,
+*     including the Inspect centering flow.
 */
 
 using CollectIQ.Views;
@@ -35,12 +37,11 @@ namespace CollectIQ
             Routing.RegisterRoute(nameof(CardPage), typeof(CardPage));
             Routing.RegisterRoute(nameof(ImageViewerPage), typeof(ImageViewerPage));
 
-            //These are removed because they are in the bottom navigation bar
+            // These are driven by the floating FuturisticNavBar:
+            // DashboardPage, ScanPage, EbaySearchPage, CollectionPage.
 
-            //Routing.RegisterRoute(nameof(DashboardPage), typeof(DashboardPage));
-            //Routing.RegisterRoute(nameof(ScanPage), typeof(ScanPage));
-            //Routing.RegisterRoute(nameof(EbaySearchPage), typeof(EbaySearchPage));
-            //Routing.RegisterRoute(nameof(CollectionPage), typeof(CollectionPage));
+            // Inspect lane – centering inspector page
+            Routing.RegisterRoute(nameof(InspectCenteringPage), typeof(InspectCenteringPage));
         }
     }
 }

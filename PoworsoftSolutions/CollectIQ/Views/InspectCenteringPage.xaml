@@ -1,150 +1,170 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
-    x:Class="CollectIQ.Pages.InspectCenteringPage"
+    x:Class="CollectIQ.Views.InspectCenteringPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:vm="clr-namespace:CollectIQ.ViewModels"
-    x:DataType="vm:InspectCenteringViewModel"
-    Title="Centering"
-    BackgroundColor="#050814">
+    xmlns:controls="clr-namespace:CollectIQ.Controls"
+    BackgroundColor="#050814"
+    Title="Centering">
 
-    <Grid RowDefinitions="Auto,*,Auto"
-          Padding="16,12,16,20">
+    <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- HEADER / SUMMARY -->
-        <Grid Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="0,0,0,8">
+        <!-- Top lane toggle (Collect / Inspect / Trade) -->
+        <controls:AppModeToggleBar
+            Grid.Row="0"
+            Margin="16,8,16,4" />
 
-            <!-- Thumbnail -->
-            <Border WidthRequest="64" HeightRequest="88"
-                    Stroke="#883F3BF5"
+        <!-- Main centering inspector content -->
+        <Grid Grid.Row="1"
+              RowDefinitions="Auto,*,Auto"
+              Margin="16,4,16,4">
+
+            <!-- Title + description -->
+            <VerticalStackLayout Spacing="2">
+                <Label Text="Centering Inspector"
+                       TextColor="#E5E7EB"
+                       FontSize="20"
+                       FontAttributes="Bold" />
+
+                <Label Text="Zoom in on the card, then tap Auto Analyze to estimate centering. Manual fine-tuning lets you adjust horizontal and vertical guides."
+                       TextColor="#9CA3AF"
+                       FontSize="12"
+                       LineBreakMode="WordWrap" />
+            </VerticalStackLayout>
+
+            <!-- Card preview with purple neon overlay -->
+            <Border Grid.Row="1"
+                    Margin="0,10,0,8"
+                    Stroke="#6D28D9"
                     StrokeThickness="1.5"
-                    BackgroundColor="#111827"
-                    HorizontalOptions="Start"
-                    VerticalOptions="Center">
-                <Image Aspect="AspectFill"
-                       Source="{Binding CardThumbnailSource}" />
+                    Background="#0B1120"
+                    StrokeShape="RoundRectangle 24">
+                <Grid Margin="10">
+
+                    <!-- Card image -->
+                    <Image Source="{Binding CardImageSource}"
+                           Aspect="AspectFit"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+
+                    <!-- Vertical guide (center line) -->
+                    <BoxView Color="#80C084FC"
+                             WidthRequest="2"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Fill" />
+
+                    <!-- Horizontal guide (center line) -->
+                    <BoxView Color="#80C084FC"
+                             HeightRequest="2"
+                             HorizontalOptions="Fill"
+                             VerticalOptions="Center" />
+
+                    <!-- Outer frame glow -->
+                    <Border Stroke="#A855F7"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 18"
+                            Opacity="0.7" />
+                </Grid>
             </Border>
 
-            <!-- Text summary -->
-            <VerticalStackLayout Grid.Column="1"
-                                 Spacing="2"
-                                 VerticalOptions="Center">
-                <Label Text="{Binding CardTitle}"
-                       FontSize="14"
-                       FontAttributes="Bold"
-                       TextColor="#E2E8F0" />
-                <Label Text="{Binding CardSubtitle}"
-                       FontSize="12"
-                       TextColor="#A0AEC0" />
+            <!-- Metrics + controls -->
+            <VerticalStackLayout Grid.Row="2"
+                                 Spacing="8">
+
+                <!-- Quick stats -->
+                <Grid ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto">
+
+                    <Label Text="Horizontal:"
+                           TextColor="#A5B4FC"
+                           FontSize="12" />
+                    <Label Text="{Binding HorizontalCenteringText}"
+                           Grid.Column="1"
+                           HorizontalTextAlignment="End"
+                           TextColor="#E5E7EB"
+                           FontSize="12" />
+
+                    <Label Text="Vertical:"
+                           Grid.Row="1"
+                           TextColor="#A5B4FC"
+                           FontSize="12" />
+                    <Label Text="{Binding VerticalCenteringText}"
+                           Grid.Row="1"
+                           Grid.Column="1"
+                           HorizontalTextAlignment="End"
+                           TextColor="#E5E7EB"
+                           FontSize="12" />
+                </Grid>
+
+                <!-- Overall grade -->
                 <Label Text="{Binding CenteringSummary}"
+                       TextColor="#F9FAFB"
+                       FontSize="14"
+                       FontAttributes="Bold" />
+
+                <!-- Zoom + sensitivity sliders -->
+                <Grid ColumnDefinitions="*,*"
+                      ColumnSpacing="12"
+                      Margin="0,4,0,0">
+
+                    <VerticalStackLayout>
+                        <Label Text="Zoom"
+                               TextColor="#9CA3AF"
+                               FontSize="11" />
+                        <Slider Minimum="1"
+                                Maximum="3"
+                                Value="{Binding ZoomLevel}"
+                                ThumbColor="#C084FC"
+                                MinimumTrackColor="#C084FC"
+                                MaximumTrackColor="#4B5563" />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Grid.Column="1">
+                        <Label Text="Tolerance"
+                               TextColor="#9CA3AF"
+                               FontSize="11" />
+                        <Slider Minimum="1"
+                                Maximum="5"
+                                Value="{Binding Tolerance}"
+                                ThumbColor="#7C3AED"
+                                MinimumTrackColor="#7C3AED"
+                                MaximumTrackColor="#4B5563" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Action buttons -->
+                <Grid ColumnDefinitions="*,*"
+                      Margin="0,6,0,0"
+                      ColumnSpacing="12">
+                    <Button Text="Auto Analyze"
+                            Command="{Binding AnalyzeCommand}"
+                            FontSize="13"
+                            CornerRadius="18"
+                            Padding="14,8"
+                            BackgroundColor="#7C3AED"
+                            TextColor="#F9FAFB" />
+                    <Button Text="Manual Fine-Tune"
+                            Grid.Column="1"
+                            Command="{Binding ManualCommand}"
+                            FontSize="13"
+                            CornerRadius="18"
+                            Padding="14,8"
+                            BackgroundColor="#4C1D95"
+                            TextColor="#E5E7EB" />
+                </Grid>
+
+                <!-- Recommendation text -->
+                <Label Text="{Binding Recommendation}"
+                       TextColor="#D1FAE5"
                        FontSize="12"
-                       TextColor="#C4B5FD" />
+                       Margin="0,6,0,0"
+                       LineBreakMode="WordWrap" />
             </VerticalStackLayout>
         </Grid>
 
-        <!-- MAIN CANVAS: IMAGE + GUIDES -->
-        <Grid Row="1"
-              x:Name="cardCanvas"
-              Margin="0,4,0,8"
-              BackgroundColor="Transparent"
-              SizeChanged="OnCardCanvasSizeChanged">
-
-            <!-- Card image (zoomable) -->
-            <Grid>
-                <Image x:Name="cardImage"
-                       Aspect="AspectFit"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center"
-                       Source="{Binding CardImageSource}">
-                    <Image.GestureRecognizers>
-                        <PinchGestureRecognizer PinchUpdated="OnCardImagePinchUpdated" />
-                    </Image.GestureRecognizers>
-                </Image>
-            </Grid>
-
-            <!-- Overlay guides -->
-            <Grid x:Name="guideOverlay"
-                  InputTransparent="False">
-
-                <!-- Vertical guides -->
-                <BoxView x:Name="leftGuide"
-                         WidthRequest="2"
-                         HorizontalOptions="Start"
-                         VerticalOptions="Fill"
-                         Color="#C4B5FD"
-                         Opacity="0.9">
-                    <BoxView.GestureRecognizers>
-                        <PanGestureRecognizer PanUpdated="OnHorizontalGuidePanUpdated" />
-                    </BoxView.GestureRecognizers>
-                </BoxView>
-
-                <BoxView x:Name="rightGuide"
-                         WidthRequest="2"
-                         HorizontalOptions="End"
-                         VerticalOptions="Fill"
-                         Color="#C4B5FD"
-                         Opacity="0.9">
-                    <BoxView.GestureRecognizers>
-                        <PanGestureRecognizer PanUpdated="OnHorizontalGuidePanUpdated" />
-                    </BoxView.GestureRecognizers>
-                </BoxView>
-
-                <!-- Horizontal guides -->
-                <BoxView x:Name="topGuide"
-                         HeightRequest="2"
-                         VerticalOptions="Start"
-                         HorizontalOptions="Fill"
-                         Color="#C4B5FD"
-                         Opacity="0.9">
-                    <BoxView.GestureRecognizers>
-                        <PanGestureRecognizer PanUpdated="OnVerticalGuidePanUpdated" />
-                    </BoxView.GestureRecognizers>
-                </BoxView>
-
-                <BoxView x:Name="bottomGuide"
-                         HeightRequest="2"
-                         VerticalOptions="End"
-                         HorizontalOptions="Fill"
-                         Color="#C4B5FD"
-                         Opacity="0.9">
-                    <BoxView.GestureRecognizers>
-                        <PanGestureRecognizer PanUpdated="OnVerticalGuidePanUpdated" />
-                    </BoxView.GestureRecognizers>
-                </BoxView>
-            </Grid>
-        </Grid>
-
-        <!-- HUD / RESULTS -->
-        <Border Grid.Row="2"
-                Stroke="#553F3BF5"
-                StrokeThickness="1.5"
-                BackgroundColor="#111827"
-                Padding="12,10"
-                StrokeShape="RoundRectangle 20">
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="6">
-
-                <!-- Horizontal centering -->
-                <Label Grid.Row="0" Grid.Column="0"
-                       Text="Horizontal"
-                       FontSize="12"
-                       TextColor="#E5E7EB" />
-                <Label Grid.Row="0" Grid.Column="1"
-                       Text="{Binding HorizontalRatioText}"
-                       FontSize="12"
-                       HorizontalTextAlignment="End"
-                       TextColor="#C4B5FD" />
-
-                <!-- Vertical centering -->
-                <Label Grid.Row="1" Grid.Column="0"
-                       Text="Vertical"
-                       FontSize="12"
-                       TextColor="#E5E7EB" />
-                <Label Grid.Row="1" Grid.Column="1"
-                       Text="{Binding VerticalRatioText}"
-                       FontSize="12"
-                       HorizontalTextAlignment="End"
-                       TextColor="#C4B5FD" />
-            </Grid>
-        </Border>
+        <!-- Bottom futuristic nav bar -->
+        <controls:FuturisticNavBar
+            Grid.Row="2"
+            Margin="0,0,0,0" />
     </Grid>
 </ContentPage>

@@ -17,11 +17,21 @@
              Title="My Collection"
              BackgroundColor="#050814">
 
-    <Grid RowDefinitions="Auto,*,Auto"
+    <!-- 4 rows:
+         0 = top mode toggle bar
+         1 = header panel
+         2 = collection list
+         3 = gradient footer + bottom nav -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto"
           Padding="0">
 
+        <!-- TOP MODE TOGGLE BAR -->
+        <controls:AppModeToggleBar
+            Grid.Row="0"
+            Margin="0,0,0,4" />
+
         <!-- HEADER PANEL (Aurora glass, matches CardPage vibe) -->
-        <Grid Grid.Row="0"
+        <Grid Grid.Row="1"
               Padding="16,10,16,0">
             <Border Style="{StaticResource AuroraGlassBorder}">
                 <Grid RowDefinitions="Auto,Auto"
@@ -100,12 +110,13 @@
                                 Padding="12,4"
                                 FontSize="11"
                                 Clicked="OnExportPdfClicked" />
+
                         <Button x:Name="OpenFilterButton"
-                             Text="Filters"
-                             Style="{StaticResource AuroraNeonButton}"
-                            Padding="12,4"
-                            FontSize="11"
-                             Clicked="OnFilterClicked"/>
+                                Text="Filters"
+                                Style="{StaticResource AuroraNeonButton}"
+                                Padding="12,4"
+                                FontSize="11"
+                                Clicked="OnFilterClicked" />
                     </HorizontalStackLayout>
                 </Grid>
             </Border>
@@ -113,7 +124,7 @@
 
         <!-- SCROLLABLE COLLECTION -->
         <CollectionView x:Name="CardsCollectionView"
-                        Grid.Row="1"
+                        Grid.Row="2"
                         Margin="0,8,0,0"
                         VerticalOptions="FillAndExpand"
                         SelectionMode="None"
@@ -154,64 +165,64 @@
 
                         <!-- CARD ITEM (Aurora glass card style) -->
                         <Border Style="{StaticResource AuroraGlassBorder}"
-        Margin="16,6,16,0"
-        Padding="10">
+                                Margin="16,6,16,0"
+                                Padding="10">
 
                             <Grid ColumnDefinitions="80,*,Auto"
-          RowDefinitions="Auto,Auto,Auto"
-          ColumnSpacing="10">
+                                  RowDefinitions="Auto,Auto,Auto"
+                                  ColumnSpacing="10">
 
                                 <!-- CARD IMAGE -->
                                 <Border Grid.RowSpan="3"
-                Grid.Column="0"
-                StrokeThickness="0"
-                Background="#0E1115"
-                StrokeShape="RoundRectangle 8">
+                                        Grid.Column="0"
+                                        StrokeThickness="0"
+                                        Background="#0E1115"
+                                        StrokeShape="RoundRectangle 8">
                                     <Image Source="{Binding FrontImagePath}"
-                   WidthRequest="72"
-                   HeightRequest="100"
-                   Aspect="AspectFill"
-                   Opacity="0.97" />
+                                           WidthRequest="72"
+                                           HeightRequest="100"
+                                           Aspect="AspectFill"
+                                           Opacity="0.97" />
                                 </Border>
 
                                 <!-- LINE 1: PLAYER NAME -->
                                 <Label Grid.Row="0"
-               Grid.Column="1"
-               Text="{Binding Name}"
-               FontSize="16"
-               FontAttributes="Bold"
-               TextColor="#F2F6FF"
-               LineBreakMode="TailTruncation"
-               MaxLines="2" />
+                                       Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="#F2F6FF"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="2" />
 
                                 <!-- EST. VALUE CHIP (unchanged) -->
                                 <Border Grid.Row="0"
-                Grid.Column="2"
-                HorizontalOptions="End"
-                VerticalOptions="Center"
-                Padding="8,4"
-                StrokeShape="RoundRectangle 10"
-                BackgroundColor="#132A3F">
+                                        Grid.Column="2"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center"
+                                        Padding="8,4"
+                                        StrokeShape="RoundRectangle 10"
+                                        BackgroundColor="#132A3F">
                                     <HorizontalStackLayout Spacing="4"
-                                   VerticalOptions="Center">
+                                                           VerticalOptions="Center">
                                         <Label Text="Est."
-                       FontSize="10"
-                       TextColor="#A0AEC0" />
+                                               FontSize="10"
+                                               TextColor="#A0AEC0" />
                                         <Label Text="{Binding EstimatedValue, StringFormat='${0:F2}'}"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       TextColor="#7CF9FF" />
+                                               FontSize="13"
+                                               FontAttributes="Bold"
+                                               TextColor="#7CF9FF" />
                                     </HorizontalStackLayout>
                                 </Border>
 
                                 <!-- LINE 2: SET · #NUMBER -->
                                 <Label Grid.Row="1"
-               Grid.Column="1"
-               Grid.ColumnSpan="2"
-               FontSize="12"
-               TextColor="#A0AEC0"
-               LineBreakMode="TailTruncation"
-               MaxLines="1">
+                                       Grid.Column="1"
+                                       Grid.ColumnSpan="2"
+                                       FontSize="12"
+                                       TextColor="#A0AEC0"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1">
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="{Binding Set}" />
@@ -223,11 +234,11 @@
 
                                 <!-- LINE 3 LEFT: TEAM · SPORT · YEAR -->
                                 <Label Grid.Row="2"
-               Grid.Column="1"
-               FontSize="11"
-               TextColor="#7C8A93"
-               LineBreakMode="TailTruncation"
-               MaxLines="1">
+                                       Grid.Column="1"
+                                       FontSize="11"
+                                       TextColor="#7C8A93"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1">
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="{Binding Team}" />
@@ -241,11 +252,11 @@
 
                                 <!-- LINE 3 RIGHT: GRADE (unchanged) -->
                                 <Label Grid.Row="2"
-               Grid.Column="2"
-               FontSize="11"
-               TextColor="#CBD5F5"
-               HorizontalTextAlignment="End"
-               HorizontalOptions="End">
+                                       Grid.Column="2"
+                                       FontSize="11"
+                                       TextColor="#CBD5F5"
+                                       HorizontalTextAlignment="End"
+                                       HorizontalOptions="End">
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="{Binding GradeCompany}" />
@@ -264,7 +275,7 @@
         </CollectionView>
 
         <!-- Gradient footer + nav bar for smoother transition -->
-        <Grid Grid.Row="2"
+        <Grid Grid.Row="3"
               HeightRequest="90">
             <Grid.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -279,8 +290,11 @@
                 Margin="0,4,0,0"
                 VerticalOptions="End" />
         </Grid>
+
+        <!-- FILTER OVERLAY CONTROL (spans entire page) -->
         <controls:FilterOverlayControl 
             x:Name="FilterOverlay"
+            Grid.RowSpan="4"
             IsVisible="True"
             Opacity="1" />
 

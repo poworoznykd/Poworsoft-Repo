@@ -7,19 +7,20 @@
 //  DESCRIPTION     :
 //      Floating neon bottom navigation bar for CollectIQ.
 //      - Uses AuroraGlass styling from XAML.
-//      - Image-based icons inside glowable borders.
+//      - Image-based icons inside glowable circular borders.
 //      - Pulse + lift animation on tap.
 //      - Tracks Shell navigation to keep highlight in sync.
 //      - Listens to AppModeService so labels + icons + colours
 //        change for Collect / Inspect / Trade.
+//      - Slot 2 goes to InspectCenteringPage when in Inspect mode.
 //
+using System;
+using System.Threading.Tasks;
 using CollectIQ.Navigation;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
-using System;
-using System.Threading.Tasks;
 
 namespace CollectIQ.Controls
 {
@@ -48,7 +49,7 @@ namespace CollectIQ.Controls
 
             RegisterTapEvents();
 
-            // Default highlight slot 1
+            // Default highlight slot 1 (Home / Overview / Deals)
             HighlightActive(Slot1Wrapper);
 
             Shell.Current.Navigated += OnShellNavigated;
@@ -119,7 +120,7 @@ namespace CollectIQ.Controls
                         SetSlotLabel(Slot3Wrapper, "Buy");
                         SetSlotLabel(Slot4Wrapper, "Trade Block");
 
-                        // For now, reuse Collect icons for Trade.
+                        // For now, reuse Collect icon set for Trade.
                         SetSlotIcon(Slot1Wrapper, "home_icon.png");
                         SetSlotIcon(Slot2Wrapper, "scan_icon.png");
                         SetSlotIcon(Slot3Wrapper, "collection_icon.png");
@@ -315,7 +316,7 @@ namespace CollectIQ.Controls
 
                 if (element is Layout layout)
                 {
-                    var activeColor = GetActiveColor(mode);
+                    Color activeColor = GetActiveColor(mode);
 
                     foreach (var child in layout.Children)
                     {
@@ -352,7 +353,7 @@ namespace CollectIQ.Controls
 
         private void ResetIconVisuals()
         {
-            var mode = appModeService?.CurrentMode ?? AppMode.Collect;
+            AppMode mode = appModeService?.CurrentMode ?? AppMode.Collect;
 
             ResetSlotVisuals(Slot1Wrapper, mode);
             ResetSlotVisuals(Slot2Wrapper, mode);
@@ -362,7 +363,7 @@ namespace CollectIQ.Controls
 
         private void ResetSlotVisuals(VisualElement wrapper, AppMode mode)
         {
-            var baseColor = GetBaseColor(mode);
+            Color baseColor = GetBaseColor(mode);
 
             if (wrapper is Layout layout)
             {
@@ -395,8 +396,8 @@ namespace CollectIQ.Controls
             return mode switch
             {
                 AppMode.Inspect => Color.FromArgb("#C084FC"), // purple base
-                AppMode.Trade => Color.FromArgb("#F97316"), // orange base
-                _ => Color.FromArgb("#0ACAF9")  // cyan base
+                AppMode.Trade => Color.FromArgb("#F97316"),   // orange base
+                _ => Color.FromArgb("#0ACAF9")                // cyan base
             };
         }
 
@@ -407,9 +408,8 @@ namespace CollectIQ.Controls
             {
                 AppMode.Inspect => Color.FromArgb("#E879F9"),
                 AppMode.Trade => Color.FromArgb("#FDBA74"),
-                _ => Color.FromArgb("#00E0FF")  // active circle + label in blue for Collect
+                _ => Color.FromArgb("#00E0FF")                // Collect active blue
             };
         }
-
     }
 }
