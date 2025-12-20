@@ -9,7 +9,7 @@
 
     <!-- 2 rows:
          0 = top mode toggle bar
-         1 = main content (header, filters, results, nav, overlays) -->
+         1 = main content -->
     <Grid RowDefinitions="Auto,*">
 
         <!-- TOP MODE TOGGLE BAR -->
@@ -32,110 +32,20 @@
             <!-- ========================= -->
             <!-- MAIN LAYOUT (ROWS)       -->
             <!-- ========================= -->
+            <!-- Goal:
+                 - KEEP functionality (names + handlers).
+                 - Bottom “command center” is one card and DOES NOT squeeze title (no side-by-side badge).
+                 - Status is a full-width ribbon so long text never ruins layout.
+                 - Tight margins/padding so nav bar stays visible. -->
             <Grid x:Name="MainLayout"
-                  RowDefinitions="Auto,Auto,*,Auto,80"
+                  RowDefinitions="*,Auto,Auto"
                   Padding="0"
-                  RowSpacing="14">
-
-                <!-- HERO HEADER: TITLE + STATUS -->
-                <Border Grid.Row="0"
-                        Style="{StaticResource AuroraGlassBorder}"
-                        Padding="16,14"
-                        Margin="16,16,16,0">
-                    <Grid ColumnDefinitions="*,Auto"
-                          RowDefinitions="Auto,Auto">
-
-                        <!-- Left: title + description + status -->
-                        <VerticalStackLayout Grid.Column="0"
-                                             Spacing="6">
-                            <Label Text="Search with eBay"
-                                   FontSize="22"
-                                   FontAttributes="Bold"
-                                   TextColor="#F2F6FF" />
-
-                            <Label Text="Use live eBay data to find comps and insights for your cards."
-                                   FontSize="11"
-                                   TextColor="#9FB3C8" />
-
-                            <HorizontalStackLayout Spacing="8"
-                                                   VerticalOptions="Center">
-                                <ActivityIndicator x:Name="SearchActivityIndicator"
-                                                   IsVisible="False"
-                                                   IsRunning="False"
-                                                   WidthRequest="18"
-                                                   HeightRequest="18" />
-                                <Label x:Name="StatusLabel"
-                                       Text="READY"
-                                       FontSize="12"
-                                       TextColor="#0ACAF9" />
-                            </HorizontalStackLayout>
-                        </VerticalStackLayout>
-
-                        <!-- Right: simple badge -->
-                        <Border Grid.Column="1"
-                                Margin="10,0,0,0"
-                                StrokeThickness="1.5"
-                                Stroke="#00E5FF"
-                                Background="#101624"
-                                StrokeShape="RoundRectangle 18"
-                                Padding="10,6"
-                                VerticalOptions="Center">
-                            <VerticalStackLayout Spacing="2">
-                                <Label Text="LIVE"
-                                       FontSize="10"
-                                       TextColor="#0ACAF9"
-                                       HorizontalTextAlignment="Center" />
-                                <Label Text="COMPS"
-                                       FontSize="14"
-                                       FontAttributes="Bold"
-                                       TextColor="#39FF14"
-                                       HorizontalTextAlignment="Center" />
-                            </VerticalStackLayout>
-                        </Border>
-                    </Grid>
-                </Border>
-
-                <!-- FILTER STRIP -->
-                <Border Grid.Row="1"
-                        Style="{StaticResource AuroraGlassBorder}"
-                        Padding="12,8"
-                        Margin="16,6,16,0">
-                    <Grid ColumnDefinitions="Auto,*,Auto"
-                          VerticalOptions="Center">
-
-                        <!-- "Filters" label -->
-                        <Label Text="Filters"
-                               VerticalTextAlignment="Center"
-                               Grid.Column="0"
-                               FontSize="12"
-                               FontAttributes="Bold"
-                               TextColor="#F2F6FF" />
-
-                        <!-- Summary (will shrink & truncate if needed) -->
-                        <Label x:Name="FilterSummaryLabel"
-                               Grid.Column="1"
-                               VerticalTextAlignment="Center"
-                               Text="Sold, last 90 days, avg top 10"
-                               FontSize="11"
-                               TextColor="#6CD4FF"
-                               HorizontalOptions="FillAndExpand"
-                               LineBreakMode="TailTruncation" />
-
-                        <!-- Adjust button - always visible -->
-                        <Button x:Name="FilterButton"
-                                Grid.Column="2"
-                                Text="Adjust"
-                                Style="{StaticResource AuroraNeonButton}"
-                                HeightRequest="34"
-                                Padding="14,2"
-                                Clicked="OnFilterButtonClicked" />
-                    </Grid>
-                </Border>
+                  RowSpacing="6">
 
                 <!-- RESULTS LIST -->
                 <CollectionView x:Name="EbayResultsView"
-                                Grid.Row="2"
-                                Margin="16,4,16,0"
+                                Grid.Row="0"
+                                Margin="14,10,14,0"
                                 SelectionMode="None"
                                 SelectedItem="{x:Null}"
                                 BackgroundColor="Transparent"
@@ -164,10 +74,9 @@
                                 </SwipeView.RightItems>
 
                                 <!-- RESULT CARD -->
-                                <Border
-                                    Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    Margin="0,6,0,6">
+                                <Border Style="{StaticResource AuroraGlassBorder}"
+                                        Padding="10"
+                                        Margin="0,6,0,6">
 
                                     <!-- Selection glow -->
                                     <Border.Triggers>
@@ -236,8 +145,6 @@
                                         <VerticalStackLayout Grid.Column="1"
                                                              Grid.Row="1"
                                                              Spacing="2">
-
-                                            <!-- PRICE -->
                                             <Label Text="{Binding Price, StringFormat='${0:F2}'}"
                                                    FontSize="14"
                                                    FontAttributes="Bold"
@@ -294,120 +201,137 @@
                     </CollectionView.ItemTemplate>
                 </CollectionView>
 
-                <!-- MANUAL SEARCH -->
-                <StackLayout Grid.Row="3"
-                             Spacing="10"
-                             Padding="16,6,16,0">
+                <!-- ========================= -->
+                <!-- BOTTOM COMMAND CENTER     -->
+                <!-- (Hero + Status + Manual)  -->
+                <!-- ========================= -->
+                <Border Grid.Row="1"
+                        Style="{StaticResource AuroraGlassBorder}"
+                        Margin="14,0,14,0">
 
-                    <Label Text="Did not find your card? Search manually:"
-                           FontSize="13"
-                           TextColor="#A8EFFF" />
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                          RowSpacing="6">
 
-                    <Entry x:Name="ManualSearchBox"
-                           Placeholder="Enter player, year, set, number, grade..."
-                           FontSize="13"
-                           BackgroundColor="#111418"
-                           TextColor="White"
-                           PlaceholderColor="#6CD4FF"
-                           HeightRequest="44"
-                           Keyboard="Text" />
+                        <!-- Title / Hero (compact, no side-by-side badge to crush layout) -->
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="Auto,*"
+                              ColumnSpacing="10"
+                              VerticalOptions="Center">
 
-                    <HorizontalStackLayout Spacing="10"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center">
-                        <Button Text="Search"
-                                Style="{StaticResource AuroraNeonButton}"
-                                HeightRequest="42"
-                                WidthRequest="120"
-                                Clicked="OnManualSearchClicked" />
+                            <!-- Neon dot -->
+                            <Border WidthRequest="10"
+                                    HeightRequest="10"
+                                    Stroke="#00E5FF"
+                                    StrokeThickness="2"
+                                    BackgroundColor="#2200E5FF"
+                                    StrokeShape="RoundRectangle 5"
+                                    VerticalOptions="Center" />
 
-                        <Button Text="New Card"
-                                Style="{StaticResource AuroraNeonButton}"
-                                HeightRequest="42"
-                                WidthRequest="120"
-                                Clicked="Add_Manual_Button_Clicked" />
-                    </HorizontalStackLayout>
-                </StackLayout>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 Spacing="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="Search with eBay"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="#F2F6FF"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1" />
+                                <Label Text="Swipe results for actions • Or search manually below"
+                                       FontSize="10"
+                                       TextColor="#9FB3C8"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1" />
+                            </VerticalStackLayout>
+                        </Grid>
 
-                <!-- NAV BAR -->
-                <controls:FuturisticNavBar Grid.Row="4"
-                                           Margin="0,8,0,0" />
-            </Grid>
+                        <!-- Status ribbon (FULL WIDTH so your long status text never destroys layout) -->
+                        <Border Grid.Row="1"
+                                StrokeThickness="1.5"
+                                Stroke="#00E5FF"
+                                BackgroundColor="#101624"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="10,6">
 
-            <!-- FILTER OVERLAY -->
-            <Grid x:Name="FilterOverlay"
-                  Grid.Row="1"
-                  IsVisible="False"
-                  BackgroundColor="#80000000">
+                            <HorizontalStackLayout Spacing="8"
+                                                   VerticalOptions="Center">
 
-                <Grid VerticalOptions="End">
-                    <Frame Margin="16"
-                           Padding="16"
-                           CornerRadius="24"
-                           BackgroundColor="#CC102030"
-                           HasShadow="True">
-                        <StackLayout Spacing="12">
+                                <ActivityIndicator x:Name="SearchActivityIndicator"
+                                                   IsVisible="False"
+                                                   IsRunning="False"
+                                                   WidthRequest="16"
+                                                   HeightRequest="16" />
 
-                            <Label Text="Filter Options"
-                                   FontSize="20"
-                                   FontAttributes="Bold"
-                                   TextColor="#A8EFFF"
-                                   HorizontalOptions="Center" />
-
-                            <!-- Listing Type -->
-                            <StackLayout Spacing="4">
-                                <Label Text="Listing type"
-                                       FontSize="14"
-                                       TextColor="#A8EFFF" />
-                                <Picker x:Name="ListingTypePicker"
-                                        BackgroundColor="#111418"
-                                        TextColor="White"
-                                        Title="Select listing type" />
-                            </StackLayout>
-
-                            <!-- Days Range -->
-                            <StackLayout Spacing="4">
-                                <Label Text="Sold range (days)"
-                                       FontSize="14"
-                                       TextColor="#A8EFFF" />
-                                <Picker x:Name="DaysRangePicker"
-                                        BackgroundColor="#111418"
-                                        TextColor="White"
-                                        Title="Last N days" />
-                            </StackLayout>
-
-                            <!-- Average Count -->
-                            <StackLayout Spacing="4">
-                                <Label Text="Average comps (top N)"
-                                       FontSize="14"
-                                       TextColor="#A8EFFF" />
-                                <Picker x:Name="AverageCountPicker"
-                                        BackgroundColor="#111418"
-                                        TextColor="White"
-                                        Title="Top N results for average" />
-                            </StackLayout>
-
-                            <HorizontalStackLayout Spacing="12"
-                                                   HorizontalOptions="Center"
-                                                   Margin="0,10,0,0">
-                                <Button Text="Apply"
-                                        Style="{StaticResource AuroraNeonButton}"
-                                        WidthRequest="120"
-                                        Clicked="OnApplyFiltersClicked" />
-                                <Button Text="Cancel"
-                                        Style="{StaticResource AuroraNeonButton}"
-                                        WidthRequest="120"
-                                        Clicked="OnCancelFiltersClicked" />
+                                <Label x:Name="StatusLabel"
+                                       Text="READY"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#0ACAF9"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1"
+                                       HorizontalOptions="FillAndExpand" />
                             </HorizontalStackLayout>
-                        </StackLayout>
-                    </Frame>
-                </Grid>
+                        </Border>
+
+                        <!-- Manual prompt (small, readable, not tall) -->
+                        <Label Grid.Row="2"
+                               Text="Didn’t find your card? Search manually:"
+                               FontSize="11"
+                               TextColor="#A8EFFF"
+                               LineBreakMode="TailTruncation"
+                               MaxLines="1" />
+
+                        <!-- Entry + buttons (tight) -->
+                        <Grid Grid.Row="3"
+                              RowDefinitions="Auto,Auto"
+                              RowSpacing="6">
+
+                            <Border Grid.Row="0"
+                                    Stroke="#00E5FF"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="#120A1A2A"
+                                    Padding="10,6">
+
+                                <Entry x:Name="ManualSearchBox"
+                                       Placeholder="Player, year, set, card #, grade..."
+                                       FontSize="13"
+                                       BackgroundColor="Transparent"
+                                       TextColor="White"
+                                       PlaceholderColor="#6CD4FF"
+                                       HeightRequest="38"
+                                       Keyboard="Text" />
+                            </Border>
+
+                            <Grid Grid.Row="1"
+                                  ColumnDefinitions="*,*"
+                                  ColumnSpacing="10">
+
+                                <Button Grid.Column="0"
+                                        Text="Search"
+                                        Style="{StaticResource AuroraNeonButton}"
+                                        HeightRequest="40"
+                                        Clicked="OnManualSearchClicked" />
+
+                                <Button Grid.Column="1"
+                                        Text="New Card"
+                                        Style="{StaticResource AuroraNeonButton}"
+                                        HeightRequest="40"
+                                        Clicked="Add_Manual_Button_Clicked" />
+                            </Grid>
+                        </Grid>
+
+                    </Grid>
+                </Border>
+
+                <!-- NAV BAR (tight so it stays on screen) -->
+                <controls:FuturisticNavBar Grid.Row="2"
+                                           Margin="0,4,0,0" />
             </Grid>
 
-            <!-- INSIGHTS OVERLAY CONTROL -->
+            <!-- INSIGHTS OVERLAY CONTROL (kept; overlays the whole content area) -->
             <controls:InsightsOverlayControl
-                x:Name="InsightsOverlayControl"
-                Grid.Row="1" />
+                Grid.Row="1"
+                x:Name="InsightsOverlayControl" />
 
         </Grid>
     </Grid>

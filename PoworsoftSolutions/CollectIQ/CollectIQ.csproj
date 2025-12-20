@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net9.0-android</TargetFrameworks>
@@ -120,9 +120,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <MauiXaml Update="Controls\FilterOverlayControl.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
     <MauiXaml Update="Controls\InsightsOverlayControl.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>

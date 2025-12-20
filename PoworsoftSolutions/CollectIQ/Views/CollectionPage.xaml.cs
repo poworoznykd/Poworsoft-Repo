@@ -30,10 +30,6 @@ namespace CollectIQ.Views
         public CollectionPage()
         {
             InitializeComponent();
-
-            // When the overlay raises FiltersChanged → reapply filters
-            FilterOverlay.FiltersChanged += (_, __) => ApplyFilters();
-
             BindingContext = this;
         }
 
@@ -121,72 +117,6 @@ namespace CollectIQ.Views
                 await DisplayAlert("Error", "Unable to switch to Scan tab.", "OK");
             }
         }
-
-        #region Filtering
-
-        /// <summary>
-        /// Applies filters from the FilterOverlay control.
-        /// </summary>
-        private void ApplyFilters()
-        {
-            if (allCards == null || allCards.Count == 0)
-                return;
-
-            IEnumerable<Card> filtered = allCards;
-
-            // SEARCH
-            string search = FilterOverlay.Search?.Trim().ToLower() ?? "";
-            if (!string.IsNullOrEmpty(search))
-            {
-                filtered = filtered.Where(c =>
-                    (c.Name?.ToLower().Contains(search) ?? false) ||
-                    (c.Title?.ToLower().Contains(search) ?? false) ||
-                    (c.Team?.ToLower().Contains(search) ?? false));
-            }
-
-            // SPORT FILTERS
-            var sports = new List<string>();
-            if (FilterOverlay.Hockey) sports.Add("Hockey");
-            if (FilterOverlay.Football) sports.Add("Football");
-            if (FilterOverlay.Basketball) sports.Add("Basketball");
-            if (FilterOverlay.Pokemon) sports.Add("Pokemon");
-
-            if (sports.Count > 0)
-            {
-                filtered = filtered.Where(c =>
-                    !string.IsNullOrWhiteSpace(c.Sport) &&
-                    sports.Contains(c.Sport, StringComparer.OrdinalIgnoreCase));
-            }
-
-            // YEAR RANGE
-            filtered = filtered.Where(c =>
-                (c.Year ?? 0) >= FilterOverlay.MinYear &&
-                (c.Year ?? 0) <= FilterOverlay.MaxYear);
-
-            // VALUE RANGE
-            filtered = filtered.Where(c =>
-                (c.EstimatedValue ?? 0) >= FilterOverlay.MinValue &&
-                (c.EstimatedValue ?? 0) <= FilterOverlay.MaxValue);
-
-            // --- FINAL UPDATE ---
-            Cards.Clear();
-            foreach (var card in filtered)
-                Cards.Add(card);
-
-            EmptyMessage.IsVisible = Cards.Count == 0;
-        }
-
-        /// <summary>
-        /// shows the filter overlay
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void OnFilterClicked(object sender, EventArgs e)
-        {
-            await FilterOverlay.ShowAsync();
-        }
-
-        #endregion
 
         #region Exporting
         private async void OnExportCsvClicked(object sender, EventArgs e)

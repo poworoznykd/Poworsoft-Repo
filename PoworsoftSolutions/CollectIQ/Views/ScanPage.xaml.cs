@@ -494,22 +494,6 @@ namespace CollectIQ.Views
         }
 
         /// <summary>
-        /// FUNCTION: OnAddManuallyClicked
-        /// DESCRIPTION:
-        ///     Navigates to the manual entry workflow for adding a card
-        ///     without using the camera.
-        /// PARAMETERS:
-        ///     sender - The initiating button.
-        ///     e - Event arguments.
-        /// RETURNS:
-        ///     None.
-        /// </summary>
-        private async void OnAddManuallyClicked(object sender, EventArgs e)
-        {
-            await Shell.Current.GoToAsync($"{nameof(CardPage)}");
-        }
-
-        /// <summary>
         /// FUNCTION: Camera_MediaCaptured
         /// DESCRIPTION:
         ///     Logs a successful media capture from the underlying camera.

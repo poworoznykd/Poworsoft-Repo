@@ -5,6 +5,7 @@
 * PROGRAMMER: Darryl Poworoznyk
 * DESCRIPTION:
 *     Neon scan experience aligned with Dashboard / Collection / Card pages.
+*     Updated layout: no scrolling, scan frame always visible, floating shutter button.
 -->
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -16,10 +17,10 @@
              Title="Scan Card"
              Disappearing="OnDisappearing">
 
-    <!-- 4 rows now:
+    <!-- 4 rows:
          0 = top mode toggle bar (Collect / Inspect / Trade)
-         1 = scrollable header + scan frame
-         2 = controls (scan / manual / status)
+         1 = instruction chip + scan frame (fills available height)
+         2 = slim controls strip (manual + status)
          3 = bottom futuristic nav bar -->
     <Grid RowDefinitions="Auto,*,Auto,Auto">
 
@@ -28,169 +29,157 @@
         <!-- ========================= -->
         <controls:AppModeToggleBar
             Grid.Row="0"
-            Margin="0,0,0,4" />
+            Margin="0,0,0,6" />
 
         <!-- ========================= -->
-        <!-- SCROLLABLE TOP CONTENT    -->
+        <!-- MAIN SCAN AREA (NO SCROLL)-->
         <!-- ========================= -->
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout
-                Padding="16,16,16,8"
-                Spacing="18">
+        <Grid Grid.Row="1"
+              Padding="16,10,16,8"
+              RowDefinitions="Auto,*"
+              RowSpacing="10">
 
-                <!-- HEADER / HERO (slightly shorter) -->
-                <Border
+            <!-- Compact instruction chip (replaces bulky hero) -->
+            <Border Grid.Row="0"
                     Style="{StaticResource AuroraGlassBorder}"
-                    Padding="14,10"
-                    Margin="0,0,0,2">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="Scan a Card"
-                               FontSize="18"
+                    Padding="12,10"
+                    Margin="0">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <!-- Minimal "dot" indicator -->
+                    <Border WidthRequest="10"
+                            HeightRequest="10"
+                            Stroke="#00E5FF"
+                            StrokeThickness="2"
+                            BackgroundColor="#2200E5FF"
+                            StrokeShape="RoundRectangle 5"
+                            VerticalOptions="Center" />
+
+                    <VerticalStackLayout Grid.Column="1"
+                                         Spacing="2"
+                                         VerticalOptions="Center">
+                        <Label Text="Align the card inside the neon frame"
+                               FontSize="12"
                                FontAttributes="Bold"
                                TextColor="#F2F6FF" />
-                        <Label Text="Align the card inside the neon frame, then tap the scan button. Capture front and back before saving."
+                        <Label Text="Tap the green button to capture. Get front + back before saving."
                                FontSize="10"
                                TextColor="#9FB3C8" />
                     </VerticalStackLayout>
-                </Border>
+                </Grid>
+            </Border>
 
-                <!-- SCAN AREA: CAMERA + NEON FRAME + SCAN LINE -->
-                <Border
+            <!-- Scan frame (takes all remaining height) -->
+            <Border Grid.Row="1"
                     Style="{StaticResource AuroraGlassBorder}"
                     Padding="10"
-                    Margin="0,4,0,12">
-                    <!-- ↓↓↓ smaller so it ends well above the button ↓↓↓ -->
-                    <Grid HeightRequest="320">
+                    Margin="0">
 
-                        <!-- Live camera feed -->
-                        <toolkit:CameraView
-                            x:Name="CameraView"
-                            HorizontalOptions="FillAndExpand"
-                            VerticalOptions="FillAndExpand"
-                            BackgroundColor="Black"
-                            CameraFlashMode="Off"
-                            MediaCaptured="Camera_MediaCaptured" />
+                <!-- Camera + overlays + floating shutter -->
+                <Grid>
 
-                        <!-- Inner neon scan frame -->
-                        <Border
-                            Stroke="#00E5FF"
-                            StrokeThickness="2"
-                            StrokeShape="RoundRectangle 26"
-                            BackgroundColor="#22020816"
-                            Margin="14" />
+                    <!-- Live camera feed -->
+                    <toolkit:CameraView
+                        x:Name="CameraView"
+                        BackgroundColor="Black"
+                        CameraFlashMode="Off"
+                        MediaCaptured="Camera_MediaCaptured" />
 
-                        <!-- Corner markers -->
-                        <Grid Margin="20">
-                            <!-- top-left -->
-                            <Grid HorizontalOptions="Start"
-                                  VerticalOptions="Start">
-                                <BoxView WidthRequest="26"
-                                         HeightRequest="3"
-                                         BackgroundColor="#00E5FF" />
-                                <BoxView WidthRequest="3"
-                                         HeightRequest="26"
-                                         BackgroundColor="#00E5FF" />
-                            </Grid>
-                            <!-- top-right -->
-                            <Grid HorizontalOptions="End"
-                                  VerticalOptions="Start">
-                                <BoxView WidthRequest="26"
-                                         HeightRequest="3"
-                                         BackgroundColor="#00E5FF" />
-                                <BoxView WidthRequest="3"
-                                         HeightRequest="26"
-                                         BackgroundColor="#00E5FF"
-                                         HorizontalOptions="End" />
-                            </Grid>
-                            <!-- bottom-left -->
-                            <Grid HorizontalOptions="Start"
-                                  VerticalOptions="End">
-                                <BoxView WidthRequest="26"
-                                         HeightRequest="3"
-                                         BackgroundColor="#00E5FF"
-                                         VerticalOptions="End" />
-                                <BoxView WidthRequest="3"
-                                         HeightRequest="26"
-                                         BackgroundColor="#00E5FF" />
-                            </Grid>
-                            <!-- bottom-right -->
-                            <Grid HorizontalOptions="End"
-                                  VerticalOptions="End">
-                                <BoxView WidthRequest="26"
-                                         HeightRequest="3"
-                                         BackgroundColor="#00E5FF"
-                                         VerticalOptions="End" />
-                                <BoxView WidthRequest="3"
-                                         HeightRequest="26"
-                                         BackgroundColor="#00E5FF"
-                                         HorizontalOptions="End" />
-                            </Grid>
+                    <!-- Inner neon scan frame -->
+                    <Border
+                        Stroke="#00E5FF"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 26"
+                        BackgroundColor="#22020816"
+                        Margin="14" />
+
+                    <!-- Corner markers -->
+                    <Grid Margin="20">
+                        <!-- top-left -->
+                        <Grid HorizontalOptions="Start"
+                              VerticalOptions="Start">
+                            <BoxView WidthRequest="26"
+                                     HeightRequest="3"
+                                     BackgroundColor="#00E5FF" />
+                            <BoxView WidthRequest="3"
+                                     HeightRequest="26"
+                                     BackgroundColor="#00E5FF" />
                         </Grid>
 
-                        <!-- Animated scan line -->
-                        <BoxView x:Name="ScanLine"
-                                 HeightRequest="3"
-                                 Margin="26,26,26,0"
-                                 VerticalOptions="Start"
-                                 HorizontalOptions="FillAndExpand"
-                                 BackgroundColor="#39FF14"
-                                 Opacity="0.95"
-                                 CornerRadius="2" />
+                        <!-- top-right -->
+                        <Grid HorizontalOptions="End"
+                              VerticalOptions="Start">
+                            <BoxView WidthRequest="26"
+                                     HeightRequest="3"
+                                     BackgroundColor="#00E5FF" />
+                            <BoxView WidthRequest="3"
+                                     HeightRequest="26"
+                                     BackgroundColor="#00E5FF"
+                                     HorizontalOptions="End" />
+                        </Grid>
+
+                        <!-- bottom-left -->
+                        <Grid HorizontalOptions="Start"
+                              VerticalOptions="End">
+                            <BoxView WidthRequest="26"
+                                     HeightRequest="3"
+                                     BackgroundColor="#00E5FF"
+                                     VerticalOptions="End" />
+                            <BoxView WidthRequest="3"
+                                     HeightRequest="26"
+                                     BackgroundColor="#00E5FF" />
+                        </Grid>
+
+                        <!-- bottom-right -->
+                        <Grid HorizontalOptions="End"
+                              VerticalOptions="End">
+                            <BoxView WidthRequest="26"
+                                     HeightRequest="3"
+                                     BackgroundColor="#00E5FF"
+                                     VerticalOptions="End" />
+                            <BoxView WidthRequest="3"
+                                     HeightRequest="26"
+                                     BackgroundColor="#00E5FF"
+                                     HorizontalOptions="End" />
+                        </Grid>
                     </Grid>
-                </Border>
 
-            </VerticalStackLayout>
-        </ScrollView>
+                    <!-- Animated scan line -->
+                    <BoxView x:Name="ScanLine"
+                             HeightRequest="3"
+                             Margin="26,26,26,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="FillAndExpand"
+                             BackgroundColor="#39FF14"
+                             Opacity="0.95"
+                             CornerRadius="2" />
 
-        <!-- ========================= -->
-        <!-- CONTROLS ROW              -->
-        <!-- ========================= -->
-        <VerticalStackLayout
-            Grid.Row="2"
-            Spacing="10"
-            Padding="0,0,0,6">
+                    <!-- Subtle bottom fade so text/buttons pop -->
+                    <Border BackgroundColor="#88050814"
+                            StrokeThickness="0"
+                            VerticalOptions="End"
+                            HeightRequest="120">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="0" />
+                        </Border.StrokeShape>
+                    </Border>
 
-            <!-- Smaller neon capture button sitting clear of the frame -->
-            <Button x:Name="ScanButton"
-                    Style="{StaticResource AccentButtonGreen}"
-                    Clicked="OnScanClicked"
-                    BackgroundColor="Transparent"
-                    BorderColor="#39FF14"
-                    BorderWidth="3"
-                    WidthRequest="72"
-                    HeightRequest="72"
-                    CornerRadius="36"
-                    Margin="0,4,0,0"
-                    HorizontalOptions="Center"
-                    VerticalOptions="Center">
-                <Button.Shadow>
-                    <Shadow Brush="#39FF14" Radius="22" />
-                </Button.Shadow>
-            </Button>
-
-            <!-- Manual entry + status -->
-            <HorizontalStackLayout Spacing="10"
-                                   HorizontalOptions="FillAndExpand"
-                                   VerticalOptions="Center"
-                                   Padding="12,0">
-
-                <!-- Match other neon buttons -->
-                <Button x:Name="ManualButton"
-                        Style="{StaticResource AuroraNeonButton}"
-                        Text="Add Manually"
-                        HeightRequest="44"
-                        HorizontalOptions="Start"
-                        Clicked="OnAddManuallyClicked" />
-
-                <Label x:Name="ResultLabel"
-                       Text="Ready to scan..."
-                       FontSize="13"
-                       TextColor="#A8EFFF"
-                       HorizontalOptions="EndAndExpand"
-                       VerticalOptions="Center"
-                       HorizontalTextAlignment="End" />
-            </HorizontalStackLayout>
-        </VerticalStackLayout>
+                    <!-- Floating shutter button (same name + handler) -->
+                    <ImageButton x:Name="ScanButton"
+                                 Source="camera_icon.png"
+                            Clicked="OnScanClicked"
+                            BackgroundColor="Transparent"
+                            Style="{StaticResource AuroraNeonRoundIconButton}"
+                            BorderWidth="3"
+                            WidthRequest="74"
+                            HeightRequest="74"
+                            CornerRadius="37"
+                            HorizontalOptions="Center"
+                            VerticalOptions="End"
+                            Margin="0,0,0,18">
+                    </ImageButton>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- ========================= -->
         <!-- FUTURISTIC NAV BAR        -->

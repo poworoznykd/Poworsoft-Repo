@@ -101,9 +101,6 @@ namespace CollectIQ.Views
             lastImageBase64 = string.Empty;
             lastManualQuery = string.Empty;
             frontImagePathInternal = string.Empty;
-
-            InitializeFilterPickers();
-            UpdateFilterSummaryLabel();
         }
 
         private async void OnInsightsIconTapped(object sender, TappedEventArgs e)
@@ -153,55 +150,6 @@ namespace CollectIQ.Views
         }
 
         #region Filter Initialization
-
-        /// <summary>
-        /// Populates the filter pickers with default options.
-        /// </summary>
-        private void InitializeFilterPickers()
-        {
-            // Listing type options
-            ListingTypePicker.Items.Clear();
-            ListingTypePicker.Items.Add("Sold (last sold)");
-            ListingTypePicker.Items.Add("Active (for sale)");
-            ListingTypePicker.SelectedIndex = 0;
-
-            // Days range options (used only for sold)
-            DaysRangePicker.Items.Clear();
-            DaysRangePicker.Items.Add("30");
-            DaysRangePicker.Items.Add("90");
-            DaysRangePicker.Items.Add("180");
-            DaysRangePicker.Items.Add("365");
-            DaysRangePicker.SelectedIndex = 1; // 90 by default
-
-            // Average count (top N results)
-            AverageCountPicker.Items.Clear();
-            AverageCountPicker.Items.Add("5");
-            AverageCountPicker.Items.Add("10");
-            AverageCountPicker.Items.Add("20");
-            AverageCountPicker.Items.Add("50");
-            AverageCountPicker.SelectedIndex = 1; // 10 by default
-        }
-
-        /// <summary>
-        /// Updates the small filter summary label under the manual search controls.
-        /// </summary>
-        private void UpdateFilterSummaryLabel()
-        {
-            string typeLabel = string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
-                ? "Sold"
-                : "Active";
-
-            if (string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase))
-            {
-                FilterSummaryLabel.Text =
-                    $"Filters: {typeLabel}, last {daysRangeFilter} days, avg top {averageCountFilter}";
-            }
-            else
-            {
-                FilterSummaryLabel.Text =
-                    $"Filters: {typeLabel}, avg top {averageCountFilter}";
-            }
-        }
 
         #endregion
 
@@ -374,7 +322,6 @@ namespace CollectIQ.Views
                                 "OK");
 
                             listingTypeFilter = "active";
-                            UpdateFilterSummaryLabel();
                             results = identified;
                         }
                     }
@@ -472,14 +419,6 @@ namespace CollectIQ.Views
             await Navigation.PushAsync(new CardPage(new Card()));
         }
 
-        /// <summary>
-        /// Displays the bottom-sheet filter overlay.
-        /// </summary>
-        private void OnFilterButtonClicked(object sender, EventArgs e)
-        {
-            FilterOverlay.IsVisible = true;
-        }
-
         #region Begin Searching
         /// <summary>
         /// On navigation to this page, if a front image path was provided,
@@ -503,85 +442,7 @@ namespace CollectIQ.Views
             });
         }
 
-        /// <summary>
-        /// Applies selected filters and re-runs the last search.
-        /// </summary>
-        private async void OnApplyFiltersClicked(object sender, EventArgs e)
-        {
-            try
-            {
-                // Listing type
-                if (ListingTypePicker.SelectedIndex == 0)
-                {
-                    listingTypeFilter = "sold";
-                }
-                else
-                {
-                    listingTypeFilter = "active";
-                }
-
-                // Days range (only really used for sold)
-                int selectedDays = daysRangeFilter;
-                if (DaysRangePicker.SelectedItem is string daysText &&
-                    int.TryParse(daysText, out int parsedDays))
-                {
-                    selectedDays = parsedDays;
-                }
-
-                daysRangeFilter = selectedDays;
-
-                // Average count (top N)
-                int selectedAverageCount = averageCountFilter;
-                if (AverageCountPicker.SelectedItem is string avgText &&
-                    int.TryParse(avgText, out int parsedAvg))
-                {
-                    selectedAverageCount = Math.Max(1, parsedAvg);
-                }
-
-                averageCountFilter = selectedAverageCount;
-
-                UpdateFilterSummaryLabel();
-                FilterOverlay.IsVisible = false;
-
-                // Re-run the last search with updated filters
-                if (lastSearchMode == SearchMode.Image && !string.IsNullOrEmpty(lastImageBase64))
-                {
-                    SetSearchingState(true, "Updating image search with new filters...");
-
-                    // Reuse existing base64 rather than re-reading from disk
-                    var results = await ebayService.SearchByImageAsync(
-                        lastImageBase64,
-                        limit: Math.Max(averageCountFilter, 25),
-                        listingTypeFilter: listingTypeFilter,
-                        daysRange: daysRangeFilter);
-                    
-                    ApplyResultsToCollection(results);
-                    UpdateStatusForResults(results);
-                }
-                else if (lastSearchMode == SearchMode.Text && !string.IsNullOrEmpty(lastManualQuery))
-                {
-                    await PerformManualSearchAsync(lastManualQuery);
-                }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"Failed to apply filters: {ex.Message}", "OK");
-            }
-            finally
-            {
-                SetSearchingState(false);
-            }
-        }
-
         #endregion
-
-        /// <summary>
-        /// Hides the filter overlay without applying changes.
-        /// </summary>
-        private void OnCancelFiltersClicked(object sender, EventArgs e)
-        {
-            FilterOverlay.IsVisible = false;
-        }
 
         #endregion
 

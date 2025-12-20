@@ -8,7 +8,6 @@
 
     <!-- Gradient background to blend page content into the nav bar -->
     <Grid RowDefinitions="Auto"
-          Padding="0,0,0,4"
           VerticalOptions="End">
 
         <Grid.Background>
