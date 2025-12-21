@@ -47,7 +47,6 @@ namespace CollectIQ.Services
 
             await _connection.CreateTableAsync<UserProfile>();
             await _connection.CreateTableAsync<Card>();
-            await _connection.CreateTableAsync<CardImage>();
         }
 
         // ============================================================
@@ -144,15 +143,6 @@ namespace CollectIQ.Services
         {
             await InitializeAsync();
             return await _connection!.InsertAsync(card);
-        }
-
-        /// <summary>
-        /// Inserts a card image associated with a specific card.
-        /// </summary>
-        public async Task<int> AddCardImageAsync(CardImage image)
-        {
-            await InitializeAsync();
-            return await _connection!.InsertAsync(image);
         }
 
         /// <summary>
