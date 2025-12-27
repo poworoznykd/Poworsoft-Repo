@@ -57,36 +57,36 @@ namespace CollectIQ.Services
                     // --------------------
                     int row = 1;
 
-                    ws.Cell(row, 1).Value = "Title";
-                    ws.Cell(row, 2).Value = "Name";
-                    ws.Cell(row, 3).Value = "Team";
-                    ws.Cell(row, 4).Value = "Year";
-                    ws.Cell(row, 5).Value = "Set";
-                    ws.Cell(row, 6).Value = "Number";
-                    ws.Cell(row, 7).Value = "GradeCo";
-                    ws.Cell(row, 8).Value = "Grade";
-                    ws.Cell(row, 9).Value = "Purchase";
-                    ws.Cell(row, 10).Value = "Estimated";
-                    ws.Cell(row, 11).Value = "Front";
-                    ws.Cell(row, 12).Value = "Back";
-                    ws.Cell(row, 13).Value = "FrontOv";
-                    ws.Cell(row, 14).Value = "BackOv";
-                    ws.Cell(row, 15).Value = "FrontPath";
-                    ws.Cell(row, 16).Value = "BackPath";
-                    ws.Cell(row, 17).Value = "FrontOvPath";
-                    ws.Cell(row, 18).Value = "BackOvPath";
-                    ws.Cell(row, 19).Value = "FrontThumb";
-                    ws.Cell(row, 20).Value = "BackThumb";
+                    ws.Cell(row, 1).Value = "FrontThumb";  // NEW first column – thumbnail
+                    ws.Cell(row, 2).Value = "Title";
+                    ws.Cell(row, 3).Value = "Name";
+                    ws.Cell(row, 4).Value = "Team";
+                    ws.Cell(row, 5).Value = "Year";
+                    ws.Cell(row, 6).Value = "Set";
+                    ws.Cell(row, 7).Value = "Number";
+                    ws.Cell(row, 8).Value = "GradeCo";
+                    ws.Cell(row, 9).Value = "Grade";
+                    ws.Cell(row, 10).Value = "Purchase";
+                    ws.Cell(row, 11).Value = "Estimated";
+                    ws.Cell(row, 12).Value = "Front";
+                    ws.Cell(row, 13).Value = "Back";
+                    ws.Cell(row, 14).Value = "FrontOv";
+                    ws.Cell(row, 15).Value = "BackOv";
+                    ws.Cell(row, 16).Value = "FrontPath";
+                    ws.Cell(row, 17).Value = "BackPath";
+                    ws.Cell(row, 18).Value = "FrontOvPath";
+                    ws.Cell(row, 19).Value = "BackOvPath";
+                    // no column 20 anymore (BackThumb removed)
 
                     ws.Row(row).Style.Font.Bold = true;
 
-                    // Reasonable default column widths
-                    ws.Columns(1, 8).AdjustToContents();
-                    ws.Column(9).Width = 10;  // Purchase
-                    ws.Column(10).Width = 10; // Estimated
-                    ws.Columns(11, 14).Width = 8;
-                    ws.Columns(15, 18).Width = 60; // paths
-                    ws.Columns(19, 20).Width = 18; // thumbnails
+                    // Column widths
+                    ws.Column(1).Width = 18;         // thumbnail
+                    ws.Columns(2, 8).AdjustToContents();
+                    ws.Column(9).Width = 10;         // Purchase
+                    ws.Column(10).Width = 10;        // Estimated
+                    ws.Columns(11, 15).Width = 8;    // small flags
+                    ws.Columns(16, 19).Width = 60;   // paths
 
                     // --------------------
                     // Data rows
@@ -99,48 +99,44 @@ namespace CollectIQ.Services
                     foreach (var c in cardList)
                     {
                         // Basic card data
-                        ws.Cell(row, 1).Value = c.Title;
-                        ws.Cell(row, 2).Value = c.Name;
-                        ws.Cell(row, 3).Value = c.Team;
-                        ws.Cell(row, 4).Value = c.Year;
-                        ws.Cell(row, 5).Value = c.Set;
-                        ws.Cell(row, 6).Value = c.Number;
-                        ws.Cell(row, 7).Value = c.GradeCompany;
-                        ws.Cell(row, 8).Value = c.Grade;
+                        ws.Cell(row, 2).Value = c.Title;
+                        ws.Cell(row, 3).Value = c.Name;
+                        ws.Cell(row, 4).Value = c.Team;
+                        ws.Cell(row, 5).Value = c.Year;
+                        ws.Cell(row, 6).Value = c.Set;
+                        ws.Cell(row, 7).Value = c.Number;
+                        ws.Cell(row, 8).Value = c.GradeCompany;
+                        ws.Cell(row, 9).Value = c.Grade;
 
                         if (c.PurchasePrice.HasValue)
                         {
-                            ws.Cell(row, 9).Value = (double)c.PurchasePrice.Value;
+                            ws.Cell(row, 10).Value = (double)c.PurchasePrice.Value;
                         }
 
                         if (c.EstimatedValue.HasValue)
                         {
-                            ws.Cell(row, 10).Value = (double)c.EstimatedValue.Value;
+                            ws.Cell(row, 11).Value = (double)c.EstimatedValue.Value;
                         }
 
-                        // Flags (keep your existing semantics)
-                        ws.Cell(row, 11).Value = string.IsNullOrEmpty(c.FrontImagePath) ? "" : "Front";
-                        ws.Cell(row, 12).Value = string.IsNullOrEmpty(c.BackImagePath) ? "" : "Back";
-                        ws.Cell(row, 13).Value = string.IsNullOrEmpty(c.FrontOverlayImagePath) ? "" : "Front";
-                        ws.Cell(row, 14).Value = string.IsNullOrEmpty(c.BackOverlayImagePath) ? "" : "Back";
+                        // Flags
+                        ws.Cell(row, 12).Value = string.IsNullOrEmpty(c.FrontImagePath) ? "" : "Front";
+                        ws.Cell(row, 13).Value = string.IsNullOrEmpty(c.BackImagePath) ? "" : "Back";
+                        ws.Cell(row, 14).Value = string.IsNullOrEmpty(c.FrontOverlayImagePath) ? "" : "Front";
+                        ws.Cell(row, 15).Value = string.IsNullOrEmpty(c.BackOverlayImagePath) ? "" : "Back";
 
                         // Paths (as text)
-                        ws.Cell(row, 15).Value = c.FrontImagePath ?? "";
-                        ws.Cell(row, 16).Value = c.BackImagePath ?? "";
-                        ws.Cell(row, 17).Value = c.FrontOverlayImagePath ?? "";
-                        ws.Cell(row, 18).Value = c.BackOverlayImagePath ?? "";
+                        ws.Cell(row, 16).Value = c.FrontImagePath ?? "";
+                        ws.Cell(row, 17).Value = c.BackImagePath ?? "";
+                        ws.Cell(row, 18).Value = c.FrontOverlayImagePath ?? "";
+                        ws.Cell(row, 19).Value = c.BackOverlayImagePath ?? "";
 
                         // Make room for thumbnails (fixed height for every card)
                         ws.Row(row).Height = ThumbnailRowHeight;
 
                         // --------------------
-                        // Thumbnails
+                        // Thumbnail (only front, in column 1)
                         // --------------------
-                        // Front thumb in column 19
-                        TryAddPicture(ws, c.FrontImagePath, row, 19);
-
-                        // Back thumb in column 20
-                        TryAddPicture(ws, c.BackImagePath, row, 20);
+                        TryAddPicture(ws, c.FrontImagePath, row, 1);
 
                         row++;
                     }
@@ -151,6 +147,7 @@ namespace CollectIQ.Services
                 return fullPath;
             });
         }
+
 
         /// <summary>
         /// Adds a small, scaled picture to the given worksheet/cell if the path exists.
