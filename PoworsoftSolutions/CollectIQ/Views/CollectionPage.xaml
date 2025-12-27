@@ -147,7 +147,7 @@
                                     HeightRequest="36"
                                     FontSize="11"
                                     Padding="14,6"
-                                    Clicked="OnExportCsvClicked" />
+                                    Clicked="OnExportExcelClicked" />
                         </Border>
 
                         <Border Stroke="#00E5FF"

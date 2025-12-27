@@ -18,6 +18,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+// Needed for FileSystem + Share + Path/File
+using System.IO;
+using Microsoft.Maui.Storage;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
+
 namespace CollectIQ.Views
 {
     public partial class CollectionPage : ContentPage
@@ -119,53 +124,25 @@ namespace CollectIQ.Views
         }
 
         #region Exporting
-        private async void OnExportCsvClicked(object sender, EventArgs e)
+        private async void OnExportExcelClicked(object sender, EventArgs e)
         {
             try
             {
-                if (CardsCollectionView.ItemsSource is not IEnumerable<object> items)
+                if (Cards == null || Cards.Count == 0)
                 {
                     await DisplayAlert("Export", "No cards to export yet.", "OK");
                     return;
                 }
 
-                var cards = items.OfType<Card>().ToList();
-                if (cards.Count == 0)
-                {
-                    await DisplayAlert("Export", "No cards to export yet.", "OK");
-                    return;
-                }
-
-                // Build CSV (Excel-compatible)
-                var sb = new StringBuilder();
-                sb.AppendLine("Name,Team,Year,Set,Number,GradeCompany,Grade,PurchasePrice,EstimatedValue,FrontImagePath,BackImagePath");
-
-                foreach (var c in cards)
-                {
-                    string csvLine = string.Join(",",
-                        EscapeCsv(c.Name),
-                        EscapeCsv(c.Team),
-                        c.Year?.ToString() ?? string.Empty,
-                        EscapeCsv(c.Set),
-                        EscapeCsv(c.Number),
-                        EscapeCsv(c.GradeCompany),
-                        c.Grade?.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-                        c.PurchasePrice?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-                        c.EstimatedValue?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-                        EscapeCsv(c.FrontImagePath),
-                        EscapeCsv(c.BackImagePath));
-
-                    sb.AppendLine(csvLine);
-                }
-
-                var fileName = $"CollectIQ_Collection_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-                var filePath = Path.Combine(FileSystem.CacheDirectory, fileName);
-                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+                // Use cache directory for the temporary Excel file
+                var exportPath = await ExcelCollectionExportService.ExportAsync(
+                    Cards,
+                    FileSystem.CacheDirectory);
 
                 await Share.Default.RequestAsync(new ShareFileRequest
                 {
-                    Title = "Export Collection (CSV)",
-                    File = new ShareFile(filePath)
+                    Title = "Export Collection (Excel)",
+                    File = new ShareFile(exportPath)
                 });
             }
             catch (Exception ex)
@@ -174,13 +151,15 @@ namespace CollectIQ.Views
             }
         }
 
+
+
         private async void OnExportPdfClicked(object sender, EventArgs e)
         {
             // Placeholder so the button does not break anything.
             // You can later plug in a real PDF generator (Syncfusion, QuestPDF, etc.)
             await DisplayAlert(
                 "Export to PDF",
-                "PDF export is not wired up yet. CSV export is available now, and PDF can be added with a PDF library later.",
+                "PDF export is not wired up yet. Excel export is available now, and PDF can be added next.",
                 "OK");
         }
 
