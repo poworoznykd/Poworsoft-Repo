@@ -52,8 +52,6 @@ namespace CollectIQ.Views
         /// </summary>
         private EbayListing? currentInsightAnchor;
 
-
-
         private readonly EbayService ebayService;
         private readonly ObservableCollection<EbayListing> listings;
         // Insights (sold comps) list
@@ -121,7 +119,7 @@ namespace CollectIQ.Views
 
             int days = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
-            if(InsightsOverlayControl != null)
+            if (InsightsOverlayControl != null)
             {
                 // First: wire up the callback
                 InsightsOverlayControl.OnEstimatedValueReady = async (value) =>
@@ -136,7 +134,6 @@ namespace CollectIQ.Views
                         // Update the selected listing
                         selectedListing.Price = value.Value;
                         selectedListing.EstimatedValue = InsightsOverlayControl?.InsightsData?.SuggestedPrice ?? 0.00m;
-
                     }
 
                     // Properly await the async hide call
@@ -145,7 +142,6 @@ namespace CollectIQ.Views
 
                 // Then: show the overlay
                 await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
-
             }
         }
 
@@ -251,6 +247,11 @@ namespace CollectIQ.Views
         /// For "Sold" mode, we:
         ///   1) Identify the card by image (active listings),
         ///   2) Use the top titles to fetch sold comps by text.
+        /// 
+        /// NOTE:
+        ///   All calls into EbayService are wrapped in Task.Run to keep
+        ///   the UI thread responsive even if the service uses blocking
+        ///   HTTP or heavy parsing.
         /// </summary>
         private async Task PerformImageSearchAsync(string imagePath)
         {
@@ -278,11 +279,12 @@ namespace CollectIQ.Views
                     SetSearchingState(true, "Identifying card and retrieving sold comps...");
 
                     // Step 1: identify card using active listings via image search.
-                    var identified = await ebayService.SearchByImageAsync(
-                        lastImageBase64,
-                        limit: 5,
-                        listingTypeFilter: "active",
-                        daysRange: lookbackDays);
+                    var identified = await Task.Run(async () =>
+                        await ebayService.SearchByImageAsync(
+                            lastImageBase64,
+                            limit: 5,
+                            listingTypeFilter: "active",
+                            daysRange: lookbackDays));
 
                     if (identified == null || identified.Count == 0)
                     {
@@ -303,10 +305,11 @@ namespace CollectIQ.Views
 
                         foreach (string title in topTitles)
                         {
-                            var soldForTitle = await EbayService.SearchSoldAsync(
-                                title,
-                                limit: Math.Max(averageCountFilter * 3, 30),
-                                daysRange: lookbackDays);
+                            var soldForTitle = await Task.Run(async () =>
+                                await EbayService.SearchSoldAsync(
+                                    title,
+                                    limit: Math.Max(averageCountFilter * 3, 30),
+                                    daysRange: lookbackDays));
 
                             if (soldForTitle != null && soldForTitle.Count > 0)
                             {
@@ -330,11 +333,12 @@ namespace CollectIQ.Views
                 {
                     SetSearchingState(true, "Identifying card and retrieving listings...");
 
-                    results = await ebayService.SearchByImageAsync(
-                        lastImageBase64,
-                        limit: Math.Max(averageCountFilter, 25),
-                        listingTypeFilter: listingTypeFilter,
-                        daysRange: lookbackDays);
+                    results = await Task.Run(async () =>
+                        await ebayService.SearchByImageAsync(
+                            lastImageBase64,
+                            limit: Math.Max(averageCountFilter, 25),
+                            listingTypeFilter: listingTypeFilter,
+                            daysRange: lookbackDays));
                 }
 
                 ApplyResultsToCollection(results);
@@ -356,9 +360,12 @@ namespace CollectIQ.Views
 
         /// <summary>
         /// Performs a manual text-based search using the configured filters.
+        /// 
+        /// NOTE:
+        ///   EbayService.SearchListingsAsync is wrapped in Task.Run so that
+        ///   any blocking HTTP / parsing work happens off the UI thread.
         /// </summary>
-        private async Task PerformManualSearchAsync(string query
-        )
+        private async Task PerformManualSearchAsync(string query)
         {
             try
             {
@@ -372,11 +379,14 @@ namespace CollectIQ.Views
 
                 SetSearchingState(true, $"Searching eBay for: {lastManualQuery}");
 
-                var results = await ebayService.SearchListingsAsync(
-                    lastManualQuery,
-                    limit: Math.Max(averageCountFilter, 25),
-                    listingTypeFilter: listingTypeFilter,
-                    daysRange: daysRangeFilter);
+                int limit = Math.Max(averageCountFilter, 25);
+
+                var results = await Task.Run(async () =>
+                    await ebayService.SearchListingsAsync(
+                        lastManualQuery,
+                        limit: limit,
+                        listingTypeFilter: listingTypeFilter,
+                        daysRange: daysRangeFilter));
 
                 ApplyResultsToCollection(results);
                 UpdateStatusForResults(results);
@@ -420,6 +430,7 @@ namespace CollectIQ.Views
         }
 
         #region Begin Searching
+
         /// <summary>
         /// On navigation to this page, if a front image path was provided,
         /// automatically perform a search-by-image using the current filters.
@@ -455,7 +466,10 @@ namespace CollectIQ.Views
                 await icon.ScaleTo(1.15, 120, Easing.CubicOut);
                 await icon.ScaleTo(1.0, 120, Easing.CubicIn);
             }
-            catch { /* ignore */ }
+            catch
+            {
+                // ignore
+            }
         }
 
         private void OnItemTapped(object sender, TappedEventArgs e)
@@ -524,13 +538,6 @@ namespace CollectIQ.Views
                 card.EstimatedValue = listing.EstimatedValue;
                 card.FrontImagePath = FrontImagePath;
 
-                //// Decide where thumbnail images live
-                //var cacheDir = FileSystem.CacheDirectory;
-                //var thumbFolder = Path.Combine(cacheDir, "CollectIQ_Thumbs");
-                //Directory.CreateDirectory(thumbFolder);
-                //if (FrontImagePath != null)
-                //    card.FrontThumbnailPath = ExcelCollectionExportService.CreateThumbnailFixedOrientation(FrontImagePath, thumbFolder, maxSize: 256);
-
                 await App.Database.AddCardAsync(card);
                 await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
             }
@@ -573,6 +580,5 @@ namespace CollectIQ.Views
         }
 
         #endregion
-
     }
 }
