@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Views.UnderConstructionPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="#020817">
+
+    <Grid Padding="24"
+          RowDefinitions="Auto,*,Auto">
+
+        <!-- Back button row -->
+        <Button Grid.Row="0"
+                Text="Back"
+                FontAttributes="Bold"
+                HorizontalOptions="Start"
+                Clicked="OnBackClicked" />
+
+        <!-- Main content -->
+        <VerticalStackLayout Grid.Row="1"
+                             Spacing="16"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center">
+
+            <!-- You can swap this for any image asset you like -->
+            <Image x:Name="IconImage"
+                   HeightRequest="160"
+                   Aspect="AspectFit"
+                   Margin="0,0,0,8"
+                   Source="under_construction.png" />
+
+            <Label x:Name="HeaderLabel"
+                   Text="Feature under construction"
+                   FontSize="22"
+                   FontAttributes="Bold"
+                   HorizontalTextAlignment="Center"
+                   TextColor="#E5E7EB" />
+
+            <Label x:Name="BodyLabel"
+                   FontSize="14"
+                   HorizontalTextAlignment="Center"
+                   TextColor="#9CA3AF" />
+        </VerticalStackLayout>
+
+        <!-- Footer text -->
+        <Label Grid.Row="2"
+               Text="You can keep using the rest of CollectIQ while we build this lane."
+               FontSize="12"
+               HorizontalTextAlignment="Center"
+               TextColor="#6B7280" />
+    </Grid>
+</ContentPage>

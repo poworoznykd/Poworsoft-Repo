@@ -15,6 +15,7 @@ using System;
 using CollectIQ.Navigation;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
+using CollectIQ.Views;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Controls
@@ -66,11 +67,6 @@ namespace CollectIQ.Controls
          *     Handles mode changes raised by AppModeService so that the
          *     top toggle stays in sync even if some other component
          *     changes the mode.
-         * PARAMETERS   :
-         *     sender - Event source (AppModeService)
-         *     mode   - Newly selected AppMode
-         * RETURNS     :
-         *     void
          */
         private void OnAppModeServiceModeChanged(object sender, AppMode mode)
         {
@@ -92,17 +88,20 @@ namespace CollectIQ.Controls
 
         private void OnCollectClicked(object sender, EventArgs e)
         {
+            // Collect is the only fully-enabled lane for now.
             SetMode(AppMode.Collect);
         }
 
-        private void OnInspectClicked(object sender, EventArgs e)
+        private async void OnInspectClicked(object sender, EventArgs e)
         {
-            SetMode(AppMode.Inspect);
+            // INSPECT lane is not ready yet – show reusable under construction screen.
+            await ShowUnderConstructionAsync("Inspect lane");
         }
 
-        private void OnTradeClicked(object sender, EventArgs e)
+        private async void OnTradeClicked(object sender, EventArgs e)
         {
-            SetMode(AppMode.Trade);
+            // TRADE lane is not ready yet – show reusable under construction screen.
+            await ShowUnderConstructionAsync("Trade lane");
         }
 
         // ------------------------------------------------------------
@@ -116,10 +115,6 @@ namespace CollectIQ.Controls
          *     control. Updates visuals, raises the local ModeChanged
          *     event, and pushes the new mode into AppModeService so the
          *     rest of the app (e.g. bottom nav) updates.
-         * PARAMETERS   :
-         *     newMode - The newly selected application mode.
-         * RETURNS     :
-         *     void
          */
         private void SetMode(AppMode newMode)
         {
@@ -189,6 +184,21 @@ namespace CollectIQ.Controls
                     TradeLabel.FontAttributes = FontAttributes.Bold;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Shows the modular under-construction screen as a modal page.
+        /// The user can dismiss it and will land back wherever they were.
+        /// </summary>
+        private static async System.Threading.Tasks.Task ShowUnderConstructionAsync(string contextLabel)
+        {
+            if (Application.Current?.MainPage == null)
+            {
+                return;
+            }
+
+            var page = new UnderConstructionPage(contextLabel);
+            await Application.Current.MainPage.Navigation.PushModalAsync(page, animated: true);
         }
     }
 }
