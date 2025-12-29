@@ -555,5 +555,6 @@ namespace CollectIQ.Views
             pulseActive = false; // Stop any pulse animation
             await Navigation.PopModalAsync(true);
         }
+
     }
 }

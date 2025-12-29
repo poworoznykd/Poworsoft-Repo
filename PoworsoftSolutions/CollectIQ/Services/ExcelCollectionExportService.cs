@@ -6,9 +6,9 @@
 * UPDATED: 2026-01-18
 * DESCRIPTION:
 *     Exports the user’s card collection to Excel.
-*     - EMBEDS ORIGINAL FULL-QUALITY IMAGES (no thumbnail generation)
+*     - EMBEDS ORIGINAL FULL-QUALITY IMAGES (no thumbnail generation here)
 *     - Images are DISPLAYED as thumbnails by scaling to the cell size
-*     - Four image columns: Front, Back, Front Overlay, Back Overlay
+*     - Four image columns: Front, Back, FrontOv, BackOv
 */
 
 using System;
@@ -32,6 +32,8 @@ namespace CollectIQ.Services
 
         /// <summary>
         /// Exports the given cards to an .xlsx file in the specified folder.
+        /// Folder structure matches the original implementation:
+        ///   <outputDirectory>\CollectIQ_Excel_<ts>\CollectIQ_Collection_<ts>.xlsx
         /// </summary>
         public static async Task<string> ExportAsync(IEnumerable<Card> cards, string outputDirectory)
         {
@@ -43,14 +45,19 @@ namespace CollectIQ.Services
             var cardList = cards.ToList();
             if (cardList.Count == 0)
             {
-                throw new InvalidOperationException("No cards to export.");
+                throw new InvalidOperationException("There are no cards to export.");
             }
 
+            // Root export folder (unchanged behaviour)
             Directory.CreateDirectory(outputDirectory);
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string fileName = $"CollectIQ_Export_{timestamp}.xlsx";
-            string fullPath = Path.Combine(outputDirectory, fileName);
+            string exportFolderName = $"CollectIQ_Excel_{timestamp}";
+            string exportFolder = Path.Combine(outputDirectory, exportFolderName);
+            Directory.CreateDirectory(exportFolder);
+
+            string fileName = $"CollectIQ_Collection_{timestamp}.xlsx";
+            string fullPath = Path.Combine(exportFolder, fileName);
 
             return await Task.Run(() =>
             {
@@ -60,12 +67,17 @@ namespace CollectIQ.Services
                 int row = 1;
 
                 // -----------------------------------------------------------------
-                // HEADERS – KEEPING YOUR REQUESTED ORDER
+                // HEADERS – KEEPING YOUR ORDER
+                //   1: Front
+                //   2: Back
+                //   3: FrontOv
+                //   4: BackOv
+                //   5+: card fields
                 // -----------------------------------------------------------------
                 ws.Cell(row, 1).Value = "Front";
                 ws.Cell(row, 2).Value = "Back";
-                ws.Cell(row, 3).Value = "Front Overlay";
-                ws.Cell(row, 4).Value = "Back Overlay";
+                ws.Cell(row, 3).Value = "FrontOv";
+                ws.Cell(row, 4).Value = "BackOv";
                 ws.Cell(row, 5).Value = "Title";
                 ws.Cell(row, 6).Value = "Name";
                 ws.Cell(row, 7).Value = "Team";
@@ -79,8 +91,9 @@ namespace CollectIQ.Services
 
                 ws.Row(row).Style.Font.Bold = true;
 
-                // Set reasonable widths for image columns (1–4)
-                ws.Columns(1, 4).Width = 14;     // wide enough for small thumbs
+                // Image columns get a reasonable width
+                ws.Columns(1, 4).Width = 14;
+
                 row++;
 
                 // -----------------------------------------------------------------
@@ -90,12 +103,22 @@ namespace CollectIQ.Services
                 {
                     ws.Row(row).Height = ImageRowHeight;
 
-                    // IMAGES – these calls embed the ORIGINAL file,
-                    // but scale the displayed size to fit the cell.
+                    // MAIN IMAGES (raw)
                     TryAddPicture(ws, c.FrontImagePath, row, 1);
                     TryAddPicture(ws, c.BackImagePath, row, 2);
-                    TryAddPicture(ws, c.FrontOverlayImagePath, row, 3);
-                    TryAddPicture(ws, c.BackOverlayImagePath, row, 4);
+
+                    // Overlay paths: use stored paths, or fall back to legacy "<base>_overlay.png"
+                    string? frontOverlayPath = FirstNonEmpty(
+                        c.FrontOverlayImagePath,
+                        BuildOverlayPathFromBaseImage(c.FrontImagePath));
+
+                    string? backOverlayPath = FirstNonEmpty(
+                        c.BackOverlayImagePath,
+                        BuildOverlayPathFromBaseImage(c.BackImagePath));
+
+                    // OVERLAY IMAGES (drawn alone, scaled to cell)
+                    TryAddPicture(ws, frontOverlayPath, row, 3);
+                    TryAddPicture(ws, backOverlayPath, row, 4);
 
                     // BASIC CARD DATA
                     ws.Cell(row, 5).Value = c.Title;
@@ -112,12 +135,57 @@ namespace CollectIQ.Services
                     row++;
                 }
 
-                // Auto-fit the text columns (5–14) after data is in
+                // Auto-fit the text columns (5–14)
                 ws.Columns(5, 14).AdjustToContents();
 
                 workbook.SaveAs(fullPath);
                 return fullPath;
             });
+        }
+
+        /// <summary>
+        /// Returns the first non-null / non-whitespace string from the arguments.
+        /// </summary>
+        private static string? FirstNonEmpty(params string?[] values)
+        {
+            foreach (var v in values)
+            {
+                if (!string.IsNullOrWhiteSpace(v))
+                {
+                    return v;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds the legacy overlay path: "&lt;baseImagePathWithoutExt&gt;_overlay.png".
+        /// Returns null if baseImagePath is invalid.
+        /// </summary>
+        private static string? BuildOverlayPathFromBaseImage(string? baseImagePath)
+        {
+            if (string.IsNullOrWhiteSpace(baseImagePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var dir = Path.GetDirectoryName(baseImagePath);
+                var name = Path.GetFileNameWithoutExtension(baseImagePath);
+
+                if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(name))
+                {
+                    return null;
+                }
+
+                return Path.Combine(dir, name + "_overlay.png");
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -129,13 +197,12 @@ namespace CollectIQ.Services
         {
             try
             {
-                // No path, nothing to do
                 if (string.IsNullOrWhiteSpace(imagePath))
                 {
                     return;
                 }
 
-                // Skip URLs (old bad overlay paths like "https://...")
+                // Skip URLs
                 if (imagePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
                     Debug.WriteLine($"[THUMBNAIL] Skipping non-file image path: {imagePath}");
@@ -150,18 +217,15 @@ namespace CollectIQ.Services
 
                 var cell = ws.Cell(row, column);
 
-                // Create the picture anchored to the cell
                 var picture = ws.AddPicture(imagePath)
                                 .MoveTo(cell);
 
-                // Scale to fit the cell (approximate thumbnail)
                 double colWidth = cell.WorksheetColumn().Width; // Excel units
-                double rowHeight = cell.WorksheetRow().Height;  // points
+                double rowHeight = cell.WorksheetRow().Height;   // points
 
                 double maxWidth = colWidth * ExcelColWidthToPixels;
                 double maxHeight = rowHeight;
 
-                // Avoid divide-by-zero, etc.
                 if (picture.OriginalWidth <= 0 || picture.OriginalHeight <= 0)
                 {
                     return;
@@ -179,7 +243,6 @@ namespace CollectIQ.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"[THUMBNAIL] Failed to add picture '{imagePath}': {ex}");
-                // swallow – we don't want to break the export
             }
         }
     }
