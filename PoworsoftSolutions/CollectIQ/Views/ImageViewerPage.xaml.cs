@@ -282,62 +282,75 @@ namespace CollectIQ.Views
         /// <summary>
         /// FUNCTION: OnSaveOverlayClicked
         /// DESCRIPTION:
-        ///     Saves all current overlay strokes by merging them with any
-        ///     previously saved transparent overlay image. Ensures new drawings
-        ///     are layered on top of existing ones without erasing prior work.
-        ///     If a Card was provided, updates the card's overlay path.
-        /// PARAMETERS:
-        ///     sender – Source of the event.
-        ///     e – Event arguments.
-        /// RETURNS:
-        ///     None.
+        ///     Saves current overlay strokes by merging them with any existing overlay.
+        ///     If overlay path is invalid or a URL, creates a valid file path in
+        ///     AppDataDirectory/Overlays. Updates Card model if provided.
         /// </summary>
         private async void OnSaveOverlayClicked(object sender, EventArgs e)
         {
             try
             {
-                // If nothing new was drawn, no need to save again
+                // ----------------------------------------------------------
+                // 1. Ensure overlayFilePath is valid and writable
+                // ----------------------------------------------------------
+                if (string.IsNullOrWhiteSpace(overlayFilePath) || overlayFilePath.StartsWith("http"))
+                {
+                    var overlayRoot = Path.Combine(FileSystem.AppDataDirectory, "Overlays");
+                    Directory.CreateDirectory(overlayRoot);
+
+                    var fileName = owningCard != null
+                        ? $"{owningCard.Id}_{(isFrontImage ? "front" : "back")}_overlay.png"
+                        : $"overlay_{Guid.NewGuid()}.png";
+
+                    overlayFilePath = Path.Combine(overlayRoot, fileName);
+                }
+
+                // ----------------------------------------------------------
+                // 2. If no strokes & file exists, no need to save again
+                // ----------------------------------------------------------
                 if (completedStrokes.Count == 0 && File.Exists(overlayFilePath))
                 {
                     await DisplayAlert("No New Overlay", "No new drawing to save.", "OK");
                     return;
                 }
 
-                // Make sure the directory exists before writing
-                string? overlayDir = Path.GetDirectoryName(overlayFilePath);
-                if (!string.IsNullOrWhiteSpace(overlayDir) && !Directory.Exists(overlayDir))
-                {
-                    Directory.CreateDirectory(overlayDir);
-                }
+                // Ensure directory exists
+                var dir = Path.GetDirectoryName(overlayFilePath);
+                if (!string.IsNullOrWhiteSpace(dir))
+                    Directory.CreateDirectory(dir);
 
-                int width = (int)Math.Max(OverlayCanvas.Width, 1.0f);
-                int height = (int)Math.Max(OverlayCanvas.Height, 1.0f);
+                // ----------------------------------------------------------
+                // 3. Build a drawing surface
+                // ----------------------------------------------------------
+                int width = (int)Math.Max(OverlayCanvas.Width, 1);
+                int height = (int)Math.Max(OverlayCanvas.Height, 1);
 
-                // Create an RGBA surface with full transparency support
-                SKImageInfo imageInfo = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-                using SKSurface surface = SKSurface.Create(imageInfo);
-                SKCanvas skCanvas = surface.Canvas;
-                skCanvas.Clear(SKColors.Transparent);
+                SKImageInfo info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+                using SKSurface surface = SKSurface.Create(info);
+                var canvas = surface.Canvas;
+                canvas.Clear(SKColors.Transparent);
 
-                // === STEP 1: Draw the existing overlay image (if one already exists) ===
+                // ----------------------------------------------------------
+                // 4. Draw existing overlay first (layer 1)
+                // ----------------------------------------------------------
                 if (File.Exists(overlayFilePath))
                 {
                     try
                     {
-                        using FileStream stream = File.OpenRead(overlayFilePath);
-                        using SKBitmap existingBitmap = SKBitmap.Decode(stream);
-                        if (existingBitmap != null)
-                        {
-                            skCanvas.DrawBitmap(existingBitmap, 0, 0);
-                        }
+                        using var fs = File.OpenRead(overlayFilePath);
+                        using var oldBmp = SKBitmap.Decode(fs);
+                        if (oldBmp != null)
+                            canvas.DrawBitmap(oldBmp, 0, 0);
                     }
-                    catch (Exception ex)
+                    catch (Exception loadEx)
                     {
-                        Console.WriteLine($"[ImageViewerPage] Warning: Could not load previous overlay – {ex.Message}");
+                        Console.WriteLine($"[Overlay] Failed to load previous: {loadEx.Message}");
                     }
                 }
 
-                // === STEP 2: Draw all newly completed strokes ===
+                // ----------------------------------------------------------
+                // 5. Draw new strokes (layer 2)
+                // ----------------------------------------------------------
                 foreach (var (points, color) in completedStrokes)
                 {
                     using SKPaint paint = new SKPaint
@@ -345,46 +358,49 @@ namespace CollectIQ.Views
                         Color = color.ToSKColor(),
                         Style = SKPaintStyle.Stroke,
                         StrokeWidth = STROKE_WIDTH,
-                        IsAntialias = true
+                        IsAntialias = true,
                     };
 
                     for (int i = 1; i < points.Count; i++)
                     {
-                        skCanvas.DrawLine(points[i - 1].X, points[i - 1].Y,
-                                          points[i].X, points[i].Y, paint);
+                        canvas.DrawLine(points[i - 1].X, points[i - 1].Y,
+                                        points[i].X, points[i].Y, paint);
                     }
                 }
 
-                // === STEP 3: Save the combined result back to the same file ===
-                using SKImage image = surface.Snapshot();
-                using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+                // ----------------------------------------------------------
+                // 6. SAVE MERGED RESULT
+                // ----------------------------------------------------------
+                using SKImage finalImage = surface.Snapshot();
+                using SKData data = finalImage.Encode(SKEncodedImageFormat.Png, 100);
                 await File.WriteAllBytesAsync(overlayFilePath, data.ToArray());
 
-                // If we are associated with a Card, update its overlay path
+                // ----------------------------------------------------------
+                // 7. Update Card + DB
+                // ----------------------------------------------------------
                 if (owningCard != null)
                 {
                     if (isFrontImage)
-                    {
                         owningCard.FrontOverlayImagePath = overlayFilePath;
-                    }
                     else
-                    {
                         owningCard.BackOverlayImagePath = overlayFilePath;
-                    }
+
+                    await App.Database.UpdateCardAsync(owningCard);
                 }
 
-                // Refresh in-memory bitmap so Draw() shows the new overlay
+                // ----------------------------------------------------------
+                // 8. Refresh In-Memory + UI
+                // ----------------------------------------------------------
                 LoadOverlayIfExists();
-
-                // Clear only the in-memory strokes (they're now part of the saved overlay)
                 completedStrokes.Clear();
                 OverlayCanvas.Invalidate();
+
                 await DisplayAlert("Overlay Updated", "Your drawings have been merged and saved.", "OK");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ImageViewerPage] Unable to save overlay: {ex}");
-                await DisplayAlert("Unable to save overlay", "Administration has been notified.", "OK");
+                Console.WriteLine($"[Overlay] ERROR: {ex}");
+                await DisplayAlert("Unable to save overlay", "There was an error saving the overlay.", "OK");
             }
         }
 
