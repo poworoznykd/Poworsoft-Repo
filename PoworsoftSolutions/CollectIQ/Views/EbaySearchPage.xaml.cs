@@ -524,6 +524,13 @@ namespace CollectIQ.Views
                 card.EstimatedValue = listing.EstimatedValue;
                 card.FrontImagePath = FrontImagePath;
 
+                // Decide where thumbnail images live
+                var cacheDir = FileSystem.CacheDirectory;
+                var thumbFolder = Path.Combine(cacheDir, "CollectIQ_Thumbs");
+                Directory.CreateDirectory(thumbFolder);
+                if (FrontImagePath != null)
+                    card.FrontThumbnailPath = ExcelCollectionExportService.CreateThumbnailFixedOrientation(FrontImagePath, thumbFolder, maxSize: 256);
+
                 await App.Database.AddCardAsync(card);
                 await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
             }

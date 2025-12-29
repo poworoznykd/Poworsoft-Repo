@@ -426,6 +426,7 @@ namespace CollectIQ.Utilities
                 Title = title.Trim(),
                 Insights = new CardInsights(listing.Price ?? 0.00m),
                 CollectionId = "Default",
+                FrontThumbnailPath = listing.ImageUrl,
                 FrontImagePath = listing.ImageUrl,
                 BackImagePath = listing.ImageUrl
             };

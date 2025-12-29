@@ -18,6 +18,7 @@
 using CollectIQ.Domain.Entities;
 using CollectIQ.Models.Domain;
 using CollectIQ.Models.Domain.Entities;
+using CollectIQ.Services;
 using SQLite;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -167,7 +168,36 @@ namespace CollectIQ.Models
         public decimal? PurchasePrice { get; set; }
 
         // --- Images ---
-        public string FrontImagePath { get; set; } = string.Empty;
+  
+        private string? frontImagePath;
+        private string? frontThumbnailPath;
+
+        public string? FrontImagePath
+        {
+            get => frontImagePath;
+            set
+            {
+                if (frontImagePath == value)
+                    return;
+
+                frontImagePath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string? FrontThumbnailPath
+        {
+            get => frontThumbnailPath;
+            set
+            {
+                if (frontThumbnailPath == value)
+                    return;
+
+                frontThumbnailPath = value;
+                OnPropertyChanged();
+            }
+        }
+
         public string BackImagePath { get; set; } = string.Empty;
 
         /// <summary>
