@@ -256,6 +256,7 @@
                                                    VerticalOptions="Center">
 
                                 <ActivityIndicator x:Name="SearchActivityIndicator"
+                                                   Color="Lime"
                                                    IsVisible="False"
                                                    IsRunning="False"
                                                    WidthRequest="16"
@@ -267,8 +268,7 @@
                                        FontAttributes="Bold"
                                        TextColor="#0ACAF9"
                                        LineBreakMode="TailTruncation"
-                                       MaxLines="1"
-                                       HorizontalOptions="FillAndExpand" />
+                                       MaxLines="1" />
                             </HorizontalStackLayout>
                         </Border>
 

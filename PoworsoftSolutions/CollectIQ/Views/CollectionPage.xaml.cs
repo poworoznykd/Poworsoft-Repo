@@ -124,6 +124,7 @@ namespace CollectIQ.Views
         }
 
         #region Exporting
+        // Export button click
         private async void OnExportExcelClicked(object sender, EventArgs e)
         {
             try
@@ -134,16 +135,16 @@ namespace CollectIQ.Views
                     return;
                 }
 
-                // Use cache directory for the temporary Excel file
-                var exportPath = await ExcelCollectionExportService.ExportAsync(
-                    Cards,
-                    FileSystem.CacheDirectory);
+                // Tell the user what's happening, but don't block the app afterwards
+                await DisplayAlert(
+                    "Export",
+                    "CollectIQ is preparing your Excel package in the background.\n\n" +
+                    "You can keep using the app – you'll be asked where to share it " +
+                    "as soon as it's ready.",
+                    "OK");
 
-                await Share.Default.RequestAsync(new ShareFileRequest
-                {
-                    Title = "Export Collection (Excel)",
-                    File = new ShareFile(exportPath)
-                });
+                // Fire-and-forget: run the heavy work + share in the background
+                _ = RunExcelExportAndShareAsync();
             }
             catch (Exception ex)
             {
@@ -151,7 +152,35 @@ namespace CollectIQ.Views
             }
         }
 
+        // Background helper that does the actual export, then notifies the user
+        private async Task RunExcelExportAndShareAsync()
+        {
+            try
+            {
+                // Use cache directory for the temporary Excel file (same as before)
+                var exportPath = await ExcelCollectionExportService.ExportAsync(
+                    Cards,
+                    FileSystem.CacheDirectory);
 
+                // Back to the UI thread for the Share sheet
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Share.Default.RequestAsync(new ShareFileRequest
+                    {
+                        Title = "Export Collection (Excel)",
+                        File = new ShareFile(exportPath)
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                // Make sure any error is shown on the UI thread
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Export Error", ex.Message, "OK");
+                });
+            }
+        }
 
         private async void OnExportPdfClicked(object sender, EventArgs e)
         {
