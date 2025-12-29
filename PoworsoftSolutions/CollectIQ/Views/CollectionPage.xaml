@@ -140,7 +140,7 @@
                                 BackgroundColor="#16283A"
                                 StrokeShape="RoundRectangle 18"
                                 Padding="0">
-                            <Button Text="Export CSV"
+                            <Button Text="Export to Excel"
                                     Style="{StaticResource AuroraNeonButton}"
                                     BackgroundColor="Transparent"
                                     BorderWidth="0"
@@ -155,7 +155,7 @@
                                 BackgroundColor="#16283A"
                                 StrokeShape="RoundRectangle 18"
                                 Padding="0">
-                            <Button Text="Export PDF"
+                            <Button Text="Export to PDF"
                                     Style="{StaticResource AuroraNeonButton}"
                                     BackgroundColor="Transparent"
                                     BorderWidth="0"

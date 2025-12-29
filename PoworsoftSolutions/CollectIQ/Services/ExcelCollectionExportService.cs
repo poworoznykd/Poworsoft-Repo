@@ -19,6 +19,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
 using CollectIQ.Models;
+using SkiaSharp;
 
 namespace CollectIQ.Services
 {
@@ -29,6 +30,10 @@ namespace CollectIQ.Services
 
         // Height of rows that contain images (points)
         private const double ImageRowHeight = 80.0;
+
+        // Cache so the same base+overlay pair isn’t composited more than once per export.
+        private static readonly Dictionary<string, string> OverlayCompositeCache =
+            new Dictionary<string, string>();
 
         /// <summary>
         /// Exports the given cards to an .xlsx file in the specified folder.
@@ -58,6 +63,12 @@ namespace CollectIQ.Services
 
             string fileName = $"CollectIQ_Collection_{timestamp}.xlsx";
             string fullPath = Path.Combine(exportFolder, fileName);
+
+            // Folder where we store temp “base+overlay” PNGs
+            string compositeFolder = Path.Combine(exportFolder, "OverlayComposites");
+            Directory.CreateDirectory(compositeFolder);
+
+            OverlayCompositeCache.Clear();
 
             return await Task.Run(() =>
             {
@@ -103,22 +114,33 @@ namespace CollectIQ.Services
                 {
                     ws.Row(row).Height = ImageRowHeight;
 
-                    // MAIN IMAGES (raw)
+                    // MAIN IMAGES (raw – exactly as before)
                     TryAddPicture(ws, c.FrontImagePath, row, 1);
                     TryAddPicture(ws, c.BackImagePath, row, 2);
 
                     // Overlay paths: use stored paths, or fall back to legacy "<base>_overlay.png"
-                    string? frontOverlayPath = FirstNonEmpty(
+                    string? frontOverlayRaw = FirstNonEmpty(
                         c.FrontOverlayImagePath,
                         BuildOverlayPathFromBaseImage(c.FrontImagePath));
 
-                    string? backOverlayPath = FirstNonEmpty(
+                    string? backOverlayRaw = FirstNonEmpty(
                         c.BackOverlayImagePath,
                         BuildOverlayPathFromBaseImage(c.BackImagePath));
 
-                    // OVERLAY IMAGES (drawn alone, scaled to cell)
-                    TryAddPicture(ws, frontOverlayPath, row, 3);
-                    TryAddPicture(ws, backOverlayPath, row, 4);
+                    // NEW: composite = base image + overlay drawn on top (using SkiaSharp)
+                    string? frontOverlayComposite = ComposeOverlayCompositeSkia(
+                        c.FrontImagePath,
+                        frontOverlayRaw,
+                        compositeFolder);
+
+                    string? backOverlayComposite = ComposeOverlayCompositeSkia(
+                        c.BackImagePath,
+                        backOverlayRaw,
+                        compositeFolder);
+
+                    // OVERLAY IMAGE COLUMNS: now show base+overlay, not overlay-alone
+                    TryAddPicture(ws, frontOverlayComposite, row, 3);
+                    TryAddPicture(ws, backOverlayComposite, row, 4);
 
                     // BASIC CARD DATA
                     ws.Cell(row, 5).Value = c.Title;
@@ -184,6 +206,109 @@ namespace CollectIQ.Services
             }
             catch
             {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Creates a temp PNG with overlay drawn on top of base image using SkiaSharp.
+        /// - If overlay is missing: returns null (no overlay column value).
+        /// - If base is missing: returns overlay-only path (old behaviour).
+        /// - Otherwise: base + overlay composited and cached in compositeFolder.
+        /// </summary>
+        private static string? ComposeOverlayCompositeSkia(
+            string? baseImagePath,
+            string? overlayPath,
+            string compositeFolder)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(overlayPath) || !File.Exists(overlayPath))
+                {
+                    // No overlay -> nothing to show in overlay column
+                    return null;
+                }
+
+                if (string.IsNullOrWhiteSpace(baseImagePath) || !File.Exists(baseImagePath))
+                {
+                    // No base – we can only show the overlay by itself (fallback)
+                    return overlayPath;
+                }
+
+                string cacheKey = $"{baseImagePath}||{overlayPath}";
+                if (OverlayCompositeCache.TryGetValue(cacheKey, out var cachedPath)
+                    && File.Exists(cachedPath))
+                {
+                    return cachedPath;
+                }
+
+                Directory.CreateDirectory(compositeFolder);
+
+                string fileName =
+                    $"ovl_{Path.GetFileNameWithoutExtension(baseImagePath)}_{Guid.NewGuid():N}.png";
+                string outputPath = Path.Combine(compositeFolder, fileName);
+
+                using (var baseBitmap = SKBitmap.Decode(baseImagePath))
+                using (var overlayBitmap = SKBitmap.Decode(overlayPath))
+                {
+                    if (baseBitmap == null || overlayBitmap == null)
+                    {
+                        // If decode fails, just fall back to overlay only
+                        return overlayPath;
+                    }
+
+                    // Resize overlay to match base dimensions, so strokes line up
+                    SKBitmap overlayResized = overlayBitmap;
+                    if (overlayBitmap.Width != baseBitmap.Width ||
+                        overlayBitmap.Height != baseBitmap.Height)
+                    {
+                        overlayResized = overlayBitmap.Resize(
+                            new SKImageInfo(baseBitmap.Width, baseBitmap.Height),
+                            SKFilterQuality.High
+                        ) ?? overlayBitmap;
+                    }
+
+                    var info = new SKImageInfo(baseBitmap.Width, baseBitmap.Height,
+                        SKColorType.Rgba8888, SKAlphaType.Premul);
+
+                    using (var surface = SKSurface.Create(info))
+                    {
+                        var canvas = surface.Canvas;
+                        canvas.Clear(SKColors.Transparent);
+
+                        // Draw base card
+                        canvas.DrawBitmap(baseBitmap, 0, 0);
+
+                        // Draw overlay on top (alpha preserved)
+                        canvas.DrawBitmap(overlayResized, 0, 0);
+
+                        using (var image = surface.Snapshot())
+                        using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+                        using (var fs = File.OpenWrite(outputPath))
+                        {
+                            data.SaveTo(fs);
+                        }
+                    }
+
+                    // If we created a resized overlay, dispose it (if it's not the original)
+                    if (!ReferenceEquals(overlayResized, overlayBitmap))
+                    {
+                        overlayResized.Dispose();
+                    }
+                }
+
+                OverlayCompositeCache[cacheKey] = outputPath;
+                return outputPath;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OVERLAY COMPOSITE] Failed for base='{baseImagePath}', overlay='{overlayPath}': {ex}");
+                // Worst case, fall back to overlay-only
+                if (!string.IsNullOrWhiteSpace(overlayPath) && File.Exists(overlayPath))
+                {
+                    return overlayPath;
+                }
+
                 return null;
             }
         }
