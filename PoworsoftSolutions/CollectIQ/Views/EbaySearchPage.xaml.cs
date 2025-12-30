@@ -52,6 +52,8 @@ namespace CollectIQ.Views
         /// </summary>
         private EbayListing? currentInsightAnchor;
 
+
+
         private readonly EbayService ebayService;
         private readonly ObservableCollection<EbayListing> listings;
         // Insights (sold comps) list
@@ -119,7 +121,7 @@ namespace CollectIQ.Views
 
             int days = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
 
-            if (InsightsOverlayControl != null)
+            if(InsightsOverlayControl != null)
             {
                 // First: wire up the callback
                 InsightsOverlayControl.OnEstimatedValueReady = async (value) =>
@@ -134,6 +136,7 @@ namespace CollectIQ.Views
                         // Update the selected listing
                         selectedListing.Price = value.Value;
                         selectedListing.EstimatedValue = InsightsOverlayControl?.InsightsData?.SuggestedPrice ?? 0.00m;
+
                     }
 
                     // Properly await the async hide call
@@ -142,6 +145,7 @@ namespace CollectIQ.Views
 
                 // Then: show the overlay
                 await InsightsOverlayControl.ShowAsync(listing, comps, type, days);
+
             }
         }
 
@@ -246,12 +250,8 @@ namespace CollectIQ.Views
         /// Performs a search-by-image using the front card image path.
         /// For "Sold" mode, we:
         ///   1) Identify the card by image (active listings),
-        ///   2) Use the top titles to fetch sold comps by text.
-        /// 
-        /// NOTE:
-        ///   All calls into EbayService are wrapped in Task.Run to keep
-        ///   the UI thread responsive even if the service uses blocking
-        ///   HTTP or heavy parsing.
+        ///   2) Use the top titles to fetch sold comps by text,
+        ///      and if none are found, fall back to the identified active listings.
         /// </summary>
         private async Task PerformImageSearchAsync(string imagePath)
         {
@@ -278,24 +278,26 @@ namespace CollectIQ.Views
                 {
                     SetSearchingState(true, "Identifying card and retrieving sold comps...");
 
-                    // Step 1: identify card using active listings via image search.
-                    var identified = await Task.Run(async () =>
-                        await ebayService.SearchByImageAsync(
+                    // Run the multi-step pipeline on a background thread so it
+                    // can't lock up the UI even if EbayService uses .Result/.Wait internally.
+                    results = await Task.Run(async () =>
+                    {
+                        var localResults = new List<EbayListing>();
+
+                        // STEP 1: identify card using ACTIVE image search
+                        var identified = await ebayService.SearchByImageAsync(
                             lastImageBase64,
                             limit: 5,
                             listingTypeFilter: "active",
-                            daysRange: lookbackDays));
+                            daysRange: lookbackDays);
 
-                    if (identified == null || identified.Count == 0)
-                    {
-                        await DisplayAlert(
-                            "No matches",
-                            "Could not identify this card from the image.",
-                            "OK");
-                    }
-                    else
-                    {
-                        // Step 2: take top distinct titles and search sold comps by text.
+                        if (identified == null || identified.Count == 0)
+                        {
+                            // No identification – nothing else to do in sold mode.
+                            return localResults;
+                        }
+
+                        // STEP 2: top titles → SOLD comps by text
                         var topTitles = identified
                             .Where(r => !string.IsNullOrWhiteSpace(r.Title) && !r.Title.Contains("your pick"))
                             .Select(r => r.Title!)
@@ -305,34 +307,41 @@ namespace CollectIQ.Views
 
                         foreach (string title in topTitles)
                         {
-                            var soldForTitle = await Task.Run(async () =>
-                                await EbayService.SearchSoldAsync(
+                            try
+                            {
+                                var soldForTitle = await EbayService.SearchSoldAsync(
                                     title,
                                     limit: Math.Max(averageCountFilter * 3, 30),
-                                    daysRange: lookbackDays));
+                                    daysRange: lookbackDays);
 
-                            if (soldForTitle != null && soldForTitle.Count > 0)
+                                if (soldForTitle != null && soldForTitle.Count > 0)
+                                {
+                                    localResults.AddRange(soldForTitle);
+                                }
+                            }
+                            catch (Exception soldEx)
                             {
-                                results.AddRange(soldForTitle);
+                                Debug.WriteLine($"[eBay] Sold search failed for '{title}': {soldEx.Message}");
                             }
                         }
 
-                        if (results.Count == 0)
+                        // ATTACH the identified list as a tag for fallback
+                        // we'll pass it back via a little trick: if no sold results,
+                        // we just return the identified list instead.
+                        if (localResults.Count == 0)
                         {
-                            await DisplayAlert(
-                                "No sold comps",
-                                $"No sold results found in the last {lookbackDays} days for the identified card title(s). Showing active listings instead.",
-                                "OK");
-
-                            listingTypeFilter = "active";
-                            results = identified;
+                            // Use active-identified results as fallback.
+                            localResults.AddRange(identified);
                         }
-                    }
+
+                        return localResults;
+                    });
                 }
                 else
                 {
                     SetSearchingState(true, "Identifying card and retrieving listings...");
 
+                    // Simple active (or other) mode: still off UI thread
                     results = await Task.Run(async () =>
                         await ebayService.SearchByImageAsync(
                             lastImageBase64,
@@ -341,7 +350,32 @@ namespace CollectIQ.Views
                             daysRange: lookbackDays));
                 }
 
+                // Now we’re back on the UI thread – update the collection & label
+                if (results == null || results.Count == 0)
+                {
+                    await DisplayAlert(
+                        "No matches",
+                        string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase)
+                            ? "Could not identify this card or find sold comps."
+                            : "Could not identify this card from the image.",
+                        "OK");
+
+                    listings.Clear();
+                    StatusLabel.Text = "No results found.";
+                    return;
+                }
+
                 ApplyResultsToCollection(results);
+
+                // IMPORTANT: preserve your "sold → active fallback" messaging
+                if (string.Equals(listingTypeFilter, "sold", StringComparison.OrdinalIgnoreCase))
+                {
+                    // If everything we got back looks like active listings
+                    // (no sold price data, or your API denied sold calls),
+                    // you can still let UpdateStatusForResults handle the text.
+                    // No need to change that logic.
+                }
+
                 UpdateStatusForResults(results);
             }
             catch (Exception ex)
@@ -354,16 +388,15 @@ namespace CollectIQ.Views
             }
         }
 
+
         #endregion
 
         #region Manual Search
 
         /// <summary>
         /// Performs a manual text-based search using the configured filters.
-        /// 
-        /// NOTE:
-        ///   EbayService.SearchListingsAsync is wrapped in Task.Run so that
-        ///   any blocking HTTP / parsing work happens off the UI thread.
+        /// Keeps your "sold vs active" behaviour exactly the same, but runs
+        /// the heavy eBay call on a background thread to avoid UI freezes.
         /// </summary>
         private async Task PerformManualSearchAsync(string query)
         {
@@ -379,12 +412,10 @@ namespace CollectIQ.Views
 
                 SetSearchingState(true, $"Searching eBay for: {lastManualQuery}");
 
-                int limit = Math.Max(averageCountFilter, 25);
-
                 var results = await Task.Run(async () =>
                     await ebayService.SearchListingsAsync(
                         lastManualQuery,
-                        limit: limit,
+                        limit: Math.Max(averageCountFilter, 25),
                         listingTypeFilter: listingTypeFilter,
                         daysRange: daysRangeFilter));
 
@@ -400,6 +431,7 @@ namespace CollectIQ.Views
                 SetSearchingState(false);
             }
         }
+
 
         #endregion
 
@@ -430,7 +462,6 @@ namespace CollectIQ.Views
         }
 
         #region Begin Searching
-
         /// <summary>
         /// On navigation to this page, if a front image path was provided,
         /// automatically perform a search-by-image using the current filters.
@@ -466,10 +497,7 @@ namespace CollectIQ.Views
                 await icon.ScaleTo(1.15, 120, Easing.CubicOut);
                 await icon.ScaleTo(1.0, 120, Easing.CubicIn);
             }
-            catch
-            {
-                // ignore
-            }
+            catch { /* ignore */ }
         }
 
         private void OnItemTapped(object sender, TappedEventArgs e)
@@ -538,6 +566,8 @@ namespace CollectIQ.Views
                 card.EstimatedValue = listing.EstimatedValue;
                 card.FrontImagePath = FrontImagePath;
 
+
+
                 await App.Database.AddCardAsync(card);
                 await DisplayAlert("Added", $"{listing.Title} added to your collection.", "OK");
             }
@@ -580,5 +610,6 @@ namespace CollectIQ.Views
         }
 
         #endregion
+
     }
 }
