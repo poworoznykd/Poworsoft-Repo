@@ -1,13 +1,16 @@
-﻿/*
- * FILE         : ProfileViewModel.cs
- * PROJECT      : CollectIQ (Mobile Application)
- * PROGRAMMER   : Darryl Poworoznyk
- * FIRST VERSION: 2026-01-18
- * DESCRIPTION  :
- *   View model for the user profile / reputation page.
- *   Later this can pull from a real UserProfile table or
- *   remote API when CollectIQ goes multi-user.
- */
+﻿//
+//  FILE            : ProfileViewModel.cs
+//  PROJECT         : CollectIQ (Mobile Application)
+//  PROGRAMMER      : Darryl Poworoznyk
+//  FIRST VERSION   : 2025-11-23
+//  UPDATED         : 2026-01-02
+//  DESCRIPTION     :
+//      ViewModel for the CollectIQ user profile.
+//      Stores public-facing identity and reputation stats that can be
+//      displayed in the dashboard summary card and the full Profile page.
+//      Includes INotifyPropertyChanged so UI updates immediately when the
+//      avatar photo or stats change.
+//
 
 using System;
 using System.ComponentModel;
@@ -15,60 +18,245 @@ using System.Runtime.CompilerServices;
 
 namespace CollectIQ.ViewModels
 {
+    /// <summary>
+    /// ViewModel for displaying and editing the user's CollectIQ profile.
+    /// </summary>
     public class ProfileViewModel : INotifyPropertyChanged
     {
-                    // Basic identity
-        public string DisplayName { get; set; } = "Darryl P.";
-        public string Handle { get; set; } = "@PoworsoftCards";
-        public string AvatarImagePath { get; set; } = "default_avatar.png";
-        public bool IsVerified { get; set; } = true;
-        public string Location { get; set; } = "Ontario, Canada";
-        public DateTime MemberSince { get; set; } = new DateTime(2024, 10, 1);
+        private string avatarPath;
+        private string displayName;
+        private string handle;
+        private string location;
+        private string memberSince;
+        private bool isVerified;
 
-        public string MemberSinceLabel =>
-            $"Member since {MemberSince:MMM yyyy}";
+        private double rating;
+        private int ratingCount;
 
-        public string MembershipLabel => "Trusted Member";
+        private int tradesCompleted;
+        private int salesCompleted;
+        private int purchasesCompleted;
 
-        // Reputation
-        public double Rating { get; set; } = 4.9;
-        public int RatingCount { get; set; } = 27;
-        public string StarString
+        private int collectionCount;
+        private decimal collectionValue;
+
+        private string avgResponseTime;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProfileViewModel"/> class.
+        /// </summary>
+        public ProfileViewModel()
         {
-            get
+            avatarPath = string.Empty;
+            displayName = "Darryl Poworoznyk";
+            handle = "@collectiq_member";
+            location = "Ontario, Canada";
+            memberSince = "Member since 2025";
+            isVerified = false;
+
+            rating = 4.9;
+            ratingCount = 127;
+
+            tradesCompleted = 32;
+            salesCompleted = 18;
+            purchasesCompleted = 25;
+
+            collectionCount = 0;
+            collectionValue = 0m;
+
+            avgResponseTime = "2h";
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// Absolute path to the avatar image stored locally on device.
+        /// </summary>
+        public string AvatarPath
+        {
+            get => avatarPath;
+            set
             {
-                int fullStars = (int)Math.Round(Rating);
-                return new string('★', fullStars) +
-                       new string('☆', Math.Max(0, 5 - fullStars));
+                if (avatarPath != value)
+                {
+                    avatarPath = value;
+                    OnPropertyChanged();
+                }
             }
         }
 
-        public string RatingCountLabel => $"{RatingCount} reviews";
-        public int TradesCompleted { get; set; } = 54;
-        public int DisputesCount { get; set; } = 0;
+        public string DisplayName
+        {
+            get => displayName;
+            set
+            {
+                if (displayName != value)
+                {
+                    displayName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        // Collection / volume
-        public int TotalCardsOwned { get; set; } = 312;
-        public decimal CollectionEstimatedValue { get; set; } = 7845.50m;
-        public decimal TotalVolumeSold { get; set; } = 3240.00m;
+        public string Handle
+        {
+            get => handle;
+            set
+            {
+                if (handle != value)
+                {
+                    handle = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        // Activity
-        public int CardsBought { get; set; } = 130;
-        public int CardsSold { get; set; } = 84;
+        public string Location
+        {
+            get => location;
+            set
+            {
+                if (location != value)
+                {
+                    location = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        // Preferences
-        public string FavouriteSportsLabel { get; set; } =
-            "Favourite sports: Football, Basketball, Pokémon";
+        public string MemberSince
+        {
+            get => memberSince;
+            set
+            {
+                if (memberSince != value)
+                {
+                    memberSince = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public string FavouriteGradersLabel { get; set; } =
-            "Preferred grading: PSA, BGS, SGC, Raw";
+        public bool IsVerified
+        {
+            get => isVerified;
+            set
+            {
+                if (isVerified != value)
+                {
+                    isVerified = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public string OpenToTradesLabel { get; set; } = "Open to trades";
-        public string ContactPreferenceLabel { get; set; } =
-            "Contact via in-app messaging";
+        public double Rating
+        {
+            get => rating;
+            set
+            {
+                if (Math.Abs(rating - value) > 0.0001)
+                {
+                    rating = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        public int RatingCount
+        {
+            get => ratingCount;
+            set
+            {
+                if (ratingCount != value)
+                {
+                    ratingCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int TradesCompleted
+        {
+            get => tradesCompleted;
+            set
+            {
+                if (tradesCompleted != value)
+                {
+                    tradesCompleted = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int SalesCompleted
+        {
+            get => salesCompleted;
+            set
+            {
+                if (salesCompleted != value)
+                {
+                    salesCompleted = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int PurchasesCompleted
+        {
+            get => purchasesCompleted;
+            set
+            {
+                if (purchasesCompleted != value)
+                {
+                    purchasesCompleted = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int CollectionCount
+        {
+            get => collectionCount;
+            set
+            {
+                if (collectionCount != value)
+                {
+                    collectionCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public decimal CollectionValue
+        {
+            get => collectionValue;
+            set
+            {
+                if (collectionValue != value)
+                {
+                    collectionValue = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string AvgResponseTime
+        {
+            get => avgResponseTime;
+            set
+            {
+                if (avgResponseTime != value)
+                {
+                    avgResponseTime = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }

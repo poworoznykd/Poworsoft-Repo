@@ -11,218 +11,303 @@
         <vm:ProfileViewModel />
     </ContentPage.BindingContext>
 
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="16">
+    <Grid RowDefinitions="Auto,*">
 
-            <!-- Header: avatar, name, handle, badges -->
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                <Border WidthRequest="80"
-                        HeightRequest="80"
-                        StrokeThickness="2"
-                        Stroke="#38BDF8"
-                        BackgroundColor="#0B1120"
-                        StrokeShape="Ellipse">
-                    <Image Source="{Binding AvatarPath}"
-                       WidthRequest="48"
-                       HeightRequest="48"
-                       Aspect="AspectFill">
-                        <Image.Clip>
-                            <EllipseGeometry Center="24,24"
-                         RadiusX="24"
-                         RadiusY="24" />
-                        </Image.Clip>
-                    </Image>
+        <!-- Top bar -->
+        <Border
+            Grid.Row="0"
+            Style="{StaticResource AuroraGlassBorder}"
+            Margin="16,16,16,8"
+            Padding="10">
+            <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
 
+                <!-- Back (no image dependency) -->
+                <Border
+                    Stroke="#334155"
+                    StrokeThickness="1"
+                    Background="#0F172A"
+                    StrokeShape="RoundRectangle 14"
+                    HeightRequest="36"
+                    WidthRequest="44"
+                    Padding="0">
+                    <Grid>
+                        <Label
+                            Text="←"
+                            FontSize="18"
+                            TextColor="#E2E8F0"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center" />
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackClicked" />
+                        </Grid.GestureRecognizers>
+                    </Grid>
                 </Border>
 
-                <VerticalStackLayout VerticalOptions="Center" Spacing="4">
-                    <Label Text="{Binding DisplayName}"
-                           FontSize="20"
-                           FontAttributes="Bold"
-                           TextColor="White" />
-                    <Label Text="{Binding Handle}"
-                           FontSize="13"
-                           TextColor="#9CA3AF" />
-                    <HorizontalStackLayout Spacing="6">
-                        <Border Padding="6,2"
-                                BackgroundColor="#059669"
-                                StrokeShape="RoundRectangle 10"
-                                IsVisible="{Binding IsVerified}">
-                            <Label Text="Verified member"
-                                   FontSize="11"
-                                   TextColor="White" />
-                        </Border>
-                        <Border Padding="6,2"
-                                BackgroundColor="#1D4ED8"
-                                StrokeShape="RoundRectangle 10">
-                            <Label Text="{Binding MembershipLabel}"
-                                   FontSize="11"
-                                   TextColor="White" />
-                        </Border>
-                    </HorizontalStackLayout>
-                    <Label Text="{Binding Location}"
-                           FontSize="12"
-                           TextColor="#6B7280" />
-                    <Label Text="{Binding MemberSinceLabel}"
-                           FontSize="11"
-                           TextColor="#4B5563" />
+                <VerticalStackLayout Grid.Column="1" Spacing="0" Padding="10,0,0,0">
+                    <Label
+                        Text="CollectIQ Profile"
+                        FontSize="18"
+                        FontAttributes="Bold"
+                        TextColor="#E2E8F0" />
+                    <Label
+                        Text="Your public trading identity"
+                        FontSize="11"
+                        TextColor="#94A3B8" />
                 </VerticalStackLayout>
+
             </Grid>
+        </Border>
 
-            <!-- Reputation block -->
-            <Border Stroke="#1F2937"
-                    StrokeThickness="1"
-                    BackgroundColor="#020617"
-                    StrokeShape="RoundRectangle 18"
-                    Padding="12">
-                <HorizontalStackLayout Spacing="16">
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16" Spacing="16">
 
-                    <!-- Rating -->
-                    <VerticalStackLayout Spacing="2">
-                        <Label Text="Reputation"
-                               FontSize="12"
-                               TextColor="#9CA3AF" />
-                        <HorizontalStackLayout Spacing="4">
-                            <Label Text="{Binding StarString}"
-                                   FontSize="18"
-                                   TextColor="#FCD34D" />
-                            <Label Text="{Binding Rating, StringFormat='{0:F1}'}"
-                                   FontSize="14"
-                                   TextColor="White" />
+                <!-- Avatar + identity -->
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="12">
+
+                        <Grid ColumnDefinitions="96,*" ColumnSpacing="14">
+
+                            <!-- Avatar preview (CardPage style) -->
+                            <Border
+                                Grid.Column="0"
+                                StrokeThickness="1"
+                                Stroke="#334155"
+                                Background="#0B1220"
+                                HeightRequest="96"
+                                WidthRequest="96"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="0">
+                                <Grid>
+                                    <Image
+                                        x:Name="AvatarPreview"
+                                        Source="{Binding AvatarPath}"
+                                        Aspect="AspectFill"
+                                        Opacity="0.96" />
+
+                                    <!-- Bottom overlay like CardPage -->
+                                    <VerticalStackLayout
+                                        Spacing="2"
+                                        VerticalOptions="End"
+                                        Padding="6,6"
+                                        Background="#66000000">
+                                        <Label
+                                            Text="Avatar"
+                                            FontSize="11"
+                                            TextColor="#E2E8F0" />
+                                        <Label
+                                            Text="Tap to change"
+                                            FontSize="9"
+                                            TextColor="#A0AEC0" />
+                                    </VerticalStackLayout>
+
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnAvatarTapped" />
+                                    </Grid.GestureRecognizers>
+                                </Grid>
+                            </Border>
+
+                            <!-- Name / handle / verification -->
+                            <VerticalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Center">
+
+                                <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                                    <Label
+                                        Text="{Binding DisplayName}"
+                                        FontSize="20"
+                                        FontAttributes="Bold"
+                                        TextColor="#E2E8F0" />
+
+                                    <!-- Verified chip -->
+                                    <Border
+                                        Padding="8,3"
+                                        Stroke="#22C55E"
+                                        Background="#102A1E"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 14"
+                                        IsVisible="{Binding IsVerified}">
+                                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                            <Label Text="✓" FontSize="12" TextColor="#22C55E" />
+                                            <Label Text="Verified" FontSize="11" TextColor="#A7F3D0" />
+                                        </HorizontalStackLayout>
+                                    </Border>
+                                </HorizontalStackLayout>
+
+                                <Label
+                                    Text="{Binding Handle}"
+                                    FontSize="12"
+                                    TextColor="#94A3B8" />
+
+                                <HorizontalStackLayout Spacing="10">
+                                    <Label
+                                        Text="{Binding Location}"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                    <Label
+                                        Text="•"
+                                        FontSize="11"
+                                        TextColor="#334155" />
+                                    <Label
+                                        Text="{Binding MemberSince}"
+                                        FontSize="11"
+                                        TextColor="#A0AEC0" />
+                                </HorizontalStackLayout>
+
+                                <!-- Rating row -->
+                                <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                                    <Label Text="★★★★★" FontSize="14" TextColor="#FBBF24" />
+                                    <Label
+                                        Text="{Binding Rating}"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="#E2E8F0" />
+                                    <Label
+                                        Text="{Binding RatingCount, StringFormat='({0} reviews)'}"
+                                        FontSize="11"
+                                        TextColor="#94A3B8" />
+                                </HorizontalStackLayout>
+
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <!-- Avatar actions (same look as CardPage action row) -->
+                        <HorizontalStackLayout Spacing="12" HorizontalOptions="Center">
+                            <ImageButton
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="38"
+                                WidthRequest="38"
+                                CornerRadius="19"
+                                BackgroundColor="#0F172A"
+                                Padding="7"
+                                Source="camera_icon.png"
+                                Clicked="OnTakeAvatarPhoto" />
+                            <ImageButton
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                HeightRequest="38"
+                                WidthRequest="38"
+                                CornerRadius="19"
+                                BackgroundColor="#0F172A"
+                                Padding="7"
+                                Source="folder_icon.png"
+                                Clicked="OnPickAvatarPhotoClicked" />
                         </HorizontalStackLayout>
-                        <Label Text="{Binding RatingCountLabel}"
-                               FontSize="11"
-                               TextColor="#6B7280" />
+
+                        <Label
+                            Text="Tip: A clear avatar helps trading partners trust you."
+                            FontSize="11"
+                            TextColor="#94A3B8"
+                            HorizontalOptions="Center" />
+
                     </VerticalStackLayout>
+                </Border>
 
-                    <!-- Quick reputation stats -->
-                    <Grid ColumnDefinitions="*,*"
-                          ColumnSpacing="16"
-                          HorizontalOptions="EndAndExpand">
-                        <VerticalStackLayout Grid.Column="0" Spacing="2">
-                            <Label Text="Trades"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                            <Label Text="{Binding TradesCompleted}"
-                                   FontSize="16"
-                                   TextColor="White" />
-                        </VerticalStackLayout>
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="Disputes"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                            <Label Text="{Binding DisputesCount}"
-                                   FontSize="16"
-                                   TextColor="White" />
-                        </VerticalStackLayout>
-                    </Grid>
-                </HorizontalStackLayout>
-            </Border>
+                <!-- Trading reputation -->
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="12">
+                        <Label
+                            Text="Reputation"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
 
-            <!-- Collection & volume stats -->
-            <Border Stroke="#1F2937"
-                    StrokeThickness="1"
-                    BackgroundColor="#020617"
-                    StrokeShape="RoundRectangle 18"
-                    Padding="12">
-                <Grid ColumnDefinitions="*,*,*">
-                    <VerticalStackLayout Spacing="2">
-                        <Label Text="Cards Owned"
-                               FontSize="11"
-                               TextColor="#9CA3AF" />
-                        <Label Text="{Binding TotalCardsOwned}"
-                               FontSize="16"
-                               TextColor="White" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
+
+                            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Trades" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding TradesCompleted}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="Completed" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Sales" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding SalesCompleted}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="Completed" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Purchases" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding PurchasesCompleted}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="Completed" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Response" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding AvgResponseTime}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="Avg time" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                        </Grid>
                     </VerticalStackLayout>
+                </Border>
 
-                    <VerticalStackLayout Spacing="2">
-                        <Label Text="Collection Value"
-                               FontSize="11"
-                               TextColor="#9CA3AF" />
-                        <Label Text="{Binding CollectionEstimatedValue, StringFormat='{}{0:C0}'}"
-                               FontSize="16"
-                               TextColor="White" />
+                <!-- Collection stats -->
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="12">
+                        <Label
+                            Text="Collection"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <Border Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Cards" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding CollectionCount}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="In collection" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Value" FontSize="11" TextColor="#94A3B8" />
+                                    <Label Text="{Binding CollectionValue, StringFormat='${0:N0}'}" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                    <Label Text="Est. total" FontSize="10" TextColor="#64748B" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+
+                        <Label
+                            Text="Collection value is based on your saved Estimated values and comps."
+                            FontSize="10"
+                            TextColor="#64748B" />
                     </VerticalStackLayout>
+                </Border>
 
-                    <VerticalStackLayout Spacing="2">
-                        <Label Text="Volume Sold"
-                               FontSize="11"
-                               TextColor="#9CA3AF" />
-                        <Label Text="{Binding TotalVolumeSold, StringFormat='{}{0:C0}'}"
-                               FontSize="16"
-                               TextColor="White" />
+                <!-- Placeholder for future verification + marketplace features -->
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label
+                            Text="Account"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
+
+                        <Label
+                            Text="Email/phone verification, badges, and marketplace settings will live here."
+                            FontSize="11"
+                            TextColor="#94A3B8" />
+
+                        <Button
+                            Text="Under Construction"
+                            BackgroundColor="#0F172A"
+                            TextColor="#E2E8F0"
+                            CornerRadius="14"
+                            HeightRequest="44"
+                            Clicked="OnUnderConstructionClicked" />
                     </VerticalStackLayout>
-                </Grid>
-            </Border>
+                </Border>
 
-            <!-- Activity breakdown -->
-            <Border Stroke="#1F2937"
-                    StrokeThickness="1"
-                    BackgroundColor="#020617"
-                    StrokeShape="RoundRectangle 18"
-                    Padding="12">
-                <VerticalStackLayout Spacing="6">
-                    <Label Text="Activity"
-                           FontSize="13"
-                           TextColor="#E5E7EB"
-                           FontAttributes="Bold" />
-                    <Grid ColumnDefinitions="*,*">
-                        <VerticalStackLayout Spacing="2">
-                            <Label Text="Cards Bought"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                            <Label Text="{Binding CardsBought}"
-                                   FontSize="14"
-                                   TextColor="White" />
-                        </VerticalStackLayout>
-                        <VerticalStackLayout Spacing="2">
-                            <Label Text="Cards Sold"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                            <Label Text="{Binding CardsSold}"
-                                   FontSize="14"
-                                   TextColor="White" />
-                        </VerticalStackLayout>
-                    </Grid>
-                </VerticalStackLayout>
-            </Border>
+                <Label Text="" HeightRequest="20" />
 
-            <!-- Preferences -->
-            <Border Stroke="#1F2937"
-                    StrokeThickness="1"
-                    BackgroundColor="#020617"
-                    StrokeShape="RoundRectangle 18"
-                    Padding="12">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Preferences"
-                           FontSize="13"
-                           TextColor="#E5E7EB"
-                           FontAttributes="Bold" />
-                    <Label Text="{Binding FavouriteSportsLabel}"
-                           FontSize="12"
-                           TextColor="#D1D5DB" />
-                    <Label Text="{Binding FavouriteGradersLabel}"
-                           FontSize="12"
-                           TextColor="#D1D5DB" />
-                    <HorizontalStackLayout Spacing="8" Margin="0,4,0,0">
-                        <Border Padding="8,3"
-                                BackgroundColor="#111827"
-                                StrokeShape="RoundRectangle 12">
-                            <Label Text="{Binding OpenToTradesLabel}"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                        </Border>
-                        <Border Padding="8,3"
-                                BackgroundColor="#111827"
-                                StrokeShape="RoundRectangle 12">
-                            <Label Text="{Binding ContactPreferenceLabel}"
-                                   FontSize="11"
-                                   TextColor="#9CA3AF" />
-                        </Border>
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
+            </VerticalStackLayout>
+        </ScrollView>
 
-        </VerticalStackLayout>
-    </ScrollView>
+    </Grid>
 </ContentPage>
