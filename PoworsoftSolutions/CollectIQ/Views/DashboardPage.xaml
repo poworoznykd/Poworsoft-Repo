@@ -104,31 +104,19 @@
                                     HeightRequest="110"
                                     Padding="6,8">
 
-                                <VerticalStackLayout
-                                    Spacing="3"
-                                    HorizontalOptions="Center"
-                                    VerticalOptions="Center">
+                                <!-- ... somewhere near the top of your dashboard layout ... -->
+                                <controls:ProfileSummaryCard
+                                    x:Name="ProfileCard"
+                                    Margin="16,12"
+                                    DisplayName="{Binding UserProfile.DisplayName}"
+                                    Handle="{Binding UserProfile.Handle}"
+                                    AvatarPath="{Binding UserProfile.AvatarImagePath}"
+                                    IsVerified="{Binding UserProfile.IsVerified}"
+                                    Rating="{Binding UserProfile.Rating}"
+                                    RatingCount="{Binding UserProfile.RatingCount}"
+                                    CollectionValue="{Binding UserProfile.CollectionEstimatedValue}"
+                                    TradesCompleted="{Binding UserProfile.TradesCompleted}" />  
 
-                                    <Label Text="COLLECT"
-                                           FontSize="9"
-                                           TextColor="#0ACAF9"
-                                           LineBreakMode="NoWrap"
-                                           MaxLines="1"
-                                           HorizontalTextAlignment="Center" />
-
-                                    <Label Text="IQ"
-                                           FontSize="24"
-                                           FontAttributes="Bold"
-                                           TextColor="#39FF14"
-                                           HorizontalTextAlignment="Center" />
-
-                                    <Label Text="PROFILE"
-                                           FontSize="9"
-                                           TextColor="#0ACAF9"
-                                           LineBreakMode="NoWrap"
-                                           MaxLines="1"
-                                           HorizontalTextAlignment="Center" />
-                                </VerticalStackLayout>
                             </Border>
                         </Grid>
                     </Grid>

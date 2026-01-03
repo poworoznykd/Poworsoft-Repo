@@ -51,7 +51,14 @@ namespace CollectIQ.Views
 
             viewModel = new DashboardViewModel(database, browserService, alertService);
             BindingContext = viewModel;
+            ProfileCard.ProfileTapped += OnProfileTapped;
         }
+
+        private async void OnProfileTapped(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new CollectIQ.Views.ProfilePage());
+        }
+
 
         /// <summary>
         /// Ensures the view model loads dashboard statistics when the page appears.

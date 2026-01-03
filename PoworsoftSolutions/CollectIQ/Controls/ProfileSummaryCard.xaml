@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="CollectIQ.Controls.ProfileSummaryCard"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- Outer glass card -->
+    <Border
+        BackgroundColor="#15161A"
+        Stroke="#2A2D33"
+        StrokeThickness="1"
+        Padding="14">
+
+        <Border.StrokeShape>
+            <RoundRectangle CornerRadius="18" />
+        </Border.StrokeShape>
+
+        <Grid ColumnDefinitions="56,*"
+              RowDefinitions="Auto,Auto">
+
+            <!-- Avatar (clipped by Border shape) -->
+            <Border Grid.RowSpan="2"
+                    Grid.Column="0"
+                    WidthRequest="48"
+                    HeightRequest="48"
+                    BackgroundColor="#1E1F23"
+                    Stroke="#2A2D33"
+                    StrokeThickness="1"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="24" />
+                </Border.StrokeShape>
+
+                <Image
+                    Aspect="AspectFill"
+                    Source="{Binding AvatarSource}" />
+            </Border>
+
+            <!-- Top row -->
+            <VerticalStackLayout Grid.Column="1"
+                                 Spacing="4">
+
+                <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                    <Label Text="{Binding DisplayName}"
+                           TextColor="White"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           LineBreakMode="TailTruncation"
+                           HorizontalOptions="StartAndExpand" />
+
+                    <Label Text="Verified"
+                           IsVisible="{Binding IsVerified}"
+                           TextColor="#7CFFB2"
+                           FontSize="11"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+
+                <HorizontalStackLayout Spacing="10">
+                    <Label Text="{Binding RatingText}"
+                           TextColor="#B9BDC7"
+                           FontSize="12" />
+
+                    <Label Text="{Binding TradeText}"
+                           TextColor="#B9BDC7"
+                           FontSize="12" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+
+            <!-- Bottom row -->
+            <HorizontalStackLayout Grid.Row="1"
+                                   Grid.Column="1"
+                                   Spacing="12"
+                                   Margin="0,10,0,0">
+
+                <Label Text="{Binding Location}"
+                       TextColor="#8A8F9B"
+                       FontSize="12"
+                       LineBreakMode="TailTruncation"
+                       HorizontalOptions="StartAndExpand" />
+
+                <Label Text="{Binding MemberSinceText}"
+                       TextColor="#8A8F9B"
+                       FontSize="12" />
+
+                <Label Text="{Binding CollectionValueText}"
+                       TextColor="#D7DBE6"
+                       FontSize="12"
+                       FontAttributes="Bold"
+                       HorizontalOptions="End" />
+            </HorizontalStackLayout>
+
+        </Grid>
+    </Border>
+</ContentView>

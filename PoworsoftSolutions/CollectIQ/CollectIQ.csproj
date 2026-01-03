@@ -159,6 +159,12 @@
     <MauiXaml Update="Views\EbaySearchPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
+    <MauiXaml Update="Controls\ProfileSummaryCard.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Update="Views\ProfilePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
     <MauiXaml Update="Views\ScanPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
