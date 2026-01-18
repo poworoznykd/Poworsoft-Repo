@@ -1,15 +1,18 @@
-//
+﻿//
 //  FILE            : ProfilePage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-11-23
-//  UPDATED         : 2026-01-02
+//  UPDATED         : 2026-01-15
 //  DESCRIPTION     :
 //      Full Profile page for CollectIQ.
-//      Provides a futuristic-styled profile layout and supports updating
-//      the user's avatar image from either the camera or the photo library.
+//      Uses the singleton ProfileViewModel from IProfileService so avatar updates
+//      propagate across the app (Dashboard + Profile page share the same instance).
 //
 
+using CollectIQ.Helpers;
+using CollectIQ.Interfaces;
+using CollectIQ.Services;
 using CollectIQ.ViewModels;
 using Microsoft.Maui.Storage;
 using System;
@@ -18,22 +21,24 @@ using System.Threading.Tasks;
 
 namespace CollectIQ.Views
 {
-    /// <summary>
-    /// Interaction logic for the Profile page.
-    /// </summary>
     public partial class ProfilePage : ContentPage
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ProfilePage"/> class.
-        /// </summary>
-        public ProfilePage()
+        private readonly IProfileService profileService;
+
+        // DI constructor
+        public ProfilePage(IProfileService profileServiceParam)
         {
             InitializeComponent();
+            profileService = profileServiceParam;
+
+            BindingContext = ServiceHelper.GetService<IProfileService>().Profile;
         }
 
-        /// <summary>
-        /// Handles the back tap.
-        /// </summary>
+        // XAML/Shell-safe constructor
+        public ProfilePage() : this(CollectIQ.Utilities.ServiceHelper.GetService<IProfileService>() ?? new ProfileService())
+        {
+        }
+
         private async void OnBackClicked(object sender, TappedEventArgs e)
         {
             try
@@ -49,13 +54,9 @@ namespace CollectIQ.Views
             }
             catch
             {
-                // Avoid crashing if navigation is not available in current hosting mode.
             }
         }
 
-        /// <summary>
-        /// Tap on avatar preview = show quick options.
-        /// </summary>
         private async void OnAvatarTapped(object sender, TappedEventArgs e)
         {
             string choice = await DisplayActionSheet(
@@ -75,33 +76,21 @@ namespace CollectIQ.Views
             }
         }
 
-        /// <summary>
-        /// Camera icon button click.
-        /// </summary>
         private async void OnTakeAvatarPhoto(object sender, EventArgs e)
         {
             await TakeAvatarPhotoAsync();
         }
 
-        /// <summary>
-        /// Folder icon button click.
-        /// </summary>
         private async void OnPickAvatarPhotoClicked(object sender, EventArgs e)
         {
             await PickAvatarPhotoAsync();
         }
 
-        /// <summary>
-        /// Temporary placeholder for future profile features.
-        /// </summary>
         private async void OnUnderConstructionClicked(object sender, EventArgs e)
         {
             await DisplayAlert("Under Construction", "This section is coming soon.", "OK");
         }
 
-        /// <summary>
-        /// Captures a new avatar photo using the device camera.
-        /// </summary>
         private async Task TakeAvatarPhotoAsync()
         {
             try
@@ -128,9 +117,6 @@ namespace CollectIQ.Views
             }
         }
 
-        /// <summary>
-        /// Picks an avatar photo from the device photo library.
-        /// </summary>
         private async Task PickAvatarPhotoAsync()
         {
             try
@@ -155,9 +141,6 @@ namespace CollectIQ.Views
             }
         }
 
-        /// <summary>
-        /// Saves the selected/captured image to app storage and returns the saved path.
-        /// </summary>
         private static async Task<string> SaveProfileImageAsync(FileResult photo)
         {
             string profileDir = Path.Combine(FileSystem.AppDataDirectory, "ProfileImages");
@@ -180,14 +163,14 @@ namespace CollectIQ.Views
             return destinationPath;
         }
 
-        /// <summary>
-        /// Applies the avatar path to the active ProfileViewModel (if present).
-        /// </summary>
         private void SetAvatarPath(string path)
         {
             if (BindingContext is ProfileViewModel vm)
             {
                 vm.AvatarPath = path;
+
+                // Persist so it survives restarts AND is available app-wide
+                ProfileService.PersistAvatarPath(path);
             }
         }
     }

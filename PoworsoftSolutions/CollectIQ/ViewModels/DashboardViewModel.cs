@@ -2,12 +2,12 @@
  * FILE         : DashboardViewModel.cs
  * PROJECT      : CollectIQ (Mobile Application)
  * PROGRAMMER   : Darryl Poworoznyk
- * FIRST VERSION: 2025-12-04
+ * UPDATED      : 2026-01-18
  * DESCRIPTION  :
  *   View model for the Dashboard page.
  *   - Loads collection statistics from IDatabase
- *   - Responds to "CollectionUpdated" messages
- *   - Exposes commands for refresh and sport deal navigation
+ *   - Exposes Profile (ProfileViewModel) so Dashboard can show avatar
+ *   - Commands for refresh and sport deal navigation
  */
 
 using System;
@@ -21,16 +21,6 @@ using Microsoft.Maui.Controls;
 
 namespace CollectIQ.ViewModels
 {
-    /*
-     * CLASS   : DashboardViewModel
-     * PURPOSE :
-     *   Encapsulates dashboard state and logic:
-     *   - Card count / total / average value
-     *   - "Last updated" label
-     *   - Commands for refreshing and sport-deal navigation
-     *   Depends only on abstractions (IDatabase, IBrowserService,
-     *   IAlertService) to follow SOLID principles.
-     */
     public class DashboardViewModel : INotifyPropertyChanged
     {
         // ------------------------------
@@ -49,6 +39,8 @@ namespace CollectIQ.ViewModels
         // ------------------------------
         // Public Properties
         // ------------------------------
+        public ProfileViewModel Profile { get; }
+
         public int CardsOwned
         {
             get { return cardsOwned; }
@@ -114,10 +106,6 @@ namespace CollectIQ.ViewModels
         // ------------------------------
         public ICommand RefreshCommand { get; }
 
-        /// <summary>
-        /// Command triggered from the "Deals by Sport" tiles.
-        /// CommandParameter is the sport code (e.g., "NFL").
-        /// </summary>
         public ICommand OpenSportDealsCommand { get; }
 
         // ------------------------------
@@ -126,11 +114,13 @@ namespace CollectIQ.ViewModels
         public DashboardViewModel(
             IDatabase databaseParam,
             IBrowserService browserServiceParam,
-            IAlertService alertServiceParam)
+            IAlertService alertServiceParam,
+            ProfileViewModel profileParam)
         {
             database = databaseParam ?? throw new ArgumentNullException(nameof(databaseParam));
             browserService = browserServiceParam ?? throw new ArgumentNullException(nameof(browserServiceParam));
             alertService = alertServiceParam ?? throw new ArgumentNullException(nameof(alertServiceParam));
+            Profile = profileParam ?? throw new ArgumentNullException(nameof(profileParam));
 
             RefreshCommand = new Command(
                 async () => await LoadCollectionStatsAsync(),
@@ -139,41 +129,17 @@ namespace CollectIQ.ViewModels
             OpenSportDealsCommand = new Command<string>(
                 async sportCode => await OpenSportDealsAsync(sportCode));
 
-            // Refresh when the collection changes anywhere in the app.
             MessagingCenter.Subscribe<object>(
                 this,
                 "CollectionUpdated",
                 async sender => { await LoadCollectionStatsAsync(); });
         }
 
-        // ------------------------------
-        // Public Methods
-        // ------------------------------
-        //
-        // FUNCTION     : InitializeAsync
-        // DESCRIPTION  :
-        //   Called by the view when the page appears so that
-        //   dashboard metrics are populated on first load.
-        // RETURNS      : Task
-        //
         public async Task InitializeAsync()
         {
             await LoadCollectionStatsAsync();
         }
 
-        // ------------------------------
-        // Private Methods
-        // ------------------------------
-        //
-        // FUNCTION     : LoadCollectionStatsAsync
-        // DESCRIPTION  :
-        //   Retrieves all cards from the database and calculates:
-        //   - CardsOwned
-        //   - CollectionValue
-        //   - AverageCardValue
-        //   Updates LastUpdatedLabel on success.
-        // RETURNS      : Task
-        //
         private async Task LoadCollectionStatsAsync()
         {
             if (IsBusy)
@@ -213,16 +179,6 @@ namespace CollectIQ.ViewModels
             }
         }
 
-        //
-        // FUNCTION     : OpenSportDealsAsync
-        // DESCRIPTION  :
-        //   Builds an eBay search query for the specified sport and
-        //   opens it via IBrowserService. If the sport is not yet
-        //   supported, shows a friendly alert.
-        // PARAMETERS   :
-        //   string sportCode : Sport code such as "NFL", "NBA".
-        // RETURNS      : Task
-        //
         private async Task OpenSportDealsAsync(string sportCode)
         {
             if (string.IsNullOrWhiteSpace(sportCode))
@@ -247,16 +203,6 @@ namespace CollectIQ.ViewModels
             await browserService.OpenAsync(url);
         }
 
-        //
-        // FUNCTION     : BuildSportQuery
-        // DESCRIPTION  :
-        //   Maps a short sport code to a richer search phrase for
-        //   curated eBay deals.
-        // PARAMETERS   :
-        //   string sportCode : Abbreviated sport (NFL, NBA, etc.).
-        // RETURNS      :
-        //   string: Search phrase or empty string if unsupported.
-        //
         private static string BuildSportQuery(string sportCode)
         {
             switch (sportCode.ToUpperInvariant())
@@ -280,9 +226,6 @@ namespace CollectIQ.ViewModels
             }
         }
 
-        // ------------------------------
-        // INotifyPropertyChanged
-        // ------------------------------
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

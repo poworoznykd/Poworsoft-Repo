@@ -7,10 +7,6 @@
     BackgroundColor="#020617"
     Title="Profile">
 
-    <ContentPage.BindingContext>
-        <vm:ProfileViewModel />
-    </ContentPage.BindingContext>
-
     <Grid RowDefinitions="Auto,*">
 
         <!-- Top bar -->
@@ -168,7 +164,7 @@
                             </VerticalStackLayout>
                         </Grid>
 
-                        <!-- Avatar actions (same look as CardPage action row) -->
+                        <!-- Avatar actions -->
                         <HorizontalStackLayout Spacing="12" HorizontalOptions="Center">
                             <ImageButton
                                 Style="{StaticResource AuroraNeonRoundIconButton}"
@@ -280,7 +276,7 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Placeholder for future verification + marketplace features -->
+                <!-- Account -->
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                     <VerticalStackLayout Spacing="10">
                         <Label

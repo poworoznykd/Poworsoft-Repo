@@ -2,10 +2,10 @@
 //  FILE            : MauiProgram.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
-//  UPDATED VERSION : 2025-10-28
+//  UPDATED VERSION : 2026-01-18
 //  DESCRIPTION     :
 //      Configures CollectIQ’s MAUI application, registers core services,
-//      enables CommunityToolkit CameraView handlers, and applies consistent navigation bar styling.
+//      and ensures required services exist app-wide (Profile, Browser, Alerts, DB, Auth).
 //
 
 using CollectIQ.Interfaces;
@@ -18,7 +18,6 @@ using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
 using Plugin.Maui.OCR;
-
 
 namespace CollectIQ
 {
@@ -40,21 +39,31 @@ namespace CollectIQ
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+            // ------------------------------
             // Dependency Injection
+            // ------------------------------
             builder.Services.AddSingleton<IDatabase, SqliteDatabase>();
+
+            // Auth + Profile
             builder.Services.AddSingleton<IAuthService, LocalAuthService>();
+            builder.Services.AddSingleton<IProfileService, ProfileService>();
+
+            // REQUIRED: Browser + Alerts (prevents null crashes)
+            builder.Services.AddSingleton<IBrowserService, BrowserService>();
+            builder.Services.AddSingleton<IAlertService, AlertService>();
+
+            // Views
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddTransient<AuthSheet>();
             builder.Services.AddTransient<LandingPage>();
-            //Role behaviors
+
+            // Role behaviors
             builder.Services.AddSingleton<IUserRoleBehavior, AdminRoleBehavior>();
             builder.Services.AddSingleton<IUserRoleBehavior, RegularRoleBehavior>();
             builder.Services.AddSingleton<IUserRoleBehavior, GuestRoleBehavior>();
 
             // App-wide mode tracking (Collect / Inspect / Trade)
             builder.Services.AddSingleton<AppModeService>();
-
-
 
 #if ANDROID
             NavigationViewHandler.Mapper.AppendToMapping("CustomNavBarColors", (handler, view) =>

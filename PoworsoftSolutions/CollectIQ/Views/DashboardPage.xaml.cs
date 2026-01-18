@@ -1,72 +1,58 @@
-/*
+﻿/*
  * FILE         : DashboardPage.xaml.cs
  * PROJECT      : CollectIQ (Mobile Application)
  * PROGRAMMER   : Darryl Poworoznyk
- * FIRST VERSION: 2025-10-29
- * UPDATED      : 2025-12-04
+ * UPDATED      : 2026-01-18
  * DESCRIPTION  :
- *   Dashboard page code-behind. Wires the view to the
- *   DashboardViewModel and forwards lifecycle events.
+ *   Code-behind for DashboardPage.
+ *   - Builds DashboardViewModel using DI
+ *   - Ensures Dashboard binds to the SAME ProfileViewModel singleton used by ProfilePage
+ *   - Avatar chip tap navigates to ProfilePage
  */
 
 using System;
-using CollectIQ.Interfaces;
-using CollectIQ.Services;
-using CollectIQ.ViewModels;
 using CollectIQ.Helpers;
+using CollectIQ.Interfaces;
+using CollectIQ.ViewModels;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
-    /// <summary>
-    /// Dashboard page displaying high-level collection metrics
-    /// and curated shortcuts.
-    /// </summary>
     public partial class DashboardPage : ContentPage
     {
         private readonly DashboardViewModel viewModel;
 
-        /// <summary>
-        /// Default constructor used by Shell and XAML.
-        /// Resolves required services via ServiceHelper and
-        /// constructs the DashboardViewModel.
-        /// </summary>
         public DashboardPage()
         {
             InitializeComponent();
 
-            IDatabase? database = ServiceHelper.GetService<IDatabase>();
-            IBrowserService? browserService = ServiceHelper.GetService<IBrowserService>();
-            IAlertService? alertService = ServiceHelper.GetService<IAlertService>();
+            IDatabase database = ServiceHelper.GetService<IDatabase>()
+                ?? throw new InvalidOperationException("IDatabase is not registered in the service container.");
 
-            if (database == null)
-            {
-                throw new InvalidOperationException("IDatabase is not registered in the service container.");
-            }
+            IBrowserService browserService = ServiceHelper.GetService<IBrowserService>()
+                ?? throw new InvalidOperationException("IBrowserService is not registered in the service container.");
 
-            // Fallbacks are defensive; under normal conditions these
-            // will be resolved from DI as well.
-            browserService ??= new BrowserService();
-            alertService ??= new AlertService();
+            IAlertService alertService = ServiceHelper.GetService<IAlertService>()
+                ?? throw new InvalidOperationException("IAlertService is not registered in the service container.");
 
-            viewModel = new DashboardViewModel(database, browserService, alertService);
+            IProfileService profileService = ServiceHelper.GetService<IProfileService>()
+                ?? throw new InvalidOperationException("IProfileService is not registered in the service container.");
+
+            // CRITICAL: The VM now exposes Profile so XAML can bind to Profile.AvatarPath
+            viewModel = new DashboardViewModel(database, browserService, alertService, profileService.Profile);
             BindingContext = viewModel;
-            ProfileCard.ProfileTapped += OnProfileTapped;
         }
 
-        private async void OnProfileTapped(object sender, EventArgs e)
-        {
-            await Navigation.PushAsync(new CollectIQ.Views.ProfilePage());
-        }
-
-
-        /// <summary>
-        /// Ensures the view model loads dashboard statistics when the page appears.
-        /// </summary>
         protected override async void OnAppearing()
         {
             base.OnAppearing();
             await viewModel.InitializeAsync();
+        }
+
+        private async void OnProfileAvatarTapped(object sender, EventArgs e)
+        {
+            // Open ProfilePage (uses same singleton profile service)
+            await Navigation.PushAsync(new ProfilePage());
         }
     }
 }

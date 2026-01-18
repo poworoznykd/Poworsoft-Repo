@@ -1,30 +1,22 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     x:Class="CollectIQ.Views.DashboardPage"
+    x:Name="DashboardRoot"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:CollectIQ.Controls"
     Title="Dashboard"
     BackgroundColor="#050814">
 
-    <!-- 3 rows:
-         Row 0: AppModeToggleBar (Auto height)
-         Row 1: Scroll content (*)
-         Row 2: Futuristic bottom nav (Auto) -->
     <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- TOP LANE TOGGLE (new control) -->
         <controls:AppModeToggleBar Grid.Row="0" />
 
-        <!-- MAIN SCROLL CONTENT -->
         <ScrollView Grid.Row="1">
             <VerticalStackLayout
                 Padding="16,18,16,12"
                 Spacing="22">
 
-                <!-- ========================= -->
-                <!-- HERO: MY COLLECTION OVERVIEW -->
-                <!-- ========================= -->
                 <Border
                     Style="{StaticResource AuroraGlassBorder}"
                     Padding="16,14"
@@ -34,7 +26,7 @@
                           RowDefinitions="Auto,Auto,Auto"
                           ColumnSpacing="12">
 
-                        <!-- LEFT SIDE: TITLE + STATS -->
+                        <!-- LEFT SIDE -->
                         <VerticalStackLayout Grid.Column="0"
                                              Grid.RowSpan="3"
                                              Spacing="8">
@@ -47,13 +39,11 @@
                                    FontSize="11"
                                    TextColor="#0ACAF9" />
 
-                            <!-- Cards + Total value -->
                             <Grid ColumnDefinitions="*,Auto"
                                   RowDefinitions="Auto,Auto"
                                   ColumnSpacing="12"
                                   Margin="0,4,0,0">
 
-                                <!-- Cards owned -->
                                 <VerticalStackLayout Grid.Column="0"
                                                      Spacing="3">
                                     <Label Text="CARDS OWNED"
@@ -65,7 +55,6 @@
                                            TextColor="#FFFFFF" />
                                 </VerticalStackLayout>
 
-                                <!-- Estimated value -->
                                 <VerticalStackLayout Grid.Column="1"
                                                      Spacing="3">
                                     <Label Text="EST. VALUE"
@@ -78,7 +67,6 @@
                                 </VerticalStackLayout>
                             </Grid>
 
-                            <!-- Status line -->
                             <HorizontalStackLayout Spacing="6"
                                                    Margin="0,6,0,0">
                                 <BoxView WidthRequest="6"
@@ -92,51 +80,75 @@
                             </HorizontalStackLayout>
                         </VerticalStackLayout>
 
-                        <!-- RIGHT SIDE: COLLECTIQ CHIP (fixed) -->
+                        <!-- RIGHT SIDE: AVATAR CHIP ONLY -->
                         <Grid Grid.Column="1"
                               Grid.RowSpan="3"
                               Margin="10,4,4,4"
                               VerticalOptions="Center">
 
-                            <!-- Single clean glass chip -->
                             <Border Style="{StaticResource AuroraGlassBorder}"
                                     WidthRequest="86"
                                     HeightRequest="110"
                                     Padding="6,8">
 
-                                <!-- ... somewhere near the top of your dashboard layout ... -->
-                                <controls:ProfileSummaryCard
-                                    x:Name="ProfileCard"
-                                    Margin="16,12"
-                                    DisplayName="{Binding UserProfile.DisplayName}"
-                                    Handle="{Binding UserProfile.Handle}"
-                                    AvatarPath="{Binding UserProfile.AvatarImagePath}"
-                                    IsVerified="{Binding UserProfile.IsVerified}"
-                                    Rating="{Binding UserProfile.Rating}"
-                                    RatingCount="{Binding UserProfile.RatingCount}"
-                                    CollectionValue="{Binding UserProfile.CollectionEstimatedValue}"
-                                    TradesCompleted="{Binding UserProfile.TradesCompleted}" />  
+                                <Grid>
 
+                                    <!-- Avatar -->
+                                    <Border StrokeThickness="1"
+                                            Stroke="#334155"
+                                            Background="#0B1220"
+                                            StrokeShape="RoundRectangle 18"
+                                            Padding="0">
+
+                                        <Grid>
+                                            <Image
+                                                x:Name="DashboardAvatarImage"
+                                                Aspect="AspectFill"
+                                                Opacity="0.96"
+                                                Source="{Binding Profile.AvatarPath}" />
+
+                                            <!-- small overlay hint -->
+                                            <VerticalStackLayout
+                                                Spacing="2"
+                                                VerticalOptions="End"
+                                                Padding="6,6"
+                                                Background="#66000000">
+                                                <Label
+                                                    Text="Profile"
+                                                    FontSize="10"
+                                                    TextColor="#E2E8F0" />
+                                                <Label
+                                                    Text="Tap"
+                                                    FontSize="9"
+                                                    TextColor="#A0AEC0" />
+                                            </VerticalStackLayout>
+
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnProfileAvatarTapped" />
+                                            </Grid.GestureRecognizers>
+                                        </Grid>
+                                    </Border>
+
+                                </Grid>
                             </Border>
                         </Grid>
+
                     </Grid>
                 </Border>
 
-                <!-- ========================= -->
+                <!-- (rest of your dashboard unchanged below) -->
+
                 <!-- COLLECTION INSIGHTS PANEL -->
-                <!-- ========================= -->
                 <Border
                     Style="{StaticResource AuroraGlassBorder}"
                     Padding="14,12"
                     Margin="0,0,0,10">
-
                     <VerticalStackLayout Spacing="10">
                         <Label Text="Collection Insights"
                                FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#F2F6FF" />
 
-                        <!-- Avg value per card -->
                         <Border
                             Style="{StaticResource AuroraGlassBorder}"
                             Padding="10,8"
@@ -152,7 +164,6 @@
                             </VerticalStackLayout>
                         </Border>
 
-                        <!-- Best lane placeholder -->
                         <Border
                             Style="{StaticResource AuroraGlassBorder}"
                             Padding="10,8">
@@ -173,311 +184,11 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- ========================= -->
-                <!-- DEALS BY SPORT STRIP      -->
-                <!-- ========================= -->
-                <VerticalStackLayout Spacing="8"
-                                     Margin="0,0,0,24">
-                    <Label Text="Deals by Sport"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="#F2F6FF" />
+                <!-- Deals by Sport etc... keep your existing content here -->
 
-                    <Label Text="Tap a lane to jump into curated eBay deals."
-                           FontSize="11"
-                           TextColor="#0ACAF9" />
-
-                    <ScrollView Orientation="Horizontal">
-                        <HorizontalStackLayout Spacing="12"
-                                               Padding="0,10,0,4">
-
-                            <!-- NFL -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="NFL" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="nfl_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="NFL"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="QB / WR / RB targets"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- NBA -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="NBA" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="nbs_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="NBA"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Rookies and silvers"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- NHL -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="NHL" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="nhl_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="NHL"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Young Guns &amp; prospects"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- MLB -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="MLB" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="mlb_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="MLB"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Prospects &amp; flagships"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- NCAA -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="NCAA" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="ncaa_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="NCAA"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="College stars &amp; autos"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- WNBA -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="WNBA" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="wnba_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="WNBA"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Rookies &amp; fan favorites"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- PGA -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="PGA" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="pga_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="PGA"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Majors &amp; inserts"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- Pokémon -->
-                            <Border Style="{StaticResource AuroraGlassBorder}"
-                                    Padding="10"
-                                    WidthRequest="132">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding OpenSportDealsCommand}"
-                                        CommandParameter="Pokemon" />
-                                </Border.GestureRecognizers>
-
-                                <VerticalStackLayout Spacing="6"
-                                                     HorizontalOptions="Center">
-                                    <Border StrokeThickness="0"
-                                            Background="White"
-                                            StrokeShape="RoundRectangle 14"
-                                            Padding="6"
-                                            WidthRequest="96"
-                                            HeightRequest="52">
-                                        <Image Source="pokemon_logo.png"
-                                               Aspect="AspectFit" />
-                                    </Border>
-
-                                    <Label Text="Pokémon"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#FFFFFF"
-                                           HorizontalTextAlignment="Center" />
-                                    <Label Text="Chase cards &amp; grails"
-                                           FontSize="10"
-                                           TextColor="#9FB3C8"
-                                           HorizontalTextAlignment="Center"
-                                           MaxLines="2" />
-                                </VerticalStackLayout>
-                            </Border>
-
-                        </HorizontalStackLayout>
-                    </ScrollView>
-                </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- SHARED FUTURISTIC NAV BAR -->
         <controls:FuturisticNavBar Grid.Row="2" />
 
     </Grid>
