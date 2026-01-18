@@ -135,6 +135,21 @@ namespace CollectIQ.Views
                     return;
                 }
 
+                // Ask whether to include images (important BEFORE we start the background task)
+                string action = await DisplayActionSheet(
+                    "Excel Export",
+                    "Cancel",
+                    null,
+                    "Export WITH images (larger)",
+                    "Export data ONLY (smaller)");
+
+                if (string.IsNullOrWhiteSpace(action) || action == "Cancel")
+                {
+                    return;
+                }
+
+                bool includeImages = action.StartsWith("Export WITH", StringComparison.Ordinal);
+
                 // Tell the user what's happening, but don't block the app afterwards
                 await DisplayAlert(
                     "Export",
@@ -144,7 +159,7 @@ namespace CollectIQ.Views
                     "OK");
 
                 // Fire-and-forget: run the heavy work + share in the background
-                _ = RunExcelExportAndShareAsync();
+                _ = RunExcelExportAndShareAsync(includeImages);
             }
             catch (Exception ex)
             {
@@ -153,21 +168,24 @@ namespace CollectIQ.Views
         }
 
         // Background helper that does the actual export, then notifies the user
-        private async Task RunExcelExportAndShareAsync()
+        private async Task RunExcelExportAndShareAsync(bool includeImages)
         {
             try
             {
                 // Use cache directory for the temporary Excel file (same as before)
                 var exportPath = await ExcelCollectionExportService.ExportAsync(
                     Cards,
-                    FileSystem.CacheDirectory);
+                    FileSystem.CacheDirectory,
+                    includeImages);
 
                 // Back to the UI thread for the Share sheet
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
                     await Share.Default.RequestAsync(new ShareFileRequest
                     {
-                        Title = "Export Collection (Excel)",
+                        Title = includeImages
+                            ? "Export Collection (Excel) - With Images"
+                            : "Export Collection (Excel) - Data Only",
                         File = new ShareFile(exportPath)
                     });
                 });
@@ -181,6 +199,7 @@ namespace CollectIQ.Views
                 });
             }
         }
+
 
         private async void OnExportPdfClicked(object sender, EventArgs e)
         {

@@ -6,9 +6,11 @@
 * UPDATED: 2026-01-18
 * DESCRIPTION:
 *     Exports the user’s card collection to Excel.
-*     - EMBEDS ORIGINAL FULL-QUALITY IMAGES (no thumbnail generation here)
-*     - Images are DISPLAYED as thumbnails by scaling to the cell size
-*     - Four image columns: Front, Back, FrontOv, BackOv
+*     - Supports exporting WITH or WITHOUT images (memory-friendly option)
+*     - If images are enabled:
+*         - Embeds ORIGINAL FULL-QUALITY IMAGES (no thumbnail generation here)
+*         - Images are DISPLAYED as thumbnails by scaling to the cell size
+*         - Four image columns: Front, Back, FrontOv, BackOv
 */
 
 using System;
@@ -20,7 +22,6 @@ using System.Threading.Tasks;
 using ClosedXML.Excel;
 using CollectIQ.Models;
 using SkiaSharp;
-using CommunityToolkit.Maui.Alerts;
 
 namespace CollectIQ.Services
 {
@@ -32,16 +33,28 @@ namespace CollectIQ.Services
         // Height of rows that contain images (points)
         private const double ImageRowHeight = 80.0;
 
+        // Default height when exporting WITHOUT images
+        private const double DefaultRowHeight = 18.0;
+
         // Cache so the same base+overlay pair isn’t composited more than once per export.
         private static readonly Dictionary<string, string> OverlayCompositeCache =
             new Dictionary<string, string>();
 
         /// <summary>
+        /// Backwards-compatible overload (existing code continues to work).
+        /// Defaults to includeImages = true to preserve current behavior.
+        /// </summary>
+        public static Task<string> ExportAsync(IEnumerable<Card> cards, string outputDirectory)
+        {
+            return ExportAsync(cards, outputDirectory, includeImages: true);
+        }
+
+        /// <summary>
         /// Exports the given cards to an .xlsx file in the specified folder.
-        /// Folder structure matches the original implementation:
+        /// Folder structure:
         ///   <outputDirectory>\CollectIQ_Excel_<ts>\CollectIQ_Collection_<ts>.xlsx
         /// </summary>
-        public static async Task<string> ExportAsync(IEnumerable<Card> cards, string outputDirectory)
+        public static async Task<string> ExportAsync(IEnumerable<Card> cards, string outputDirectory, bool includeImages)
         {
             if (cards == null)
             {
@@ -65,9 +78,8 @@ namespace CollectIQ.Services
             string fileName = $"CollectIQ_Collection_{timestamp}.xlsx";
             string fullPath = Path.Combine(exportFolder, fileName);
 
-            // Folder where we store temp “base+overlay” PNGs
+            // Folder where we store temp “base+overlay” PNGs (only if images are enabled)
             string compositeFolder = Path.Combine(exportFolder, "OverlayComposites");
-            Directory.CreateDirectory(compositeFolder);
 
             OverlayCompositeCache.Clear();
 
@@ -103,45 +115,62 @@ namespace CollectIQ.Services
 
                 ws.Row(row).Style.Font.Bold = true;
 
-                // Image columns get a reasonable width
-                ws.Columns(1, 4).Width = 14;
+                if (includeImages)
+                {
+                    // Image columns get a reasonable width
+                    ws.Columns(1, 4).Width = 14;
+                }
+                else
+                {
+                    // Data-only export: keep the columns, but make them narrow so the sheet is clean.
+                    ws.Columns(1, 4).Width = 4;
+                }
 
                 row++;
+
+                // If images are enabled, prep composite folder now
+                if (includeImages)
+                {
+                    Directory.CreateDirectory(compositeFolder);
+                }
 
                 // -----------------------------------------------------------------
                 // DATA ROWS
                 // -----------------------------------------------------------------
                 foreach (var c in cardList)
                 {
-                    ws.Row(row).Height = ImageRowHeight;
+                    ws.Row(row).Height = includeImages ? ImageRowHeight : DefaultRowHeight;
 
-                    // MAIN IMAGES (raw – exactly as before)
-                    TryAddPicture(ws, c.FrontImagePath, row, 1);
-                    TryAddPicture(ws, c.BackImagePath, row, 2);
+                    if (includeImages)
+                    {
+                        // MAIN IMAGES (raw – exactly as before)
+                        TryAddPicture(ws, c.FrontImagePath, row, 1);
+                        TryAddPicture(ws, c.BackImagePath, row, 2);
 
-                    // Overlay paths: use stored paths, or fall back to legacy "<base>_overlay.png"
-                    string? frontOverlayRaw = FirstNonEmpty(
-                        c.FrontOverlayImagePath,
-                        BuildOverlayPathFromBaseImage(c.FrontImagePath));
+                        // Overlay paths: use stored paths, or fall back to legacy "<base>_overlay.png"
+                        string? frontOverlayRaw = FirstNonEmpty(
+                            c.FrontOverlayImagePath,
+                            BuildOverlayPathFromBaseImage(c.FrontImagePath));
 
-                    string? backOverlayRaw = FirstNonEmpty(
-                        c.BackOverlayImagePath,
-                        BuildOverlayPathFromBaseImage(c.BackImagePath));
+                        string? backOverlayRaw = FirstNonEmpty(
+                            c.BackOverlayImagePath,
+                            BuildOverlayPathFromBaseImage(c.BackImagePath));
 
-                    // NEW: composite = base image + overlay drawn on top (using SkiaSharp)
-                    string? frontOverlayComposite = ComposeOverlayCompositeSkia(
-                        c.FrontImagePath,
-                        frontOverlayRaw,
-                        compositeFolder);
+                        // Composite = base image + overlay drawn on top (using SkiaSharp)
+                        string? frontOverlayComposite = ComposeOverlayCompositeSkia(
+                            c.FrontImagePath,
+                            frontOverlayRaw,
+                            compositeFolder);
 
-                    string? backOverlayComposite = ComposeOverlayCompositeSkia(
-                        c.BackImagePath,
-                        backOverlayRaw,
-                        compositeFolder);
+                        string? backOverlayComposite = ComposeOverlayCompositeSkia(
+                            c.BackImagePath,
+                            backOverlayRaw,
+                            compositeFolder);
 
-                    // OVERLAY IMAGE COLUMNS: now show base+overlay, not overlay-alone
-                    TryAddPicture(ws, frontOverlayComposite, row, 3);
-                    TryAddPicture(ws, backOverlayComposite, row, 4);
+                        // OVERLAY IMAGE COLUMNS: now show base+overlay, not overlay-alone
+                        TryAddPicture(ws, frontOverlayComposite, row, 3);
+                        TryAddPicture(ws, backOverlayComposite, row, 4);
+                    }
 
                     // BASIC CARD DATA
                     ws.Cell(row, 5).Value = c.Title;
@@ -183,7 +212,7 @@ namespace CollectIQ.Services
         }
 
         /// <summary>
-        /// Builds the legacy overlay path: "&lt;baseImagePathWithoutExt&gt;_overlay.png".
+        /// Builds the legacy overlay path: "<baseImagePathWithoutExt>_overlay.png".
         /// Returns null if baseImagePath is invalid.
         /// </summary>
         private static string? BuildOverlayPathFromBaseImage(string? baseImagePath)
@@ -214,7 +243,7 @@ namespace CollectIQ.Services
         /// <summary>
         /// Creates a temp PNG with overlay drawn on top of base image using SkiaSharp.
         /// - If overlay is missing: returns null (no overlay column value).
-        /// - If base is missing: returns overlay-only path (old behaviour).
+        /// - If base is missing: returns overlay-only path (fallback).
         /// - Otherwise: base + overlay composited and cached in compositeFolder.
         /// </summary>
         private static string? ComposeOverlayCompositeSkia(
@@ -304,6 +333,7 @@ namespace CollectIQ.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"[OVERLAY COMPOSITE] Failed for base='{baseImagePath}', overlay='{overlayPath}': {ex}");
+
                 // Worst case, fall back to overlay-only
                 if (!string.IsNullOrWhiteSpace(overlayPath) && File.Exists(overlayPath))
                 {

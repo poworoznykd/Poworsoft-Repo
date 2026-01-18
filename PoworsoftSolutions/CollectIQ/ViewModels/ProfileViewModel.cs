@@ -22,6 +22,9 @@ namespace CollectIQ.ViewModels
 {
     public class ProfileViewModel : INotifyPropertyChanged
     {
+        public string CloudUserId { get; set; } = string.Empty;
+
+
         private const string PrefDisplayName = "collectiq.profile.displayName";
         private const string PrefHandle = "collectiq.profile.handle";
         private const string PrefAvatarPath = "collectiq.profile.avatarPath";
