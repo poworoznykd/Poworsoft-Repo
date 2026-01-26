@@ -177,20 +177,13 @@ namespace CollectIQ.Services
             return $"lastSoldDate:[{startString}..{endString}]";
         }
 
-        /// <summary>
-        /// Builds the eBay Browse API filter string based on the selected listing type and date range.
-        /// Supports "sold", "active", and "both" (sold + active) filters.
-        /// </summary>
-        /// <param name="listingTypeFilter">"sold", "active", or "both".</param>
-        /// <param name="daysRange">Number of days (e.g., 90) to filter sold items within a time range.</param>
-        /// <returns>Properly formatted filter string for eBay Browse API.</returns>
         private static string BuildFilterString(string listingTypeFilter, int daysRange)
         {
             DateTime endDate = DateTime.UtcNow;
             DateTime startDate = endDate.AddDays(-daysRange);
 
-            string start = startDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
-            string end = endDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string start = startDate.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+            string end = endDate.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
 
             switch (listingTypeFilter?.Trim().ToLowerInvariant())
             {
@@ -200,18 +193,20 @@ namespace CollectIQ.Services
 
                 case "active":
                     // Only currently active listings (fixed price or auction)
-                    return "buyingOptions:{\"FIXED_PRICE\"|\"AUCTION\"}";
+                    // IMPORTANT: do NOT quote the enum values
+                    return "buyingOptions:{FIXED_PRICE|AUCTION}";
 
                 case "both":
                 case "sold and active":
                     // Combine sold and active filters
-                    return $"(lastSoldDate:[{start}..{end}],buyingOptions:{{\"FIXED_PRICE\"|\"AUCTION\"}})";
+                    return $"(lastSoldDate:[{start}..{end}],buyingOptions:{{FIXED_PRICE|AUCTION}})";
 
                 default:
                     // Default fallback: sold items within range
                     return $"lastSoldDate:[{start}..{end}]";
             }
         }
+
 
         private async Task<string?> GetAccessTokenAsync()
         {
@@ -438,6 +433,11 @@ namespace CollectIQ.Services
                 using JsonDocument doc = JsonDocument.Parse(json);
                 if (!doc.RootElement.TryGetProperty("itemSummaries", out JsonElement items))
                 {
+                    if (listingTypeFilter == "sold")
+                    {
+                        System.Diagnostics.Debug.WriteLine("[eBay SEARCH] Sold returned 0 — falling back to active.");
+                        return await SearchListingsAsync(query, limit, "active", daysRange);
+                    }
                     System.Diagnostics.Debug.WriteLine("[eBay SEARCH] No itemSummaries found.");
                     return results;
                 }
@@ -472,6 +472,12 @@ namespace CollectIQ.Services
                         ListingId = id,
                         Status = status
                     });
+                }
+
+                if (results.Count == 0 && listingTypeFilter == "sold")
+                {
+                    System.Diagnostics.Debug.WriteLine("[eBay SEARCH] Sold returned 0 — falling back to active.");
+                    return await SearchListingsAsync(query, limit, "active", daysRange);
                 }
 
                 System.Diagnostics.Debug.WriteLine($"[eBay SEARCH] Found {results.Count} listings.");
