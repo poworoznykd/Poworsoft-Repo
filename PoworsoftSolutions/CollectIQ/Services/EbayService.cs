@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -91,50 +92,57 @@ namespace CollectIQ.Services
             try
             {
                 if (!isInitialized)
-                {
                     await InitializeAsync();
-                }
 
                 if (secureConfig == null)
-                {
                     throw new InvalidOperationException("Config not loaded.");
-                }
+
+                string clientId = secureConfig.EBAY_CLIENT_ID?.Trim() ?? "";
+                string clientSecret = secureConfig.EBAY_CLIENT_SECRET?.Trim() ?? "";
+
+                if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+                    throw new InvalidOperationException("ClientId/ClientSecret missing.");
 
                 string credentials = Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes($"{secureConfig.EBAY_CLIENT_ID}:{secureConfig.EBAY_CLIENT_SECRET}"));
+                    Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}")
+                );
 
-                HttpRequestMessage request =
-                    new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
+                Debug.WriteLine($"[eBay CONFIG] clientIdLen={clientId.Length}, clientSecretLen={clientSecret.Length}");
+                Debug.WriteLine($"[eBay CONFIG] tokenUrl=https://api.ebay.com/identity/v1/oauth2/token");
+                Debug.WriteLine($"[eBay CONFIG] basicHeaderLen={credentials.Length}");
 
+
+                var request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
                 request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+                request.Headers.Accept.ParseAdd("application/json");
+
                 request.Content = new FormUrlEncodedContent(new[]
                 {
                     new KeyValuePair<string, string>("grant_type", "client_credentials"),
                     new KeyValuePair<string, string>("scope", "https://api.ebay.com/oauth/api_scope")
                 });
 
-                HttpResponseMessage response = await httpClient.SendAsync(request);
-                string content = await response.Content.ReadAsStringAsync();
+                var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
 
-                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN] {(int)response.StatusCode} {response.ReasonPhrase}");
-                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN BODY] {content}");
+                Debug.WriteLine($"[eBay TOKEN] {(int)response.StatusCode} {response.ReasonPhrase}");
+                Debug.WriteLine($"[eBay TOKEN BODY] {content}");
 
                 if (!response.IsSuccessStatusCode)
-                {
                     return null;
-                }
 
                 using JsonDocument doc = JsonDocument.Parse(content);
-                return doc.RootElement.TryGetProperty("access_token", out JsonElement tokenElement)
+                return doc.RootElement.TryGetProperty("access_token", out var tokenElement)
                     ? tokenElement.GetString()
                     : null;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[eBay TOKEN ERROR] {ex.Message}");
+                Debug.WriteLine($"[eBay TOKEN ERROR] {ex}");
                 return null;
             }
         }
+
 
         #endregion
 
