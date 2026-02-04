@@ -92,7 +92,24 @@ namespace CollectIQ.Models
         /// </summary>
         public decimal? Price { get; set; }
 
-        /// <summary>
+        
+
+
+/// <summary>
+/// If this listing is an auction, this represents the current bid amount (when available).
+/// </summary>
+public decimal? CurrentBidPrice { get; set; }
+
+/// <summary>
+/// If this listing offers Buy It Now, this represents the Buy It Now amount (when available).
+/// </summary>
+public decimal? BuyNowPrice { get; set; }
+
+/// <summary>
+/// True when we believe this listing is an auction (best-effort based on fields we have).
+/// </summary>
+public bool IsAuction { get; set; }
+/// <summary>
         /// ISO currency code, e.g. USD, CAD, EUR.
         /// </summary>
         public string Currency { get; set; } = string.Empty;

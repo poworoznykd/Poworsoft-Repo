@@ -60,6 +60,92 @@
                            Margin="0,6,0,6"
                            LineBreakMode="TailTruncation" />
 
+
+                    <!-- INSIGHTS OPTIONS -->
+                    <Frame BackgroundColor="#162237"
+                           BorderColor="#1F2A44"
+                           CornerRadius="12"
+                           Padding="10"
+                           Margin="0,0,0,10"
+                           HasShadow="False">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              RowSpacing="8"
+                              ColumnSpacing="10">
+
+                            <Label Text="Price Guide (PriceCharting)"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="0"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="UsePriceGuideSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                            <Label Text="Blend in eBay Listings"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="1"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="BlendEbaySwitch"
+                                    IsToggled="True"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                            <Grid Grid.Row="2"
+                                  Grid.ColumnSpan="2"
+                                  ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="eBay Weight"
+                                       TextColor="#94A3B8"
+                                       FontSize="11"
+                                       VerticalOptions="Center" />
+                                <Slider x:Name="EbayWeightSlider"
+                                        Minimum="0"
+                                        Maximum="100"
+                                        Value="30"
+                                        ValueChanged="OnEbayWeightChanged"
+                                        VerticalOptions="Center" />
+                                <Label x:Name="EbayWeightLabel"
+                                       Text="30%"
+                                       TextColor="#94A3B8"
+                                       FontSize="11"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="End" />
+                            </Grid>
+
+                            <Label Text="Remove Outliers"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="3"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="RemoveOutliersSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                            <Label Text="Use Current Bid For Auctions"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="4"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="UseBidForAuctionsSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="4"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                        </Grid>
+                    </Frame>
+
                     <!-- METRIC GRID -->
                     <Grid ColumnDefinitions="*,*"
                           RowDefinitions="Auto,Auto,Auto,Auto"
@@ -152,6 +238,22 @@
                                    TextColor="#7CF9FF"
                                    HorizontalOptions="EndAndExpand" />
                         </HorizontalStackLayout>
+
+
+                        <Label x:Name="InsightsGuideLabel"
+                               Text=""
+                               FontSize="11"
+                               TextColor="#A0AEC0"
+                               LineBreakMode="WordWrap"
+                               Margin="0,6,0,0" />
+
+                        <Label x:Name="InsightsBlendLabel"
+                               Text=""
+                               FontSize="11"
+                               TextColor="#A0AEC0"
+                               LineBreakMode="WordWrap"
+                               Margin="0,0,0,6" />
+
 
                         <BoxView HeightRequest="1"
                                  BackgroundColor="#333333" />
