@@ -221,6 +221,12 @@ public double? PriceGuideCgc10Price { get; set; }
 /// </summary>
 public double? PriceGuideSgc10Price { get; set; }
 
+public double? PriceGuidePsa7Price { get; set; }
+public double? PriceGuidePsa8Price { get; set; }
+public double? PriceGuidePsa9Price { get; set; }
+public string PriceGuideSelectedGrade { get; set; } = "RAW";
+
+
 /// <summary>
 /// Sales volume from the price guide (PriceCharting "sales-volume"), when provided.
 /// </summary>
