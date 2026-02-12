@@ -1,308 +1,228 @@
-//
-//  FILE            : PriceChartingService.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2026-02-08
-//  DESCRIPTION     :
-//      PriceCharting API client.
-//      - Reads API token from "secure.json" in AppDataDirectory (key: PriceChartingToken).
-//      - Uses /api/products to get a short list, scores the results, then calls /api/product by id.
-//      - IMPORTANT: Keep models in CollectIQ.Models only (no duplicate model classes in Services).
-//
+/*
+ *  CollectIQ - PriceChartingService.cs
+ *  ---------------------------------------------------------------------------
+ *  Purpose:
+ *      Minimal client for the PriceCharting API used to fetch price guide values
+ *      (raw / graded / PSA10, etc.) to power CollectIQ Insights.
+ *
+ *  Notes:
+ *      - This is a price guide (current values). It is not a sold-comps feed.
+ *      - Token is loaded from secure.json in the app package at runtime.
+ *      - Prices from PriceCharting are returned as pennies (integer cents). We store dollars.
+ */
 
-using CollectIQ.Models;
-using Microsoft.Maui.Storage;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Net.Http;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using CollectIQ.Models;
+using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Services
 {
+    /// <summary>
+    /// Provides access to PriceCharting price guide data.
+    /// </summary>
     public sealed class PriceChartingService
     {
         private const string ProductEndpoint = "https://www.pricecharting.com/api/product";
         private const string ProductsEndpoint = "https://www.pricecharting.com/api/products";
-        private readonly HttpClient httpClient;
 
-        public PriceChartingService(HttpClient client)
+        private readonly HttpClient httpClient;
+        private string cachedToken;
+
+        public PriceChartingService(HttpClient httpClient)
         {
-            httpClient = client ?? throw new ArgumentNullException(nameof(client));
+            this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
         /// <summary>
-        /// Returns a best-match product by doing:
-        ///  1) /api/products?q=...  (top 20 candidates)
-        ///  2) Score candidates against the query
-        ///  3) /api/product?id=... (full pricing for best candidate)
-        /// Returns null if no match is found or token is missing.
+        /// Best-match lookup (Prices API) by query string (q=...).
         /// </summary>
-        public async Task<PriceChartingProduct?> GetBestMatchAsync(string query)
+        public async Task<PriceChartingProduct> GetBestMatchAsync(string query, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(query))
             {
                 return null;
             }
 
-            string? token = await GetTokenAsync().ConfigureAwait(false);
+            string token = await GetTokenAsync(ct);
             if (string.IsNullOrWhiteSpace(token))
             {
                 return null;
             }
 
-            List<PriceChartingProductStub> candidates = await SearchProductsAsync(token, query).ConfigureAwait(false);
-            if (candidates.Count == 0)
-            {
-                // Fallback to the single best match endpoint (q=... on /api/product)
-                return await GetProductByQueryAsync(token, query).ConfigureAwait(false);
-            }
-
-            PriceChartingProductStub? best = PickBestCandidate(query, candidates);
-
-            if (best == null || string.IsNullOrWhiteSpace(best.Id))
-            {
-                return await GetProductByQueryAsync(token, query).ConfigureAwait(false);
-            }
-
-            return await GetProductByIdAsync(token, best.Id).ConfigureAwait(false);
+            string url = $"{ProductEndpoint}?t={token}&q={UrlEncoder.Default.Encode(query.Trim())}";
+            return await GetProductInternalAsync(url, ct);
         }
 
-        // -------------------------------------------------------
-        // Token loading (secure.json)
-        // -------------------------------------------------------
-        private static async Task<string?> GetTokenAsync()
+        /// <summary>
+        /// Lookup a single product by PriceCharting product id.
+        /// </summary>
+        public async Task<PriceChartingProduct> GetByIdAsync(string id, CancellationToken ct = default)
         {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return null;
+            }
+
+            string token = await GetTokenAsync(ct);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return null;
+            }
+
+            string url = $"{ProductEndpoint}?t={token}&id={UrlEncoder.Default.Encode(id.Trim())}";
+            return await GetProductInternalAsync(url, ct);
+        }
+
+        /// <summary>
+        /// Return multiple candidate products (up to 20) using /api/products.
+        /// </summary>
+        public async Task<IReadOnlyList<PriceChartingProductStub>> SearchProductsAsync(string query, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Array.Empty<PriceChartingProductStub>();
+            }
+
+            string token = await GetTokenAsync(ct);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return Array.Empty<PriceChartingProductStub>();
+            }
+
+            string url = $"{ProductsEndpoint}?t={token}&q={UrlEncoder.Default.Encode(query.Trim())}";
+            HttpResponseMessage response = await httpClient.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return Array.Empty<PriceChartingProductStub>();
+            }
+
+            string json = await response.Content.ReadAsStringAsync(ct);
+            using JsonDocument doc = JsonDocument.Parse(json);
+
+            JsonElement root = doc.RootElement;
+            if (!root.TryGetProperty("status", out JsonElement status) ||
+                status.GetString() != "success")
+            {
+                return Array.Empty<PriceChartingProductStub>();
+            }
+
+            if (!root.TryGetProperty("products", out JsonElement productsEl) ||
+                productsEl.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<PriceChartingProductStub>();
+            }
+
+            List<PriceChartingProductStub> list = new List<PriceChartingProductStub>();
+            foreach (JsonElement item in productsEl.EnumerateArray())
+            {
+                PriceChartingProductStub stub = PriceChartingProductStub.FromJson(item);
+                if (stub != null)
+                {
+                    list.Add(stub);
+                }
+            }
+
+            return list;
+        }
+
+        private async Task<PriceChartingProduct> GetProductInternalAsync(string url, CancellationToken ct)
+        {
+            HttpResponseMessage response = await httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            string json = await response.Content.ReadAsStringAsync(ct);
+            using JsonDocument doc = JsonDocument.Parse(json);
+
+            JsonElement root = doc.RootElement;
+            if (!root.TryGetProperty("status", out JsonElement status) ||
+                status.GetString() != "success")
+            {
+                return null;
+            }
+
+            return PriceChartingProduct.FromJson(root);
+        }
+
+        private async Task<string> GetTokenAsync(CancellationToken ct)
+        {
+            if (!string.IsNullOrWhiteSpace(cachedToken))
+            {
+                return cachedToken;
+            }
+
             try
             {
-                string securePath = Path.Combine(FileSystem.AppDataDirectory, "secure.json");
-                if (!File.Exists(securePath))
+                // secure.json is expected to be included as a MAUI asset.
+                using var stream = await FileSystem.OpenAppPackageFileAsync("secure.json");
+                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                    doc.RootElement.TryGetProperty("pricecharting_token", out JsonElement tokenEl))
                 {
-                    return null;
+                    cachedToken = tokenEl.GetString();
                 }
-
-                string json = await File.ReadAllTextAsync(securePath).ConfigureAwait(false);
-                using JsonDocument doc = JsonDocument.Parse(json);
-
-                if (doc.RootElement.TryGetProperty("PriceChartingToken", out JsonElement tokenEl) &&
-                    tokenEl.ValueKind == JsonValueKind.String)
-                {
-                    string? token = tokenEl.GetString();
-                    return string.IsNullOrWhiteSpace(token) ? null : token.Trim();
-                }
-
-                return null;
             }
             catch
             {
-                return null;
+                cachedToken = null;
             }
+
+            return cachedToken;
         }
+    }
 
-        // -------------------------------------------------------
-        // Search + fetch
-        // -------------------------------------------------------
-        private async Task<List<PriceChartingProductStub>> SearchProductsAsync(string token, string query)
+    /// <summary>
+    /// Minimal /api/products result element (id, product-name, console-name).
+    /// </summary>
+    public sealed class PriceChartingProductStub
+    {
+        public string Id { get; set; }
+        public string ProductName { get; set; }
+        public string ConsoleName { get; set; }
+
+        public static PriceChartingProductStub FromJson(JsonElement el)
         {
-            try
-            {
-                string url =
-                    $"{ProductsEndpoint}?t={Uri.EscapeDataString(token)}&q={Uri.EscapeDataString(query)}";
-
-                string response = await httpClient.GetStringAsync(url).ConfigureAwait(false);
-
-                using JsonDocument doc = JsonDocument.Parse(response);
-                if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                {
-                    return new List<PriceChartingProductStub>();
-                }
-
-                // If status != success, stop.
-                if (!doc.RootElement.TryGetProperty("status", out JsonElement statusEl) ||
-                    statusEl.ValueKind != JsonValueKind.String ||
-                    !string.Equals(statusEl.GetString(), "success", StringComparison.OrdinalIgnoreCase))
-                {
-                    return new List<PriceChartingProductStub>();
-                }
-
-                if (!doc.RootElement.TryGetProperty("products", out JsonElement productsEl) ||
-                    productsEl.ValueKind != JsonValueKind.Array)
-                {
-                    return new List<PriceChartingProductStub>();
-                }
-
-                List<PriceChartingProductStub> list = new List<PriceChartingProductStub>();
-
-                foreach (JsonElement item in productsEl.EnumerateArray())
-                {
-                    try
-                    {
-                        PriceChartingProductStub? stub = JsonSerializer.Deserialize<PriceChartingProductStub>(item.GetRawText());
-                        if (stub != null && !string.IsNullOrWhiteSpace(stub.Id))
-                        {
-                            list.Add(stub);
-                        }
-                    }
-                    catch
-                    {
-                        // ignore bad item
-                    }
-                }
-
-                return list;
-            }
-            catch
-            {
-                return new List<PriceChartingProductStub>();
-            }
-        }
-
-        private async Task<PriceChartingProduct?> GetProductByIdAsync(string token, string id)
-        {
-            try
-            {
-                string url =
-                    $"{ProductEndpoint}?t={Uri.EscapeDataString(token)}&id={Uri.EscapeDataString(id)}";
-
-                string response = await httpClient.GetStringAsync(url).ConfigureAwait(false);
-                return PriceChartingProduct.FromJson(response);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private async Task<PriceChartingProduct?> GetProductByQueryAsync(string token, string query)
-        {
-            try
-            {
-                // /api/product?q=... returns best single match
-                string url =
-                    $"{ProductEndpoint}?t={Uri.EscapeDataString(token)}&q={Uri.EscapeDataString(query)}";
-
-                string response = await httpClient.GetStringAsync(url).ConfigureAwait(false);
-                return PriceChartingProduct.FromJson(response);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        // -------------------------------------------------------
-        // Matching / scoring
-        // -------------------------------------------------------
-        private static PriceChartingProductStub? PickBestCandidate(string query, List<PriceChartingProductStub> candidates)
-        {
-            if (candidates == null || candidates.Count == 0)
+            if (el.ValueKind != JsonValueKind.Object)
             {
                 return null;
             }
 
-            string q = NormalizeForMatch(query);
-            HashSet<string> qTokens = Tokenize(q);
-
-            int bestScore = int.MinValue;
-            PriceChartingProductStub? best = null;
-
-            foreach (PriceChartingProductStub c in candidates)
+            return new PriceChartingProductStub
             {
-                string name = (c.ProductName ?? string.Empty) + " " + (c.ConsoleName ?? string.Empty);
-                string n = NormalizeForMatch(name);
-                HashSet<string> nTokens = Tokenize(n);
-
-                int score = 0;
-
-                // Token overlap score
-                foreach (string t in qTokens)
-                {
-                    if (nTokens.Contains(t))
-                    {
-                        score += 3;
-                    }
-                }
-
-                // Small bonus if query contains a set number like "#4" and candidate does too
-                if (q.Contains("#") && n.Contains("#"))
-                {
-                    score += 3;
-                }
-
-                // Prefer exact substring match
-                if (!string.IsNullOrWhiteSpace(c.ProductName) &&
-                    q.Contains(NormalizeForMatch(c.ProductName)))
-                {
-                    score += 5;
-                }
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = c;
-                }
-            }
-
-            return best;
-        }
-
-        private static string NormalizeForMatch(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return string.Empty;
-            }
-
-            string t = text.ToLowerInvariant();
-
-            // Remove common grading words/noise
-            string[] noise =
-            {
-                "psa", "bgs", "cgc", "sgc", "gem", "mint", "graded", "grade",
-                "rookie", "rc", "auto", "autograph", "refractor", "holo", "foil",
-                "lot", "card", "cards", "n/a"
+                Id = GetString(el, "id"),
+                ProductName = GetString(el, "product-name"),
+                ConsoleName = GetString(el, "console-name")
             };
-
-            foreach (string n in noise)
-            {
-                t = t.Replace(n, " ");
-            }
-
-            // normalize punctuation
-            char[] bad = { '|', ',', '.', ':', ';', '(', ')', '[', ']', '{', '}', '-', '_', '/', '\\', '"', '\'' };
-            foreach (char ch in bad)
-            {
-                t = t.Replace(ch, ' ');
-            }
-
-            while (t.Contains("  "))
-            {
-                t = t.Replace("  ", " ");
-            }
-
-            return t.Trim();
         }
 
-        private static HashSet<string> Tokenize(string text)
+        private static string GetString(JsonElement root, string key)
         {
-            HashSet<string> set = new HashSet<string>();
-            if (string.IsNullOrWhiteSpace(text))
+            if (!root.TryGetProperty(key, out JsonElement v))
             {
-                return set;
+                return null;
             }
 
-            string[] parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (string p in parts)
+            if (v.ValueKind == JsonValueKind.String)
             {
-                if (p.Length >= 2)
-                {
-                    set.Add(p);
-                }
+                return v.GetString();
             }
 
-            return set;
+            if (v.ValueKind == JsonValueKind.Number)
+            {
+                return v.ToString();
+            }
+
+            return null;
         }
     }
 }

@@ -454,7 +454,7 @@ namespace CollectIQ.Services
             {
                 num = "#" + num;
             }
-            //TODO remove after just checking origin push
+
             string part1 = string.Join(" • ", new[] { set, team }.Where(s => !string.IsNullOrWhiteSpace(s)));
             string part2 = string.Join(" ", new[] { part1, num }.Where(s => !string.IsNullOrWhiteSpace(s)));
 

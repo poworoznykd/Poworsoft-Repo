@@ -113,6 +113,22 @@ namespace CollectIQ.Models
                 OnPropertyChanged();
             }
         }
+        [Ignore]
+        public PriceChartingProduct PriceGuideProduct
+        {
+            get => Insights?.PriceGuideProduct;
+            set
+            {
+                if (Insights == null)
+                {
+                    Insights = new CardInsights();
+                }
+
+                Insights.PriceGuideProduct = value;
+                OnPropertyChanged();
+            }
+        }
+
 
         /// <summary>
         /// Handles changes coming from CardInsights. When the SuggestedPrice

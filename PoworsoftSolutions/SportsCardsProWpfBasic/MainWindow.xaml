@@ -1,0 +1,150 @@
+﻿<Window x:Class="SportsCardsProWpfBasic.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="SportsCardsPro Prices API - Basic Browser" Width="1200" Height="720" MinWidth="1000" MinHeight="650" WindowStartupLocation="CenterScreen">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Search Bar -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="QueryTextBox"
+                 Height="34"
+                 VerticalContentAlignment="Center"
+                 FontSize="14"
+                 Padding="10,0"
+                 KeyDown="QueryTextBox_KeyDown"
+                 ToolTip="Examples: tom brady rookie 2000 bowman #236, michael jordan #57 1986 fleer, charizard #4 base set"/>
+
+            <Button Grid.Column="2"
+                x:Name="SearchButton"
+                Height="34"
+                MinWidth="120"
+                Padding="16,0"
+                FontSize="14"
+                Content="Search"
+                Click="SearchButton_Click"/>
+        </Grid>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="460"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Results -->
+            <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                           x:Name="StatusText"
+                           FontSize="12"
+                           Margin="2,0,2,6"
+                           Foreground="#444"
+                           Text="Ready." />
+
+                    <ListBox x:Name="ResultsListBox"
+                         SelectionChanged="ResultsListBox_SelectionChanged"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#EEE" BorderThickness="0,0,0,1" Padding="6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="92"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0"
+                                            Background="#F6F6F6"
+                                            CornerRadius="6"
+                                            Width="92" Height="128">
+                                            <Image Width="92" Height="128"
+                                               Stretch="UniformToFill"
+                                               Source="{Binding ThumbnailImage}"
+                                               SnapsToDevicePixels="True"/>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="{Binding ProductName}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding ConsoleName}" Foreground="#666" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Genre}" Foreground="#666" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Id}" Foreground="#999" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Details -->
+            <Border Grid.Column="2" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="260"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="SelectedTitle"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="Select a card"
+                           TextWrapping="Wrap"/>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                            Background="#F6F6F6"
+                            CornerRadius="8"
+                            Width="260" Height="260">
+                            <Image x:Name="LargeImage"
+                               Width="260" Height="260"
+                               Stretch="UniformToFill"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock x:Name="SelectedSubTitle" Foreground="#666" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="SelectedPrices" Margin="0,10,0,0" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="SelectedImageUrl" Margin="0,10,0,0" Foreground="#888" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4"
+                           FontWeight="SemiBold"
+                           Text="All Fields Returned"
+                           Margin="0,0,0,6"/>
+
+                    <TextBox Grid.Row="4"
+                         x:Name="AllFieldsTextBox"
+                         Margin="0,24,0,0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+
+</Window>

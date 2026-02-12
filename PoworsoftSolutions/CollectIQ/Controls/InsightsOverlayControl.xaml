@@ -28,9 +28,10 @@
                 HorizontalOptions="FillAndExpand"
                 VerticalOptions="End">
 
-            <!-- One scroll surface for the whole overlay -->
+            <!-- FIXED: ScrollView can now scroll fully -->
             <ScrollView VerticalScrollBarVisibility="Never">
 
+                <!-- FIXED: Replace Grid root with VerticalStackLayout -->
                 <VerticalStackLayout Spacing="16">
 
                     <!-- HEADER -->
@@ -59,6 +60,7 @@
                            Margin="0,6,0,6"
                            LineBreakMode="TailTruncation" />
 
+
                     <!-- INSIGHTS OPTIONS -->
                     <Frame BackgroundColor="#162237"
                            BorderColor="#1F2A44"
@@ -66,101 +68,82 @@
                            Padding="10"
                            Margin="0,0,0,10"
                            HasShadow="False">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              RowSpacing="8"
+                              ColumnSpacing="10">
 
-                        <!-- IMPORTANT: remove the inner ScrollView to avoid nested scroll issues -->
-                        <VerticalStackLayout Spacing="10">
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Use Price Guide (PriceCharting)"
-                                       FontAttributes="Bold"
-                                       TextColor="White"
-                                       VerticalOptions="Center" />
-                                <Switch x:Name="UsePriceGuideSwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="UsePriceGuideSwitch_Toggled" />
-                            </Grid>
-
-                            <Label x:Name="PriceGuideStatusLabel"
-                                   Text="Price guide: not loaded yet"
+                            <Label Text="Price Guide (PriceCharting)"
+                                   TextColor="#E2E8F0"
                                    FontSize="12"
-                                   TextColor="#B7D9FF" />
+                                   Grid.Row="0"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="UsePriceGuideSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
 
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Guide Grade Baseline"
-                                       TextColor="White"
+                            <Label Text="Blend in eBay Listings"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="1"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="BlendEbaySwitch"
+                                    IsToggled="True"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                            <Grid Grid.Row="2"
+                                  Grid.ColumnSpan="2"
+                                  ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="eBay Weight"
+                                       TextColor="#94A3B8"
+                                       FontSize="11"
                                        VerticalOptions="Center" />
-                                <Picker x:Name="GuideGradePicker"
-                                        Grid.Column="1"
-                                        WidthRequest="170"
-                                        SelectedIndexChanged="GuideGradePicker_SelectedIndexChanged" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Blend with eBay Comps"
-                                       TextColor="White"
-                                       VerticalOptions="Center" />
-                                <Switch x:Name="BlendEbaySwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="BlendEbaySwitch_Toggled" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Include SOLD comps"
-                                       TextColor="White"
-                                       VerticalOptions="Center" />
-                                <Switch x:Name="IncludeSoldSwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="IncludeSoldSwitch_Toggled" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Include ACTIVE listings"
-                                       TextColor="White"
-                                       VerticalOptions="Center" />
-                                <Switch x:Name="IncludeActiveSwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="IncludeActiveSwitch_Toggled" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Remove Outliers"
-                                       TextColor="White"
-                                       VerticalOptions="Center" />
-                                <Switch x:Name="RemoveOutliersSwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="RemoveOutliersSwitch_Toggled" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Use Current Bid For Auctions"
-                                       TextColor="White"
-                                       VerticalOptions="Center"
-                                       LineBreakMode="WordWrap"
-                                       MaxLines="2" />
-                                <Switch x:Name="UseBidForAuctionsSwitch"
-                                        Grid.Column="1"
-                                        IsToggled="True"
-                                        Toggled="UseBidForAuctionsSwitch_Toggled" />
-                            </Grid>
-
-                            <Grid RowDefinitions="Auto,Auto">
-                                <Label x:Name="EbayWeightLabel"
-                                       Text="eBay Weight: 50%"
-                                       TextColor="White" />
                                 <Slider x:Name="EbayWeightSlider"
-                                        Grid.Row="1"
                                         Minimum="0"
-                                        Maximum="1"
-                                        Value="0.5"
-                                        ValueChanged="EbayWeightSlider_ValueChanged" />
+                                        Maximum="100"
+                                        Value="30"
+                                        ValueChanged="OnEbayWeightChanged"
+                                        VerticalOptions="Center" />
+                                <Label x:Name="EbayWeightLabel"
+                                       Text="30%"
+                                       TextColor="#94A3B8"
+                                       FontSize="11"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="End" />
                             </Grid>
 
-                        </VerticalStackLayout>
+                            <Label Text="Remove Outliers"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="3"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="RemoveOutliersSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                            <Label Text="Use Current Bid For Auctions"
+                                   TextColor="#E2E8F0"
+                                   FontSize="12"
+                                   Grid.Row="4"
+                                   Grid.Column="0"
+                                   VerticalOptions="Center" />
+                            <Switch x:Name="UseBidForAuctionsSwitch"
+                                    IsToggled="True"
+                                    Grid.Row="4"
+                                    Grid.Column="1"
+                                    Toggled="OnOptionToggled" />
+
+                        </Grid>
                     </Frame>
 
                     <!-- METRIC GRID -->
@@ -256,6 +239,7 @@
                                    HorizontalOptions="EndAndExpand" />
                         </HorizontalStackLayout>
 
+
                         <Label x:Name="InsightsGuideLabel"
                                Text=""
                                FontSize="11"
@@ -270,25 +254,23 @@
                                LineBreakMode="WordWrap"
                                Margin="0,0,0,6" />
 
-                        <BoxView HeightRequest="1" BackgroundColor="#333333" />
+
+                        <BoxView HeightRequest="1"
+                                 BackgroundColor="#333333" />
                     </VerticalStackLayout>
 
                     <!-- GRAPH -->
-                    <Label Text="Graph" FontAttributes="Bold" TextColor="White" Margin="0,10,0,4" />
-                    <VerticalStackLayout Spacing="6">
-                        <GraphicsView x:Name="InsightsGraphView" HeightRequest="190" />
-                        <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="12">
-                            <Label Text="Aqua = Price Guide" FontSize="11" TextColor="#45E6FF" />
-                            <Label Text="Gold = Suggested" FontSize="11" TextColor="#FFC24A" Grid.Column="1" />
-                            <Label Text="Green = eBay" FontSize="11" TextColor="#80FF9A" Grid.Column="2" />
-                        </Grid>
+                    <Grid HeightRequest="80">
+                        <BoxView HeightRequest="1.5"
+                                 VerticalOptions="End"
+                                 Margin="0,6,0,6"
+                                 BackgroundColor="#333333" />
+
                         <FlexLayout x:Name="InsightsGraphLayout"
-                                    IsVisible="False"
-                                    Direction="Row"
-                                    Wrap="NoWrap"
-                                    JustifyContent="SpaceBetween"
-                                    Margin="0,6,0,0" />
-                    </VerticalStackLayout>
+                                    AlignItems="End"
+                                    JustifyContent="SpaceEvenly"
+                                    Margin="0,0,0,4" />
+                    </Grid>
 
                     <!-- LIST -->
                     <CollectionView x:Name="InsightsListView"
@@ -353,13 +335,14 @@
                     </CollectionView>
 
                     <!-- APPLY BUTTON -->
-                    <Button Text="Apply Suggested Value"
+                    <Button 
+                        Text="Apply Suggested Value"
                             Style="{StaticResource AuroraNeonButton_Green}"
-                            TextColor="Black"
-                            CornerRadius="10"
-                            Margin="0,10,0,20"
-                            HeightRequest="42"
-                            Clicked="ApplySuggestedValue_Clicked" />
+                        TextColor="Black"
+                        CornerRadius="10"
+                        Margin="0,10,0,20"
+                        HeightRequest="42"
+                        Clicked="ApplySuggestedValue_Clicked" />
 
                 </VerticalStackLayout>
             </ScrollView>

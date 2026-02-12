@@ -93,6 +93,13 @@ namespace CollectIQ.Models
             }
         }
 
+        // PriceCharting (Price Guide) data for this card (optional).
+        public PriceChartingProduct PriceGuideProduct { get; set; }
+
+        public string PriceGuideProductId => PriceGuideProduct?.Id;
+        public string PriceGuideProductName => PriceGuideProduct?.ProductName;
+        public string PriceGuideConsoleName => PriceGuideProduct?.ConsoleName;
+
         // Number of listings used to compute insights
         private int listingCount;
         public int ListingCount
@@ -182,94 +189,83 @@ namespace CollectIQ.Models
         }
 
 
-        // ---------------------------------------------------------------------
-        // PriceCharting (price guide) fields
-        // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// PriceCharting (price guide) fields
+// ---------------------------------------------------------------------
 
-        /// <summary>
-        /// Raw / ungraded price from the price guide (PriceCharting "loose-price").
-        /// </summary>
-        public double? PriceGuideRawPrice { get; set; }
+/// <summary>
+/// Raw / ungraded price from the price guide (PriceCharting "loose-price").
+/// </summary>
+public double? PriceGuideRawPrice { get; set; }
 
-        /// <summary>
-        /// Generic graded price from the price guide (PriceCharting "graded-price").
-        /// </summary>
-        public double? PriceGuideGradedPrice { get; set; }
+/// <summary>
+/// Generic graded price from the price guide (PriceCharting "graded-price").
+/// </summary>
+public double? PriceGuideGradedPrice { get; set; }
 
-        /// <summary>
-        /// PSA 10 price from the price guide (PriceCharting "manual-only-price").
-        /// </summary>
-        public double? PriceGuidePsa10Price { get; set; }
+/// <summary>
+/// PSA 10 price from the price guide (PriceCharting "manual-only-price").
+/// </summary>
+public double? PriceGuidePsa10Price { get; set; }
 
-        /// <summary>
-        /// PSA 9.5 / BGS 9.5 style price from the price guide (PriceCharting "box-only-price").
-        /// </summary>
-        public double? PriceGuide95Price { get; set; }
+/// <summary>
+/// PSA 9.5 / BGS 9.5 style price from the price guide (PriceCharting "box-only-price").
+/// </summary>
+public double? PriceGuide95Price { get; set; }
 
-        /// <summary>
-        /// BGS 10 price from the price guide (PriceCharting "bgs-10-price").
-        /// </summary>
-        public double? PriceGuideBgs10Price { get; set; }
+/// <summary>
+/// BGS 10 price from the price guide (PriceCharting "bgs-10-price").
+/// </summary>
+public double? PriceGuideBgs10Price { get; set; }
 
-        /// <summary>
-        /// CGC 10 price from the price guide (PriceCharting "condition-17-price").
-        /// </summary>
-        public double? PriceGuideCgc10Price { get; set; }
+/// <summary>
+/// CGC 10 price from the price guide (PriceCharting "condition-17-price").
+/// </summary>
+public double? PriceGuideCgc10Price { get; set; }
 
-        /// <summary>
-        /// SGC 10 price from the price guide (PriceCharting "condition-18-price").
-        /// </summary>
-        public double? PriceGuideSgc10Price { get; set; }
+/// <summary>
+/// SGC 10 price from the price guide (PriceCharting "condition-18-price").
+/// </summary>
+public double? PriceGuideSgc10Price { get; set; }
 
-        /// <summary>
-        /// Sales volume from the price guide (PriceCharting "sales-volume"), when provided.
-        /// </summary>
-        public int? PriceGuideSalesVolume { get; set; }
+/// <summary>
+/// Sales volume from the price guide (PriceCharting "sales-volume"), when provided.
+/// </summary>
+public int? PriceGuideSalesVolume { get; set; }
 
-        /// <summary>
-        /// The price we ultimately used as the baseline from the price guide (based on detected grade).
-        /// </summary>
-        public double? PriceGuideBaselineUsed { get; set; }
+/// <summary>
+/// The price we ultimately used as the baseline from the price guide (based on detected grade).
+/// </summary>
+public double? PriceGuideBaselineUsed { get; set; }
 
-        // ---------------------------------------------------------------------
-        // eBay breakdown fields (active listings)
-        // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// eBay breakdown fields (active listings)
+// ---------------------------------------------------------------------
 
-        /// <summary>
-        /// Median price from eBay listings after filters/outlier removal.
-        /// </summary>
-        public double? EbayMedianPrice { get; set; }
+/// <summary>
+/// Median price from eBay listings after filters/outlier removal.
+/// </summary>
+public double? EbayMedianPrice { get; set; }
 
-        /// <summary>
-        /// Average price from eBay listings after filters/outlier removal.
-        /// </summary>
-        public double? EbayAveragePrice { get; set; }
+/// <summary>
+/// Average price from eBay listings after filters/outlier removal.
+/// </summary>
+public double? EbayAveragePrice { get; set; }
 
-        /// <summary>
-        /// Number of eBay listings used in the calculation.
-        /// </summary>
-        public int? EbayListingCountUsed { get; set; }
+/// <summary>
+/// Number of eBay listings used in the calculation.
+/// </summary>
+public int? EbayListingCountUsed { get; set; }
 
-        /// <summary>
-        /// Weight applied to eBay (0..1). The remainder is applied to PriceCharting baseline when enabled.
-        /// </summary>
-        public double? EbayBlendWeight { get; set; }
+/// <summary>
+/// Weight applied to eBay (0..1). The remainder is applied to PriceCharting baseline when enabled.
+/// </summary>
+public double? EbayBlendWeight { get; set; }
 
-        /// <summary>
-        /// Notes explaining which sources were used.
-        /// </summary>
-        public string? CalculationNotes { get; set; }
-
-        // PriceCharting price guide (USD) - these are converted from pennies to dollars.
-        public decimal? PriceGuideRawPriceUsd { get; set; }
-        public decimal? PriceGuidePsa7PriceUsd { get; set; }
-        public decimal? PriceGuidePsa8PriceUsd { get; set; }
-        public decimal? PriceGuidePsa9PriceUsd { get; set; }
-        public decimal? PriceGuideBgs95PriceUsd { get; set; }
-        public decimal? PriceGuidePsa10PriceUsd { get; set; }
-
-        // The grade currently being used for the guide baseline (Auto = Detected).
-        public string? PriceGuideSelectedGrade { get; set; }
+/// <summary>
+/// Notes explaining which sources were used.
+/// </summary>
+public string? CalculationNotes { get; set; }
 
     }
 }

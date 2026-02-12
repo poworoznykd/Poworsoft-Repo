@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36603.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CollectIQ", "CollectIQ\CollectIQ.csproj", "{EE733729-756B-4FEF-93EE-34498D4A4C12}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsCardsProWpfBasic", "SportsCardsProWpfBasic\SportsCardsProWpfBasic.csproj", "{724AE4FC-3356-4A79-80B0-2E17EF5C622A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -16,6 +18,10 @@ Global
 		{EE733729-756B-4FEF-93EE-34498D4A4C12}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
 		{EE733729-756B-4FEF-93EE-34498D4A4C12}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EE733729-756B-4FEF-93EE-34498D4A4C12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{724AE4FC-3356-4A79-80B0-2E17EF5C622A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{724AE4FC-3356-4A79-80B0-2E17EF5C622A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{724AE4FC-3356-4A79-80B0-2E17EF5C622A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{724AE4FC-3356-4A79-80B0-2E17EF5C622A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

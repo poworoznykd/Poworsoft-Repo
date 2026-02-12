@@ -1,17 +1,3 @@
-//
-//  FILE            : PriceChartingProduct.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2026-02-08
-//  DESCRIPTION     :
-//      Strongly-typed model for PriceCharting /api/product responses.
-//      Notes:
-//      - PriceCharting returns prices as integer pennies/cents (e.g., 1732 = $17.32).
-//      - JSON keys use hyphenated names (e.g., "product-name"), so we map them explicitly.
-//      - Keep this model in CollectIQ.Models ONLY (do NOT duplicate in Services), otherwise you
-//        will get "ambiguous reference" compiler errors.
-//
-
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -19,163 +5,177 @@ using System.Text.Json.Serialization;
 namespace CollectIQ.Models
 {
     /// <summary>
-    /// Represents a PriceCharting product response (/api/product).
+    /// Represents a PriceCharting product result (Prices API).
+    /// Note: Prices from PriceCharting are returned as pennies (integer cents). We store them as dollars.
     /// </summary>
     public sealed class PriceChartingProduct
     {
-        // Core identity
-        [JsonPropertyName("id")]
-        public string? Id { get; set; }
+        // Cards: CGC 10
+        // Comics: Graded 9.4
+        [JsonPropertyName("condition-17-price")]
+        public int? Condition17Price { get; set; }
 
-        [JsonPropertyName("product-name")]
-        public string? ProductName { get; set; }
+        // Cards: SGC 10
+        // (per PriceCharting docs)
+        [JsonPropertyName("condition-18-price")]
+        public int? Condition18Price { get; set; }
+        public string Status { get; set; }
 
-        [JsonPropertyName("console-name")]
-        public string? ConsoleName { get; set; }
+        // Identifiers
+        public string Id { get; set; }
+        public string ProductName { get; set; }
+        public string ConsoleName { get; set; }
 
-        // Prices (USD dollars) - we convert from pennies/cents in FromJson(...)
-        // Cards mapping (per PriceCharting key descriptions):
-        //   loose-price        = RAW / ungraded
-        //   cib-price          = graded 7 / 7.5 (often PSA 7 for cards)
-        //   new-price          = graded 8
-        //   graded-price       = graded 9
-        //   box-only-price     = graded 9.5
-        //   manual-only-price  = PSA 10 (cards) / best "10" price field in many guides
-        //   bgs-10-price       = BGS 10
-        //   condition-17-price = CGC 10
-        //   condition-18-price = SGC 10
-        public double? LoosePrice { get; set; }
-        public double? CibPrice { get; set; }
-        public double? NewPrice { get; set; }
-        public double? GradedPrice { get; set; }
-        public double? BoxOnlyPrice { get; set; }
-        public double? ManualOnlyPrice { get; set; }
-        public double? Bgs10Price { get; set; }
-        public double? Condition17Price { get; set; }
-        public double? Condition18Price { get; set; }
+        public string Upc { get; set; }
+        public string Asin { get; set; }
+        public string Epid { get; set; }
 
+        // Metadata
+        public string Genre { get; set; }
+        public DateTime? ReleaseDate { get; set; }
         public int? SalesVolume { get; set; }
 
+        // Common price points (dollars)
+        public double? LoosePrice { get; set; }           // Cards: Ungraded
+        public double? NewPrice { get; set; }             // Cards: Grade 8/8.5
+        public double? CibPrice { get; set; }             // Cards: Grade 7/7.5
+        public double? GradedPrice { get; set; }          // Cards: Grade 9
+        public double? BoxOnlyPrice { get; set; }         // Cards: Grade 9.5
+        public double? ManualOnlyPrice { get; set; }      // Cards: PSA 10
+        public double? Bgs10Price { get; set; }           // Cards: BGS 10
+        public double? Cgc10Price { get; set; }           // Cards: CGC 10 (condition-17-price)
+        public double? Sgc10Price { get; set; }           // Cards: SGC 10 (condition-18-price)
+
         /// <summary>
-        /// Parses a /api/product JSON response and converts all price fields from pennies to USD dollars.
-        /// Returns null if the response is not a success payload or cannot be parsed.
+        /// Parse a Prices API response into a PriceChartingProduct.
         /// </summary>
-        public static PriceChartingProduct? FromJson(string json)
+        public static PriceChartingProduct FromJson(JsonElement root)
         {
-            if (string.IsNullOrWhiteSpace(json))
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            PriceChartingProduct p = new PriceChartingProduct
+            {
+                Status = GetString(root, "status"),
+                Id = GetString(root, "id"),
+                ProductName = GetString(root, "product-name"),
+                ConsoleName = GetString(root, "console-name"),
+                Upc = GetString(root, "upc"),
+                Asin = GetString(root, "asin"),
+                Epid = GetString(root, "epid"),
+                Genre = GetString(root, "genre"),
+                ReleaseDate = GetDate(root, "release-date"),
+                SalesVolume = GetInt(root, "sales-volume"),
+
+                LoosePrice = GetMoney(root, "loose-price"),
+                NewPrice = GetMoney(root, "new-price"),
+                CibPrice = GetMoney(root, "cib-price"),
+                GradedPrice = GetMoney(root, "graded-price"),
+                BoxOnlyPrice = GetMoney(root, "box-only-price"),
+                ManualOnlyPrice = GetMoney(root, "manual-only-price"),
+                Bgs10Price = GetMoney(root, "bgs-10-price"),
+                Cgc10Price = GetMoney(root, "condition-17-price"),
+                Sgc10Price = GetMoney(root, "condition-18-price")
+            };
+
+            return p;
+        }
+
+        private static string GetString(JsonElement root, string key)
+        {
+            if (!root.TryGetProperty(key, out JsonElement v))
+            {
+                return null;
+            }
+
+            if (v.ValueKind == JsonValueKind.String)
+            {
+                return v.GetString();
+            }
+
+            // some values are numbers but we want string forms (e.g., id)
+            if (v.ValueKind == JsonValueKind.Number)
+            {
+                return v.ToString();
+            }
+
+            return null;
+        }
+
+        private static int? GetInt(JsonElement root, string key)
+        {
+            if (!root.TryGetProperty(key, out JsonElement v))
             {
                 return null;
             }
 
             try
             {
-                using JsonDocument doc = JsonDocument.Parse(json);
-
-                if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                if (v.ValueKind == JsonValueKind.Number)
                 {
-                    return null;
+                    return v.GetInt32();
                 }
 
-                JsonElement root = doc.RootElement;
-
-                // API returns { "status": "success", ... } or { "status": "error", "error-message": "..." }
-                string? status = GetString(root, "status");
-                if (!string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+                if (v.ValueKind == JsonValueKind.String &&
+                    int.TryParse(v.GetString(), out int i))
                 {
-                    return null;
+                    return i;
                 }
-
-                PriceChartingProduct p = new PriceChartingProduct
-                {
-                    Id = GetString(root, "id"),
-                    ProductName = GetString(root, "product-name"),
-                    ConsoleName = GetString(root, "console-name"),
-
-                    // Convert cents/pennies -> dollars
-                    LoosePrice = GetPriceUsd(root, "loose-price"),
-                    CibPrice = GetPriceUsd(root, "cib-price"),
-                    NewPrice = GetPriceUsd(root, "new-price"),
-                    GradedPrice = GetPriceUsd(root, "graded-price"),
-                    BoxOnlyPrice = GetPriceUsd(root, "box-only-price"),
-                    ManualOnlyPrice = GetPriceUsd(root, "manual-only-price"),
-                    Bgs10Price = GetPriceUsd(root, "bgs-10-price"),
-                    Condition17Price = GetPriceUsd(root, "condition-17-price"),
-                    Condition18Price = GetPriceUsd(root, "condition-18-price"),
-
-                    SalesVolume = GetInt(root, "sales-volume")
-                };
-
-                return p;
             }
             catch
             {
-                return null;
-            }
-        }
-
-        // -----------------------------
-        // Helpers
-        // -----------------------------
-
-        private static string? GetString(JsonElement root, string name)
-        {
-            if (root.TryGetProperty(name, out JsonElement p) && p.ValueKind == JsonValueKind.String)
-            {
-                return p.GetString();
+                // swallow and return null
             }
 
             return null;
         }
 
-        private static int? GetInt(JsonElement root, string name)
+        private static DateTime? GetDate(JsonElement root, string key)
         {
-            if (!root.TryGetProperty(name, out JsonElement p))
+            string s = GetString(root, key);
+            if (string.IsNullOrWhiteSpace(s))
             {
                 return null;
             }
 
-            if (p.ValueKind == JsonValueKind.Number && p.TryGetInt32(out int i))
+            if (DateTime.TryParse(s, out DateTime d))
             {
-                return i;
-            }
-
-            if (p.ValueKind == JsonValueKind.String && int.TryParse(p.GetString(), out int si))
-            {
-                return si;
+                return d.Date;
             }
 
             return null;
         }
 
-        private static double? GetPriceUsd(JsonElement root, string name)
+        private static double? GetMoney(JsonElement root, string key)
         {
-            if (!root.TryGetProperty(name, out JsonElement p))
+            if (!root.TryGetProperty(key, out JsonElement v))
             {
                 return null;
             }
 
-            // API returns pennies/cents, so divide by 100
-            double cents;
+            try
+            {
+                // PriceCharting returns pennies/cents as an integer.
+                if (v.ValueKind == JsonValueKind.Number)
+                {
+                    long cents = v.GetInt64();
+                    return cents / 100.0;
+                }
 
-            if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out double n))
-            {
-                cents = n;
+                if (v.ValueKind == JsonValueKind.String &&
+                    long.TryParse(v.GetString(), out long centsStr))
+                {
+                    return centsStr / 100.0;
+                }
             }
-            else if (p.ValueKind == JsonValueKind.String && double.TryParse(p.GetString(), out double s))
+            catch
             {
-                cents = s;
-            }
-            else
-            {
-                return null;
+                // swallow and return null
             }
 
-            if (cents <= 0)
-            {
-                return null;
-            }
-
-            return cents / 100.0;
+            return null;
         }
     }
 }
