@@ -46,11 +46,9 @@ namespace CollectIQ.Controls
         public event EventHandler? Closed;
 
 
-        private readonly PriceChartingService priceChartingService;
         private EbayListing? baseListing;
         private List<EbayListing> baseComps = new List<EbayListing>();
 
-        private PriceChartingProduct? priceGuideProduct;
         private string? priceGuideQuery;
 
         public InsightsOverlayControl()
@@ -58,7 +56,6 @@ namespace CollectIQ.Controls
             InitializeComponent();
 
             // Price guide client (PriceCharting)
-            priceChartingService = new PriceChartingService(new HttpClient());
 
             insightsListings = new ObservableCollection<EbayListing>();
             InsightsListView.ItemsSource = insightsListings;
@@ -316,34 +313,8 @@ namespace CollectIQ.Controls
                 double? ebayAvg = ebayPrices.Count > 0 ? ebayPrices.Average() : null;
                 double? ebayMedian = ebayPrices.Count > 0 ? ComputeMedianSorted(ebayPrices) : null;
 
-                // -----------------------------------------------------------------
-                // 2) Price guide baseline (PriceCharting)
-                // -----------------------------------------------------------------
-                double? guideRaw = priceGuideProduct?.LoosePrice;
-                double? guideGraded = priceGuideProduct?.GradedPrice;
-                double? guidePsa10 = priceGuideProduct?.ManualOnlyPrice;
-                double? guide95 = priceGuideProduct?.BoxOnlyPrice;
-                double? guideBgs10 = priceGuideProduct?.Bgs10Price;
-                double? guideCgc10 = priceGuideProduct?.Condition17Price;
-                double? guideSgc10 = priceGuideProduct?.Condition18Price;
-
-                int? guideSalesVolume = priceGuideProduct?.SalesVolume;
-
-                bool useGuide = UsePriceGuideSwitch?.IsToggled == true && priceGuideProduct != null;
 
                 string detectedGrade = DetectGradeFromText(baseListing.Title ?? string.Empty);
-
-                double? guideBaseline = useGuide
-                    ? PickGuideBaseline(
-                        detectedGrade,
-                        guideRaw,
-                        guideGraded,
-                        guidePsa10,
-                        guide95,
-                        guideBgs10,
-                        guideCgc10,
-                        guideSgc10)
-                    : null;
 
                 // -----------------------------------------------------------------
                 // 3) Suggested price (blend guide + eBay)
@@ -356,43 +327,13 @@ namespace CollectIQ.Controls
                 double? suggested = null;
                 string notes;
 
-                if (useGuide && guideBaseline.HasValue && blendEbay)
-                {
-                    suggested = (guideBaseline.Value * (1.0 - ebayWeight)) + (ebayMedian!.Value * ebayWeight);
-                    notes = $"Guide baseline (${guideBaseline:0.00}) blended with eBay median (${ebayMedian:0.00}) at {(int)(ebayWeight * 100)}% eBay weight.";
-                }
-                else if (useGuide && guideBaseline.HasValue)
-                {
-                    suggested = guideBaseline.Value;
-                    notes = $"Guide baseline used (${guideBaseline:0.00}).";
-                }
-                else if (ebayMedian.HasValue && ebayAvg.HasValue)
-                {
-                    suggested = (ebayMedian.Value * 0.7) + (ebayAvg.Value * 0.3);
-                    notes = $"eBay-only: suggested = 70% median (${ebayMedian:0.00}) + 30% avg (${ebayAvg:0.00}).";
-                }
-                else if (ebayMedian.HasValue)
-                {
-                    suggested = ebayMedian.Value;
-                    notes = $"eBay-only: median used (${ebayMedian:0.00}).";
-                }
-                else
-                {
-                    suggested = null;
-                    notes = "No usable prices were found.";
-                }
-
                 // Confidence: increases with number of listings, plus a small bump if guide exists.
                 double confidenceBase = ebayPrices.Count > 0
                     ? Math.Min(1.0, Math.Log10(ebayPrices.Count + 1) / 1.2)
                     : 0.0;
 
                 double confidence = confidenceBase;
-                if (useGuide && guideBaseline.HasValue)
-                {
-                    confidence = Math.Min(1.0, confidence + 0.15);
-                }
-
+                
                 // -----------------------------------------------------------------
                 // 4) Build InsightsData
                 // -----------------------------------------------------------------
@@ -410,33 +351,13 @@ namespace CollectIQ.Controls
 
                     SuggestedPrice = suggested.HasValue ? (decimal)suggested.Value : 0m,
                     ConfidenceScore = confidence,
-                    Summary = BuildSummaryText(
-                        suggested,
-                        guideBaseline,
-                        ebayMedian,
-                        ebayPrices.Count,
-                        detectedGrade,
-                        useGuide,
-                        blendEbay),
-
-                    // Price guide breakdown
-                    PriceGuideRawPrice = guideRaw,
-                    PriceGuideGradedPrice = guideGraded,
-                    PriceGuidePsa10Price = guidePsa10,
-                    PriceGuide95Price = guide95,
-                    PriceGuideBgs10Price = guideBgs10,
-                    PriceGuideCgc10Price = guideCgc10,
-                    PriceGuideSgc10Price = guideSgc10,
-                    PriceGuideSalesVolume = guideSalesVolume,
-                    PriceGuideBaselineUsed = guideBaseline,
-
+               
                     // eBay breakdown
                     EbayMedianPrice = ebayMedian,
                     EbayAveragePrice = ebayAvg,
                     EbayListingCountUsed = ebayPrices.Count,
                     EbayBlendWeight = blendEbay ? ebayWeight : 0,
 
-                    CalculationNotes = notes
                 };
 
                 InsightsData = data;
@@ -458,23 +379,9 @@ namespace CollectIQ.Controls
                             : "No listing prices available.";
                 }
 
-                if (InsightsGuideLabel != null)
-                {
-                    InsightsGuideLabel.Text = BuildPriceGuideLine(
-                        detectedGrade,
-                        guideRaw,
-                        guideGraded,
-                        guidePsa10,
-                        guideBgs10,
-                        guideCgc10,
-                        guideSgc10,
-                        guideSalesVolume,
-                        useGuide);
-                }
-
                 if (InsightsBlendLabel != null)
                 {
-                    InsightsBlendLabel.Text = notes;
+               
                 }
 
                 if (InsightsSummaryLabel != null)
@@ -504,13 +411,7 @@ namespace CollectIQ.Controls
                     return;
                 }
 
-                PriceChartingProduct? product = await priceChartingService.GetBestMatchAsync(priceGuideQuery);
-
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    priceGuideProduct = product;
-                    RecalculateInsightsFromCurrentComps();
-                });
+               
             }
             catch
             {
@@ -752,7 +653,7 @@ namespace CollectIQ.Controls
         {
             try
             {
-                if (UsePriceGuideSwitch?.IsToggled == true && priceGuideProduct == null)
+                if (UsePriceGuideSwitch?.IsToggled == true)
                 {
                     _ = LoadPriceGuideForCurrentAsync();
                 }

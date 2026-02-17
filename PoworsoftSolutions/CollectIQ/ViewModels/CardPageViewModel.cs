@@ -1,7 +1,5 @@
-﻿using CollectIQ.Domain.Entities;
-using CollectIQ.Interfaces;
+﻿using CollectIQ.Interfaces;
 using CollectIQ.Models;
-using CollectIQ.Models.Domain.Entities;
 using CollectIQ.Services;
 using System;
 using System.Collections.Generic;
@@ -46,16 +44,16 @@ namespace CollectIQ.ViewModels
         }
 
         /*
-   * FUNCTION     : BuildHighlightSearchQuery
-   * DESCRIPTION  :
-   *     Builds a YouTube search query for this card's highlight reel.
-   *     - For sports cards, we bias toward game highlights.
-   *     - For Pokémon, we bias toward TCG / character highlights.
-   * PARAMETERS   :
-   *     none
-   * RETURNS      :
-   *     string  - query string suitable for YouTube search.
-   */
+       * FUNCTION     : BuildHighlightSearchQuery
+       * DESCRIPTION  :
+       *     Builds a YouTube search query for this card's highlight reel.
+       *     - For sports cards, we bias toward game highlights.
+       *     - For Pokémon, we bias toward TCG / character highlights.
+       * PARAMETERS   :
+       *     none
+       * RETURNS      :
+       *     string  - query string suitable for YouTube search.
+       */
         public string BuildHighlightSearchQuery()
         {
             if (SelectedCard == null)
@@ -70,13 +68,13 @@ namespace CollectIQ.ViewModels
             {
                 playerName = SelectedCard.Player.FullName.Trim();
             }
-            else if (!string.IsNullOrWhiteSpace(SelectedCard.Name))
+            else if (!string.IsNullOrWhiteSpace(SelectedCard.Player.FullName))
             {
-                playerName = SelectedCard.Name.Trim();
+                playerName = SelectedCard.Player.FullName.Trim();
             }
 
-            string sport = SelectedCard.Sport?.Trim() ?? string.Empty;
-            string team = SelectedCard.Team?.Trim() ?? string.Empty;
+            string sport = SelectedCard.Sport.ToString()?.Trim() ?? string.Empty;
+            string team = SelectedCard.Team.Name?.Trim() ?? string.Empty;
             string year = SelectedCard.Year.ToString()?.Trim() ?? string.Empty;
 
             bool isPokemon =

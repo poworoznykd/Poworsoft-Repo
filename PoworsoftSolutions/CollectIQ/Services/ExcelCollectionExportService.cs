@@ -174,13 +174,13 @@ namespace CollectIQ.Services
 
                     // BASIC CARD DATA
                     ws.Cell(row, 5).Value = c.Title;
-                    ws.Cell(row, 6).Value = c.Name;
-                    ws.Cell(row, 7).Value = c.Team;
+                    ws.Cell(row, 6).Value = c.Player.FullName;
+                    ws.Cell(row, 7).Value = c.Team.Name;
                     ws.Cell(row, 8).Value = c.Year;
                     ws.Cell(row, 9).Value = c.Set;
                     ws.Cell(row, 10).Value = c.Number;
-                    ws.Cell(row, 11).Value = c.GradeCompany;
-                    ws.Cell(row, 12).Value = c.Grade;
+                    ws.Cell(row, 11).Value = c.Grading.Company;
+                    ws.Cell(row, 12).Value = c.Grading.Grade;
                     ws.Cell(row, 13).Value = c.PurchasePrice ?? 0m;
                     ws.Cell(row, 14).Value = c.EstimatedValue ?? 0m;
 

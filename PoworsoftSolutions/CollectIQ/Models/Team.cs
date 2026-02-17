@@ -7,7 +7,7 @@
 *     Represents the professional team associated with a card.
 */
 
-namespace CollectIQ.Models.Domain.Entities
+namespace CollectIQ.Models
 {
     /// <summary>
     /// Represents a sports team associated with a player/card.

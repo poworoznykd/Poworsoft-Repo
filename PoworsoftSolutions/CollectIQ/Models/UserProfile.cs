@@ -5,7 +5,7 @@ namespace CollectIQ.Models
     /// <summary>
     /// Represents a locally stored user profile or synced cloud identity.
     /// </summary>
-    public sealed class UserProfile : BaseEntity
+    public sealed class UserProfile : BaseModel
     {
         // --- Authorization Role ---
         public string Role { get; set; } = "Admin";

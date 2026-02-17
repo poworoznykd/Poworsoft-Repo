@@ -7,7 +7,7 @@
 *     Represents a collection of video highlights for a player.
 */
 
-namespace CollectIQ.Models.Domain.Entities
+namespace CollectIQ.Models
 {
     /// <summary>
     /// Represents a list of video clips associated with a player's highlight reel.

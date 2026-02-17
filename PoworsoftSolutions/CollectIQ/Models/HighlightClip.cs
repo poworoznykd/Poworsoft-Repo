@@ -7,7 +7,7 @@
 *     Represents a single video highlight clip.
 */
 
-namespace CollectIQ.Models.Domain.Entities
+namespace CollectIQ.Models
 {
     /// <summary>
     /// Represents a single highlight clip for a player's highlight reel.

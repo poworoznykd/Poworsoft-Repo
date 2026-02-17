@@ -7,12 +7,12 @@
 *     Represents grading information for a card, including optional subgrades.
 */
 
-namespace CollectIQ.Models.Domain.Entities
+namespace CollectIQ.Models
 {
     /// <summary>
     /// Represents a grading company’s evaluation of a collectible card.
     /// </summary>
-    public sealed class Grading
+    public sealed class Grading : BaseModel
     {
         public string Company { get; set; } = string.Empty;     // PSA, BGS, TAG, etc.
         public double? Grade { get; set; }

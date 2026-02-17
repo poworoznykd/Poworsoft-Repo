@@ -155,7 +155,7 @@ public bool IsAuction { get; set; }
         {
             // Try to extract player name from title
             // (use the same logic as CardMetadataParser)
-            string extractedPlayer = CardMetadataParser.Parse(this as EbayListing).Name;
+            string extractedPlayer = CardMetadataParser.Parse(this as EbayListing).Player.FullName;
 
             if (!string.IsNullOrWhiteSpace(extractedPlayer))
             {

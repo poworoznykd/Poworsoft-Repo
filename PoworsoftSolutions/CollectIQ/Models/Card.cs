@@ -15,14 +15,12 @@
 *     the estimated value label) update automatically when properties change.
 */
 
-using CollectIQ.Domain.Entities;
-using CollectIQ.Models.Domain;
-using CollectIQ.Models.Domain.Entities;
 using CollectIQ.Services;
 using SQLite;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using static CollectIQ.Enums.Enums;
 
 namespace CollectIQ.Models
 {
@@ -31,30 +29,9 @@ namespace CollectIQ.Models
     /// Now composes real domain models through JSON-backed properties and
     /// supports data binding via INotifyPropertyChanged.
     /// </summary>
-    public sealed class Card : BaseEntity, INotifyPropertyChanged
+    public sealed class Card : BaseModel
     {
-        /// <summary>
-        /// Event raised whenever a bindable property changes.
-        /// </summary>
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        /// <summary>
-        /// Helper used by property setters to raise PropertyChanged.
-        /// CallerMemberName allows us to omit the property name.
-        /// </summary>
-        /// <param name="name">The name of the property that changed.</param>
-        protected void OnPropertyChanged([CallerMemberName] string name = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
-
-        // --------------------------------------------------------------------
-        //  ESTIMATED VALUE (BOUND TO UI)
-        // --------------------------------------------------------------------
-
-        // Backing field for the estimated market value displayed on CardPage.
         private decimal? estimatedValue;
-
         /// <summary>
         /// Gets or sets the estimated value for this card based on pricing
         /// insights. This property is bound directly to the UI and formatted
@@ -73,13 +50,7 @@ namespace CollectIQ.Models
             }
         }
 
-        // --------------------------------------------------------------------
-        //  CARD INSIGHTS (COMPUTED FROM EBAY COMPS)
-        // --------------------------------------------------------------------
-
-        // Internal field for the insights object.
         private CardInsights insights = new CardInsights();
-
         /// <summary>
         /// Gets or sets the pricing and market insights for this card.
         /// This property is ignored by SQLite (not persisted directly) but
@@ -113,22 +84,6 @@ namespace CollectIQ.Models
                 OnPropertyChanged();
             }
         }
-        [Ignore]
-        public PriceChartingProduct PriceGuideProduct
-        {
-            get => Insights?.PriceGuideProduct;
-            set
-            {
-                if (Insights == null)
-                {
-                    Insights = new CardInsights();
-                }
-
-                Insights.PriceGuideProduct = value;
-                OnPropertyChanged();
-            }
-        }
-
 
         /// <summary>
         /// Handles changes coming from CardInsights. When the SuggestedPrice
@@ -152,7 +107,6 @@ namespace CollectIQ.Models
         /// </summary>
         public Card()
         {
-            // Go through the property so the event subscription is wired up.
             Insights = new CardInsights();
         }
 
@@ -166,19 +120,9 @@ namespace CollectIQ.Models
         [Indexed]
         public string Title { get; set; } = string.Empty;
 
-        [Indexed]
-        public string Name { get; set; } = string.Empty;
-
-        [Indexed]
-        public string Team { get; set; } = string.Empty;
-
         public int? Year { get; set; }
         public string Set { get; set; } = string.Empty;
         public string Number { get; set; } = string.Empty;
-
-        // --- Grading ---
-        public string GradeCompany { get; set; } = "None";
-        public double? Grade { get; set; }
 
         // --- Financial ---
         public decimal? PurchasePrice { get; set; }
@@ -228,27 +172,10 @@ namespace CollectIQ.Models
         /// </summary>
         public string BackOverlayImagePath { get; set; } = string.Empty;
         // --- Advanced fields ---
-        public string Sport { get; set; } = string.Empty;
+        public CollectingCardCategory Sport { get; set; }
         public string Parallel { get; set; } = string.Empty;
         public string Subset { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
-
-        // --- Subgrades ---
-        public string Grader { get; set; } = string.Empty;
-        public double? SubgradeCorners { get; set; }
-        public double? SubgradeEdges { get; set; }
-        public double? SubgradeSurface { get; set; }
-        public double? SubgradeCentering { get; set; }
-
-        // ============================================================
-        //   JSON BACKING FIELDS (STORAGE ONLY, KEEP AS STRINGS)
-        // ============================================================
-
-        public string PlayerJson { get; set; } = "{}";
-        public string TeamJson { get; set; } = "{}";
-        public string GradingJson { get; set; } = "{}";
-        public string MarketJson { get; set; } = "{}";
-        public string HighlightJson { get; set; } = "{}";
 
         // ============================================================
         //   COMPOSITION PROPERTIES (IGNORED BY SQLITE)
@@ -262,10 +189,10 @@ namespace CollectIQ.Models
         }
 
         [Ignore]
-        public Team TeamDetails
+        public Team Team
         {
-            get => SafeDeserialize<Team>(TeamJson) ?? new Team();
-            set => TeamJson = SafeSerialize(value);
+            get => SafeDeserialize<Team>(PlayerJson) ?? new Team();
+            set => PlayerJson = SafeSerialize(value);
         }
 
         [Ignore]
@@ -276,18 +203,20 @@ namespace CollectIQ.Models
         }
 
         [Ignore]
-        public MarketData Market
-        {
-            get => SafeDeserialize<MarketData>(MarketJson) ?? new MarketData();
-            set => MarketJson = SafeSerialize(value);
-        }
-
-        [Ignore]
         public HighlightReel Highlights
         {
             get => SafeDeserialize<HighlightReel>(HighlightJson) ?? new HighlightReel();
             set => HighlightJson = SafeSerialize(value);
         }
+
+        // ============================================================
+        //   JSON BACKING FIELDS (STORAGE ONLY, KEEP AS STRINGS)
+        // ============================================================
+
+        public string PlayerJson { get; set; } = "{}";
+        public string TeamJson { get; set; } = "{}";
+        public string GradingJson { get; set; } = "{}";
+        public string HighlightJson { get; set; } = "{}";
 
         // ============================================================
         //   PRIVATE JSON HELPERS (SAFE FOR NULLS + BAD DATA)

@@ -21,8 +21,8 @@ namespace CollectIQ.Interfaces
         Task InitializeAsync();
 
         // Generic CRUD
-        Task UpsertAsync<T>(T entity) where T : BaseEntity, new();
-        Task DeleteAsync<T>(string id) where T : BaseEntity, new();
+        Task UpsertAsync<T>(T entity) where T : BaseModel, new();
+        Task DeleteAsync<T>(string id) where T : BaseModel, new();
 
         // User account operations
         Task<UserProfile?> GetUserProfileByEmailAsync(string email);

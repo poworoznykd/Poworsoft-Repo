@@ -173,5 +173,9 @@
     </MauiXaml>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Models\SportsCardsPro\" />
+  </ItemGroup>
+
 
 </Project>

@@ -4,6 +4,7 @@
 //              from recent eBay search results.
 // -------------------------------------------------------------------------------------------------
 
+using CollectIQ.Models.SportsCardsPro;
 using System;
 using System.ComponentModel;
 
@@ -20,6 +21,30 @@ namespace CollectIQ.Models
         public CardInsights(decimal suggested = 0.00m)
         {
             SuggestedPrice = suggested;
+        }
+
+        private SportCardsProItem sportsCardsProItem;
+
+        public SportCardsProItem SportsCardsProItem
+        {
+            get { return sportsCardsProItem; }
+            set
+            {
+                sportsCardsProItem = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private EbayListing usedListing;
+
+        public EbayListing UsedListing
+        {
+            get { return usedListing; }
+            set 
+            { 
+                usedListing = value; 
+                OnPropertyChanged();
+            }
         }
 
         private double? minPrice;
@@ -92,14 +117,6 @@ namespace CollectIQ.Models
                 }
             }
         }
-
-        // PriceCharting (Price Guide) data for this card (optional).
-        public PriceChartingProduct PriceGuideProduct { get; set; }
-
-        public string PriceGuideProductId => PriceGuideProduct?.Id;
-        public string PriceGuideProductName => PriceGuideProduct?.ProductName;
-        public string PriceGuideConsoleName => PriceGuideProduct?.ConsoleName;
-
         // Number of listings used to compute insights
         private int listingCount;
         public int ListingCount
@@ -187,85 +204,5 @@ namespace CollectIQ.Models
                 }
             }
         }
-
-
-// ---------------------------------------------------------------------
-// PriceCharting (price guide) fields
-// ---------------------------------------------------------------------
-
-/// <summary>
-/// Raw / ungraded price from the price guide (PriceCharting "loose-price").
-/// </summary>
-public double? PriceGuideRawPrice { get; set; }
-
-/// <summary>
-/// Generic graded price from the price guide (PriceCharting "graded-price").
-/// </summary>
-public double? PriceGuideGradedPrice { get; set; }
-
-/// <summary>
-/// PSA 10 price from the price guide (PriceCharting "manual-only-price").
-/// </summary>
-public double? PriceGuidePsa10Price { get; set; }
-
-/// <summary>
-/// PSA 9.5 / BGS 9.5 style price from the price guide (PriceCharting "box-only-price").
-/// </summary>
-public double? PriceGuide95Price { get; set; }
-
-/// <summary>
-/// BGS 10 price from the price guide (PriceCharting "bgs-10-price").
-/// </summary>
-public double? PriceGuideBgs10Price { get; set; }
-
-/// <summary>
-/// CGC 10 price from the price guide (PriceCharting "condition-17-price").
-/// </summary>
-public double? PriceGuideCgc10Price { get; set; }
-
-/// <summary>
-/// SGC 10 price from the price guide (PriceCharting "condition-18-price").
-/// </summary>
-public double? PriceGuideSgc10Price { get; set; }
-
-/// <summary>
-/// Sales volume from the price guide (PriceCharting "sales-volume"), when provided.
-/// </summary>
-public int? PriceGuideSalesVolume { get; set; }
-
-/// <summary>
-/// The price we ultimately used as the baseline from the price guide (based on detected grade).
-/// </summary>
-public double? PriceGuideBaselineUsed { get; set; }
-
-// ---------------------------------------------------------------------
-// eBay breakdown fields (active listings)
-// ---------------------------------------------------------------------
-
-/// <summary>
-/// Median price from eBay listings after filters/outlier removal.
-/// </summary>
-public double? EbayMedianPrice { get; set; }
-
-/// <summary>
-/// Average price from eBay listings after filters/outlier removal.
-/// </summary>
-public double? EbayAveragePrice { get; set; }
-
-/// <summary>
-/// Number of eBay listings used in the calculation.
-/// </summary>
-public int? EbayListingCountUsed { get; set; }
-
-/// <summary>
-/// Weight applied to eBay (0..1). The remainder is applied to PriceCharting baseline when enabled.
-/// </summary>
-public double? EbayBlendWeight { get; set; }
-
-/// <summary>
-/// Notes explaining which sources were used.
-/// </summary>
-public string? CalculationNotes { get; set; }
-
     }
 }

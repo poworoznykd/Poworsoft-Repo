@@ -19,7 +19,6 @@
 *       before falling back to regex-based name parsing.
 */
 
-using CollectIQ.Domain.Entities;
 using CollectIQ.Models;
 using Microsoft.Maui.Storage;
 using System;
@@ -27,6 +26,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using static CollectIQ.Enums.Enums;
 
 namespace CollectIQ.Utilities
 {
@@ -469,32 +469,12 @@ namespace CollectIQ.Utilities
                 }
             }
 
-            // SPORT DETECTION
-            if (combined.Contains("Upper Deck", StringComparison.OrdinalIgnoreCase) ||
-                combined.Contains("Tim Hortons", StringComparison.OrdinalIgnoreCase))
-            {
-                card.Sport = "Hockey";
-            }
-            else if (combined.Contains("Panini", StringComparison.OrdinalIgnoreCase) ||
-                     combined.Contains("Prizm", StringComparison.OrdinalIgnoreCase))
-            {
-                card.Sport = "Football/Basketball (Panini)";
-            }
-            else if (combined.Contains("Topps", StringComparison.OrdinalIgnoreCase))
-            {
-                card.Sport = "Baseball";
-            }
-            else if (PokemonCardsFound(title, desc))
-            {
-                card.Sport = "Pokémon";
-            }
-
             // TEAM
             foreach (string team in teamKeywords)
             {
                 if (combined.Contains(team, StringComparison.OrdinalIgnoreCase))
                 {
-                    card.Team = team;
+                    card.Team.Name = team;
                 }
             }
 
@@ -520,36 +500,36 @@ namespace CollectIQ.Utilities
             Match psa = Regex.Match(combined, @"PSA\s?(\d+(\.\d)?)");
             if (psa.Success)
             {
-                card.GradeCompany = "PSA";
-                card.Grade = double.Parse(psa.Groups[1].Value);
+                card.Grading.Company = "PSA";
+                card.Grading.Grade = double.Parse(psa.Groups[1].Value);
             }
 
             Match bgs = Regex.Match(combined, @"BGS\s?(\d+(\.\d)?)");
             if (bgs.Success)
             {
-                card.GradeCompany = "BGS";
-                card.Grade = double.Parse(bgs.Groups[1].Value);
+                card.Grading.Company = "BGS";
+                card.Grading.Grade = double.Parse(bgs.Groups[1].Value);
             }
 
             Match cgc = Regex.Match(combined, @"CGC\s?(\d+(\.\d)?)");
             if (cgc.Success)
             {
-                card.GradeCompany = "CGC";
-                card.Grade = double.Parse(cgc.Groups[1].Value);
+                card.Grading.Company = "CGC";
+                card.Grading.Grade = double.Parse(cgc.Groups[1].Value);
             }
 
             Match sgc = Regex.Match(combined, @"SGC\s?(\d+(\.\d)?)");
             if (sgc.Success)
             {
-                card.GradeCompany = "SGC";
-                card.Grade = double.Parse(sgc.Groups[1].Value);
+                card.Grading.Company = "SGC";
+                card.Grading.Grade = double.Parse(sgc.Groups[1].Value);
             }
 
             // NAME (CSV-first, then fallback)
             string extractedName = ExtractName(title, desc);
             if (!string.IsNullOrWhiteSpace(extractedName))
             {
-                card.Name = extractedName;
+                card.Player.FullName = extractedName;
             }
             // -----------------------------
             // Ensure Player object is populated
@@ -575,18 +555,10 @@ namespace CollectIQ.Utilities
             bool dirty = false;
 
             // Full name – prefer the parsed Card.Name
-            if (!string.IsNullOrWhiteSpace(card.Name) &&
+            if (!string.IsNullOrWhiteSpace(card.Player.FullName) &&
                 string.IsNullOrWhiteSpace(player.FullName))
             {
-                player.FullName = card.Name;
-                dirty = true;
-            }
-
-            // Sport – mirror from Card.Sport
-            if (!string.IsNullOrWhiteSpace(card.Sport) &&
-                string.IsNullOrWhiteSpace(player.Sport))
-            {
-                player.Sport = card.Sport;
+                player.FullName = card.Player.FullName;
                 dirty = true;
             }
 

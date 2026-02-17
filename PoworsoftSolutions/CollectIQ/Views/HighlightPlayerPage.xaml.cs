@@ -40,7 +40,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CollectIQ.Models;
-using CollectIQ.Models.Domain.Entities;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls;
@@ -169,7 +168,7 @@ namespace CollectIQ.Views
 
             if (string.IsNullOrWhiteSpace(playerName))
             {
-                playerName = card.Name;
+                playerName = card.Player.FullName;
             }
 
             if (string.IsNullOrWhiteSpace(playerName))
@@ -218,7 +217,7 @@ namespace CollectIQ.Views
         private void InitializeCardHeader()
         {
             // Card name (player or character).
-            CardNameLabel.Text = card.Name ?? "Unknown Card";
+            CardNameLabel.Text = card.Player.FullName ?? "Unknown Card";
 
             // Subtitle similar to CardPage:
             // e.g. "2020 - BUF - Prizm Silver - #36"
@@ -226,9 +225,9 @@ namespace CollectIQ.Views
                 ? card.Year.Value.ToString(CultureInfo.InvariantCulture)
                 : string.Empty;
 
-            string teamPart = string.IsNullOrWhiteSpace(card.Team)
+            string teamPart = string.IsNullOrWhiteSpace(card.Team.Name)
                 ? string.Empty
-                : card.Team.Trim();
+                : card.Team.Name.Trim();
 
             string setPart = string.IsNullOrWhiteSpace(card.Set)
                 ? string.Empty
@@ -254,15 +253,15 @@ namespace CollectIQ.Views
                 : subtitle;
 
             // Grade information.
-            if (!string.IsNullOrWhiteSpace(card.GradeCompany) && card.Grade.HasValue)
+            if (!string.IsNullOrWhiteSpace(card.Grading.Company) && card.Grading.Grade.HasValue)
             {
                 GradeLabel.Text =
-                    $"{card.GradeCompany.Trim()} {card.Grade.Value.ToString("0.0", CultureInfo.InvariantCulture)}";
+                    $"{card.Grading.Company.Trim()} {card.Grading.Grade.Value.ToString("0.0", CultureInfo.InvariantCulture)}";
             }
-            else if (card.Grade.HasValue)
+            else if (card.Grading.Grade.HasValue)
             {
                 GradeLabel.Text =
-                    card.Grade.Value.ToString("0.0", CultureInfo.InvariantCulture);
+                    card.Grading.Grade.Value.ToString("0.0", CultureInfo.InvariantCulture);
             }
             else
             {

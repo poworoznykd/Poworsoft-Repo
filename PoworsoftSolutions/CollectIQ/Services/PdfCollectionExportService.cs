@@ -240,7 +240,7 @@ namespace CollectIQ.Services
 
             // Title/Name
             string title = (card.Title ?? string.Empty).Trim();
-            string name = (card.Name ?? string.Empty).Trim();
+            string name = (card.Player.FullName ?? string.Empty).Trim();
             string titleLine = string.IsNullOrWhiteSpace(title) ? name : title;
 
             DrawWrappedText(canvas, titleLine, cx + 6f, y + 18f, ColTitle - 12f, fontText, paintText, maxLines: 2);
@@ -430,11 +430,11 @@ namespace CollectIQ.Services
 
         private static string BuildGrade(Card card)
         {
-            string gradeCompany = card.GradeCompany?.Trim() ?? string.Empty;
+            string gradeCompany = card.Grading.Company?.Trim() ?? string.Empty;
 
-            if (card.Grade.HasValue)
+            if (card.Grading.Grade.HasValue)
             {
-                string gradeNumber = card.Grade.Value.ToString("0.##", CultureInfo.InvariantCulture);
+                string gradeNumber = card.Grading.Grade.Value.ToString("0.##", CultureInfo.InvariantCulture);
 
                 return string.IsNullOrWhiteSpace(gradeCompany)
                     ? gradeNumber
@@ -447,7 +447,7 @@ namespace CollectIQ.Services
         private static string BuildSetTeamNumber(Card card)
         {
             string set = (card.Set ?? string.Empty).Trim();
-            string team = (card.Team ?? string.Empty).Trim();
+            string team = (card.Team.Name ?? string.Empty).Trim();
             string num = (card.Number ?? string.Empty).Trim();
 
             if (!string.IsNullOrWhiteSpace(num))

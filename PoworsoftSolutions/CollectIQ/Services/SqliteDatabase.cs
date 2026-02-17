@@ -115,9 +115,9 @@ namespace CollectIQ.Services
         // ============================================================
 
         /// <summary>
-        /// Inserts or replaces a generic entity (used for any BaseEntity-derived model).
+        /// Inserts or replaces a generic entity (used for any BaseModel-derived model).
         /// </summary>
-        public async Task UpsertAsync<T>(T entity) where T : BaseEntity, new()
+        public async Task UpsertAsync<T>(T entity) where T : BaseModel, new()
         {
             await InitializeAsync();
             await _connection!.InsertOrReplaceAsync(entity);
@@ -126,7 +126,7 @@ namespace CollectIQ.Services
         /// <summary>
         /// Deletes a record by ID.
         /// </summary>
-        public async Task DeleteAsync<T>(string id) where T : BaseEntity, new()
+        public async Task DeleteAsync<T>(string id) where T : BaseModel, new()
         {
             await InitializeAsync();
             await _connection!.DeleteAsync<T>(id);

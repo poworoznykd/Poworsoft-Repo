@@ -27,9 +27,7 @@
 //
 
 using CollectIQ.Controls;
-using CollectIQ.Domain.Entities;
 using CollectIQ.Models;
-using CollectIQ.Models.Domain.Entities;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
@@ -623,9 +621,9 @@ namespace CollectIQ.Views
                 parts.Add(viewModel.SelectedCard.Year.Value.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Name))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Player.FullName))
             {
-                parts.Add(viewModel.SelectedCard.Name);
+                parts.Add(viewModel.SelectedCard.Player.FullName);
             }
 
             if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Set) &&
@@ -639,14 +637,14 @@ namespace CollectIQ.Views
                 parts.Add($"#{viewModel.SelectedCard.Number}");
             }
 
-            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.GradeCompany))
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard.Grading.Company))
             {
-                parts.Add(viewModel.SelectedCard.GradeCompany);
+                parts.Add(viewModel.SelectedCard.Grading.Company);
             }
 
-            if (viewModel.SelectedCard.Grade.HasValue)
+            if (viewModel.SelectedCard.Grading.Grade.HasValue)
             {
-                parts.Add(viewModel.SelectedCard.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture));
+                parts.Add(viewModel.SelectedCard.Grading.Grade.Value.ToString("0.0#", CultureInfo.InvariantCulture));
             }
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
@@ -946,7 +944,7 @@ namespace CollectIQ.Views
                 Player player = card.Player ?? new Player();
                 if (string.IsNullOrWhiteSpace(player.FullName))
                 {
-                    player.FullName = card.Name ?? string.Empty;
+                    player.FullName = card.Player.FullName ?? string.Empty;
                 }
 
                 HighlightReel playerReel = player.HighlightReel ?? new HighlightReel();
@@ -985,7 +983,7 @@ namespace CollectIQ.Views
                 // ------------------------------------------------------------
                 // 3) We have no stored highlights; search YouTube.
                 // ------------------------------------------------------------
-                string playerName = card.Name;
+                string playerName = card.Player.FullName;
 
                 if (string.IsNullOrWhiteSpace(playerName))
                 {
