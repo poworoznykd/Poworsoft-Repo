@@ -547,7 +547,7 @@ namespace CollectIQ.Services
             string encodedFilter = Uri.EscapeDataString(filterValue);
 
             string url =
-                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}&filter={encodedFilter}";
+                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}";
 
             var payload = new { image = base64Image };
             string jsonBody = JsonSerializer.Serialize(payload);
