@@ -23,6 +23,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using CollectIQ.Models.SportsCardsPro;
 
 namespace CollectIQ.Controls
 {
@@ -32,7 +33,8 @@ namespace CollectIQ.Controls
     public partial class InsightsOverlayControl : ContentView
     {
         #region Properties and Fields
-        SportsCardsProService sportsCardsProService = new SportsCardsProService(new HttpClient());
+        private readonly SportsCardsProService sportsCardsProService = new SportsCardsProService(new HttpClient());
+        private readonly InsightsGraphDrawable graphDrawable = new InsightsGraphDrawable();
         private string listingTypeFilter;
         private int daysRangeFilter;
         private readonly ObservableCollection<EbayListing> ebayListings;
@@ -73,6 +75,12 @@ namespace CollectIQ.Controls
             InsightsScrim.IsVisible = false;
             InsightsOverlay.Opacity = 0;
             InsightsScrim.Opacity = 0;
+
+            // Chart uses a custom drawable so it can look "PriceCharting-ish" without heavy libs.
+            if (InsightsGraphView != null)
+            {
+                InsightsGraphView.Drawable = graphDrawable;
+            }
         }
 
         // =======================================================
@@ -109,6 +117,13 @@ namespace CollectIQ.Controls
             baseListing = anchorListing;
             insightsData = new CardInsights();
             insightsData.UsedListing = anchorListing;
+
+            // Title is a pure UI convenience: we still treat the eBay listing + comps as the "source" for
+            // what the user is deciding on.
+            if (InsightsTitleLabel != null)
+            {
+                InsightsTitleLabel.Text = anchorListing?.Title ?? "Card Title";
+            }
             this.listingTypeFilter = string.IsNullOrWhiteSpace(listingTypeFilter)
                 ? "sold"
                 : listingTypeFilter;
@@ -260,22 +275,55 @@ namespace CollectIQ.Controls
                 string detectedGrade = DetectGradeFromText(baseListing.Title ?? string.Empty);
 
                 // -----------------------------------------------------------------
-                // 3) Populate SportCardPro object
+                // 2) SportsCardsPro price guide snapshot (best-effort)
                 // -----------------------------------------------------------------
+                SportCardsProItem? scpItem = null;
+                SportCardsProPricesSnapshot? scp = null;
+
                 if (UsePriceGuideSwitch?.IsToggled == true)
                 {
-                    var q = BuildSportsCardProQuery(baseListing);
-                    // Fix for CS8652, CS8601, CS8602:
-                    if (insightsData != null && sportsCardsProService != null)
-                    {
-                        var item = await sportsCardsProService.GetBestMatchAsync(q);
+                    // Keep it non-blocking for the UI, but still await so graph + labels update together.
+                    await sportsCardsProService.InitializeAsync();
 
-                        insightsData.SportsCardsProItem = item;
+                    string q = BuildSportsCardProQuery(baseListing);
+
+                    if (!string.IsNullOrWhiteSpace(q))
+                    {
+                        scpItem = await sportsCardsProService.GetBestMatchAsync(q, cancellationToken: default);
+                        scp = scpItem?.CardSnapShot;
+
+                        if (insightsData != null)
+                        {
+                            insightsData.SportsCardsProItem = scpItem;
+                        }
                     }
                 }
 
+                // Map SportsCardsPro keys into a stable "grade" dictionary used by the graph.
+                // RAW ~= loose-price, PSA7 ~= cib-price, PSA8 ~= new-price, PSA9 ~= graded-price,
+                // BGS9.5 ~= box-only-price, PSA10 ~= manual-only-price
+                Dictionary<string, double?> guidePrices = new Dictionary<string, double?>
+                {
+                    { "raw", ToUsd(scp?.LoosePrice) },
+                    { "psa7", ToUsd(scp?.CibPrice) },
+                    { "psa8", ToUsd(scp?.NewPrice) },
+                    { "psa9", ToUsd(scp?.GradedPrice) },
+                    { "bgs95", ToUsd(scp?.BoxOnlyPrice) },
+                    { "psa10", ToUsd(scp?.ManualOnlyPrice) },
+                };
+
+                double? guideBaseline = PickGuideBaseline(
+                    detectedGrade,
+                    guidePrices["raw"],
+                    guidePrices["psa9"],
+                    guidePrices["psa10"],
+                    guidePrices["bgs95"],
+                    guidePrices["psa10"],
+                    guidePrices["psa10"],
+                    guidePrices["psa10"]);
+
                 // -----------------------------------------------------------------
-                // 3) Suggested price (blend guide + eBay)
+                // 3) Suggested price (blend SportsCardsPro baseline + eBay median)
                 // -----------------------------------------------------------------
                 bool blendEbay = BlendEbaySwitch?.IsToggled == true && ebayMedian.HasValue && ebayMedian.Value > 0;
 
@@ -283,50 +331,70 @@ namespace CollectIQ.Controls
                 ebayWeight = Math.Max(0, Math.Min(1, ebayWeight));
 
                 double? suggested = null;
-                string notes;
 
-                // Confidence: increases with number of listings, plus a small bump if guide exists.
-                double confidenceBase = ebayPrices.Count > 0
-                    ? Math.Min(1.0, Math.Log10(ebayPrices.Count + 1) / 1.2)
-                    : 0.0;
-
-                double confidence = confidenceBase;
-                
-                // -----------------------------------------------------------------
-                // 4) Build InsightsData
-                // -----------------------------------------------------------------
-                var data = new CardInsights
+                if (UsePriceGuideSwitch?.IsToggled == true && guideBaseline.HasValue && guideBaseline.Value > 0)
                 {
-                    ListingCount = ebayPrices.Count,
-                    Currency = "USD",
-                    QueryUsed = (priceGuideQuery ?? baseListing.Title ?? string.Empty).Trim(),
-                    LastUpdatedUtc = DateTime.UtcNow,
+                    if (blendEbay && ebayMedian.HasValue)
+                    {
+                        suggested = (guideBaseline.Value * (1.0 - ebayWeight)) + (ebayMedian.Value * ebayWeight);
+                    }
+                    else
+                    {
+                        suggested = guideBaseline.Value;
+                    }
+                }
+                else
+                {
+                    // No guide available: fall back to eBay-only stats.
+                    suggested = ebayMedian ?? ebayAvg;
+                }
 
-                    MinPrice = ebayMin ?? 0,
-                    MaxPrice = ebayMax ?? 0,
-                    AveragePrice = ebayAvg ?? 0,
-                    MedianPrice = ebayMedian ?? 0,
-
-                    SuggestedPrice = suggested.HasValue ? (decimal)suggested.Value : 0m,
-                    ConfidenceScore = confidence,
-               
-                    // eBay breakdown
-                    EbayMedianPrice = (decimal)ebayMedian,
-                    EbayAveragePrice = (decimal)ebayAvg,
-                    EbayListingCountUsed = ebayPrices.Count,
-                    EbayBlendWeight = blendEbay ? (decimal)ebayWeight : 0,
-
-                };
-
-                InsightsData = data;
+                // Stamp suggested back onto the existing InsightsData object (do NOT create a new CardInsights
+                // instance here; this project has multiple call sites expecting their existing reference).
+                if (insightsData != null)
+                {
+                    insightsData.SuggestedPrice = suggested.HasValue ? (decimal)suggested.Value : 0m;
+                }
 
                 // -----------------------------------------------------------------
-                // 5) Update UI labels
+                // 4) Update UI labels + summary
                 // -----------------------------------------------------------------
                 if (InsightsSuggestedValue != null)
                 {
                     InsightsSuggestedValue.Text =
                         (suggested.HasValue && suggested.Value > 0) ? $"${suggested.Value:0.00} USD" : "—";
+                }
+
+                if (InsightsCountValue != null)
+                {
+                    InsightsCountValue.Text = ebayPrices.Count.ToString();
+                }
+
+                if (InsightsMinValue != null)
+                {
+                    InsightsMinValue.Text = ebayMin.HasValue ? $"${ebayMin.Value:0.00}" : "—";
+                }
+
+                if (InsightsMaxValue != null)
+                {
+                    InsightsMaxValue.Text = ebayMax.HasValue ? $"${ebayMax.Value:0.00}" : "—";
+                }
+
+                if (InsightsAvgValue != null)
+                {
+                    InsightsAvgValue.Text = ebayAvg.HasValue ? $"${ebayAvg.Value:0.00}" : "—";
+                }
+
+                if (InsightsMedianValue != null)
+                {
+                    InsightsMedianValue.Text = ebayMedian.HasValue ? $"${ebayMedian.Value:0.00}" : "—";
+                }
+
+                if (InsightsRangeLabel != null)
+                {
+                    string a = ebayMin.HasValue ? $"${ebayMin.Value:0.00}" : "—";
+                    string b = ebayMax.HasValue ? $"${ebayMax.Value:0.00}" : "—";
+                    InsightsRangeLabel.Text = $"{a} - {b}";
                 }
 
                 if (InsightsStatsLabel != null)
@@ -339,18 +407,97 @@ namespace CollectIQ.Controls
 
                 if (InsightsBlendLabel != null)
                 {
-               
+                    if (UsePriceGuideSwitch?.IsToggled == true && guideBaseline.HasValue && guideBaseline.Value > 0)
+                    {
+                        string blendTxt = blendEbay && ebayMedian.HasValue
+                            ? $"Blend: {Math.Round(ebayWeight * 100, 0)}% eBay + {Math.Round((1 - ebayWeight) * 100, 0)}% Guide"
+                            : "Blend: Guide only";
+
+                        InsightsBlendLabel.Text = $"Guide baseline: {Fmt(guideBaseline)} • {blendTxt}";
+                    }
+                    else
+                    {
+                        InsightsBlendLabel.Text = "Blend: eBay only";
+                    }
                 }
 
                 if (InsightsSummaryLabel != null)
                 {
-                    InsightsSummaryLabel.Text = data.Summary ?? string.Empty;
+                    double? selected = GetEbayEffectivePrice(baseListing);
+                    string buySignal = (selected.HasValue && suggested.HasValue && suggested.Value > 0)
+                        ? (selected.Value <= suggested.Value * 0.80 ? "Strong buy" : selected.Value <= suggested.Value * 0.95 ? "Buy" : selected.Value <= suggested.Value * 1.10 ? "Fair" : "Overpriced")
+                        : "—";
+
+                    string guideLine = BuildPriceGuideLine(
+                        detectedGrade,
+                        guidePrices["raw"],
+                        guidePrices["psa9"],
+                        guidePrices["psa10"],
+                        guidePrices["psa10"],
+                        guidePrices["psa10"],
+                        guidePrices["psa10"],
+                        Convert.ToInt32(scp?.SalesVolume),
+                        UsePriceGuideSwitch?.IsToggled == true);
+
+                    InsightsSummaryLabel.Text = $"Signal: {buySignal} • {BuildSummaryText(suggested, guideBaseline, ebayMedian, ebayPrices.Count, detectedGrade, UsePriceGuideSwitch?.IsToggled == true, blendEbay)}";
+
+                    if (InsightsGuideLabel != null)
+                    {
+                        InsightsGuideLabel.Text = guideLine;
+                    }
                 }
+
+                // -----------------------------------------------------------------
+                // 5) Update quick guide chips + chart
+                // -----------------------------------------------------------------
+                if (GuideRawLabel != null)
+                {
+                    GuideRawLabel.Text = Fmt(guidePrices["raw"]);
+                }
+
+                if (GuidePsa8Label != null)
+                {
+                    GuidePsa8Label.Text = Fmt(guidePrices["psa8"]);
+                }
+
+                if (GuidePsa10Label != null)
+                {
+                    GuidePsa10Label.Text = Fmt(guidePrices["psa10"]);
+                }
+
+                double volume = scp?.SalesVolume.HasValue == true
+                    ? scp.SalesVolume.Value
+                    : ebayPrices.Count;
+
+                graphDrawable.SetData(
+                    guidePrices,
+                    compsUsd: ebayPrices,
+                    suggestedUsd: suggested,
+                    volume: volume);
+
+                InsightsGraphView?.Invalidate();
             }
-            catch
+            catch (Exception ex)
             {
                 // Keep overlay resilient - never crash UI thread.
+                // But DO log it, otherwise it looks like "nothing works".
+                Debug.WriteLine("[Insights] Recalculate failed: " + ex);
             }
+        }
+
+        private static double? ToUsd(long? pennies)
+        {
+            if (!pennies.HasValue)
+            {
+                return null;
+            }
+
+            if (pennies.Value <= 0)
+            {
+                return null;
+            }
+
+            return pennies.Value / 100.0;
         }
 
         private async Task LoadPriceGuideForCurrentAsync()
@@ -607,19 +754,19 @@ namespace CollectIQ.Controls
             return sorted[idx];
         }
 
-        private void OnOptionToggled(object sender, ToggledEventArgs e)
+        private async void OnOptionToggled(object sender, ToggledEventArgs e)
         {
             try
             {
-                RecalculateInsightsFromCurrentComps();
+                await RecalculateInsightsFromCurrentComps();
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                Debug.WriteLine("[Insights] Toggle recalc failed: " + ex.Message);
             }
         }
 
-        private void OnEbayWeightChanged(object sender, ValueChangedEventArgs e)
+        private async void OnEbayWeightChanged(object sender, ValueChangedEventArgs e)
         {
             try
             {
@@ -628,11 +775,11 @@ namespace CollectIQ.Controls
                     EbayWeightLabel.Text = $"{(int)e.NewValue}%";
                 }
 
-                RecalculateInsightsFromCurrentComps();
+                await RecalculateInsightsFromCurrentComps();
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                Debug.WriteLine("[Insights] Weight recalc failed: " + ex.Message);
             }
         }
 
@@ -687,91 +834,12 @@ namespace CollectIQ.Controls
             return lowerVal + (decimal)frac * (upperVal - lowerVal);
         }
 
-        private void BuildInsightsPriceChart(
-            EbayListing selected,
-            List<decimal> sortedPrices,
-            decimal min,
-            decimal max,
-            decimal median,
-            decimal q25,
-            decimal q75)
-        {
-            InsightsGraphLayout.Children.Clear();
-
-            if (sortedPrices.Count == 0 || max <= min)
-            {
-                return;
-            }
-
-            double minHeight = 18;   // short "blip" bars
-            double maxHeight = 60;   // tall bar
-
-            decimal? selectedPrice = selected.Price;
-
-            void AddBar(string labelText, decimal price, string colorHex)
-            {
-                if (price <= 0)
-                {
-                    return;
-                }
-
-                double ratio = (double)((price - min) / (max - min));
-                double height = minHeight + ratio * (maxHeight - minHeight);
-
-                var bar = new BoxView
-                {
-                    WidthRequest = 14,
-                    HeightRequest = height,
-                    Margin = new Thickness(3, 0, 3, 0),
-                    CornerRadius = 4,
-                    Color = Color.FromArgb(colorHex),
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.End
-                };
-
-                var priceLabel = new Label
-                {
-                    Text = $"${price:F0}",
-                    FontSize = 10,
-                    TextColor = Color.FromArgb(colorHex),
-                    HorizontalTextAlignment = TextAlignment.Center
-                };
-
-                var nameLabel = new Label
-                {
-                    Text = labelText,
-                    FontSize = 10,
-                    TextColor = Colors.White,
-                    HorizontalTextAlignment = TextAlignment.Center
-                };
-
-                var stack = new VerticalStackLayout
-                {
-                    Spacing = 2,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.End
-                };
-
-                stack.Children.Add(bar);
-                stack.Children.Add(priceLabel);
-                stack.Children.Add(nameLabel);
-
-                InsightsGraphLayout.Children.Add(stack);
-            }
-
-            // Build the summary bars in a fixed, readable order
-            AddBar("Min", min, "#7CFC7C");       // green
-            AddBar("Q1", q25, "#66FFAA");        // lighter green
-            AddBar("Median", median, "#00E5FF"); // bright cyan
-
-            if (selectedPrice.HasValue)
-            {
-                AddBar("Selected", selectedPrice.Value, "#FF4B4B"); // hot red
-            }
-
-            AddBar("Q3", q75, "#FFD966");        // yellow-ish
-            AddBar("Max", max, "#FFB347");       // orange
-        }
+        // NOTE: We used to render a simple bar chart using a FlexLayout.
+        // That approach was replaced by GraphicsView + InsightsGraphDrawable so we can show:
+        // - eBay scatter points (all comps)
+        // - SportsCardsPro "grade" curve
+        // - a suggested value line
+        // without maintaining a pile of BoxViews.
 
         #endregion
 
@@ -820,7 +888,7 @@ namespace CollectIQ.Controls
                     ebayListings.Remove(comp);
                 }
 
-                RecalculateInsightsFromCurrentComps();
+                _ = RecalculateInsightsFromCurrentComps();
             }
             catch (Exception ex)
             {

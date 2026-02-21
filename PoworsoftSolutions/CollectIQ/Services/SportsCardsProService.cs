@@ -60,6 +60,26 @@ namespace CollectIQ.Services
                 Debug.WriteLine("[SportsCardsProService] Token missing. secure.json must contain SPORTS_CARDSPRO_TOKEN.");
         }
 
+        //public async Task<SportCardsProItem> GetProductAsync(string idOrQuery, CancellationToken cancellationToken = default)
+        //{
+        //    if (string.IsNullOrWhiteSpace(idOrQuery))
+        //    {
+        //        return null;
+        //    }
+
+        //    await InitializeAsync();
+
+        //    // If it's all digits, treat it as an ID. Otherwise treat it as a search query.
+        //    bool looksLikeId = idOrQuery.All(char.IsDigit);
+
+        //    if (looksLikeId)
+        //    {
+        //        return await GetByIdAsync(idOrQuery, cancellationToken);
+        //    }
+
+        //    return await GetBestMatchAsync(idOrQuery, cancellationToken);
+        //}
+
         // This is the call you use from CollectIQ when you only have a query string.
         // It searches, picks the best candidate, fetches /api/product, and returns an item for Insights.
         public async Task<SportCardsProItem> GetBestMatchAsync(string query, CancellationToken cancellationToken = default)
@@ -214,7 +234,8 @@ namespace CollectIQ.Services
             if (s.Condition18Price.HasValue) score += 1;
 
             // Sales volume is a confidence signal
-            if (!string.IsNullOrWhiteSpace(s.SalesVolume)) score += 1;
+            if (s.SalesVolume.HasValue) 
+                    score += 1;
 
             return score;
         }

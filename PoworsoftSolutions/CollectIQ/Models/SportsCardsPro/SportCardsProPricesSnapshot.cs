@@ -24,10 +24,9 @@ namespace CollectIQ.Models.SportsCardsPro
         [JsonPropertyName("release-date")]
         public string ReleaseDate { get; set; }
 
-        // Comes back as "8" (string) in your real JSON.
-        // Keep it as string so we never blow up on parse again.
         [JsonPropertyName("sales-volume")]
-        public string SalesVolume { get; set; }
+        [JsonConverter(typeof(NullableIntFromStringOrNumberConverter))]
+        public int? SalesVolume { get; set; }
 
         // These show up as 0 in your JSON sometimes.
         [JsonPropertyName("gamestop-price")]
