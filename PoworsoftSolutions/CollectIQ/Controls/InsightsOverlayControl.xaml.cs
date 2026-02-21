@@ -31,37 +31,43 @@ namespace CollectIQ.Controls
     /// </summary>
     public partial class InsightsOverlayControl : ContentView
     {
-        public CardInsights? InsightsData { get; set; }
-
-        private readonly ObservableCollection<EbayListing> insightsListings;
-        private EbayListing? currentAnchor;
-
-        // These drive the "Sold over last X days" text.
+        #region Properties and Fields
+        SportsCardsProService sportsCardsProService = new SportsCardsProService(new HttpClient());
         private string listingTypeFilter;
         private int daysRangeFilter;
-
-        /// <summary>
-        /// Fired after the overlay finishes closing.
-        /// </summary>
-        public event EventHandler? Closed;
+        private readonly ObservableCollection<EbayListing> ebayListings;
+        private List<EbayListing> baseComps = new List<EbayListing>();
+        private string? priceGuideQuery;
 
 
         private EbayListing? baseListing;
-        private List<EbayListing> baseComps = new List<EbayListing>();
 
-        private string? priceGuideQuery;
+        public EbayListing? BaseListing
+        {
+            get { return baseListing; }
+            set { baseListing = value; }
+        }
+
+        private CardInsights? insightsData;
+
+        public CardInsights? InsightsData
+        {
+            get { return insightsData; }
+            set { insightsData = value; }
+        }
+
+        #endregion
+
 
         public InsightsOverlayControl()
         {
             InitializeComponent();
 
-            // Price guide client (PriceCharting)
+            ebayListings = new ObservableCollection<EbayListing>();
+            InsightsListView.ItemsSource = ebayListings;
 
-            insightsListings = new ObservableCollection<EbayListing>();
-            InsightsListView.ItemsSource = insightsListings;
-
-            listingTypeFilter = "sold";
-            daysRangeFilter = 90;
+            listingTypeFilter = "active";
+            daysRangeFilter = 180;
 
             InsightsOverlay.IsVisible = false;
             InsightsScrim.IsVisible = false;
@@ -78,22 +84,11 @@ namespace CollectIQ.Controls
         // or clicks the "Apply Suggested Value" button.
         public Action<decimal?> OnEstimatedValueReady { get; set; }
 
-
-        private void ApplySuggestedValue_Clicked(object sender, EventArgs e)
-        {
-            if (InsightsData != null && InsightsData.SuggestedPrice.HasValue)
-            {
-                // Send value back to the page
-                OnEstimatedValueReady?.Invoke((decimal)InsightsData.SuggestedPrice);
-            }
-        }
-
-
         public async Task ShowAsync(
             EbayListing anchorListing,
             IEnumerable<EbayListing> comps,
-            string listingTypeFilter,
-            int daysRangeFilter)
+            string listingTypeFilter = "active",
+            int daysRangeFilter = 180)
         {
             System.Diagnostics.Debug.WriteLine("[Insights] Entering ShowAsync.");
 
@@ -111,15 +106,13 @@ namespace CollectIQ.Controls
             }
 
             // 2. Normalize / store inputs
-            currentAnchor = anchorListing;
+            baseListing = anchorListing;
+            insightsData = new CardInsights();
+            insightsData.UsedListing = anchorListing;
             this.listingTypeFilter = string.IsNullOrWhiteSpace(listingTypeFilter)
                 ? "sold"
                 : listingTypeFilter;
             this.daysRangeFilter = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
-
-
-            // Keep the original inputs so we can recompute when toggles change.
-            baseListing = anchorListing;
             baseComps = comps?.ToList() ?? new List<EbayListing>();
 
             // Keep the UI label in sync.
@@ -135,7 +128,7 @@ namespace CollectIQ.Controls
             }
 
             // 3. Populate the internal comps collection
-            insightsListings.Clear();
+            ebayListings.Clear();
 
             if (comps != null)
             {
@@ -143,13 +136,13 @@ namespace CollectIQ.Controls
                 {
                     if (comp != null)
                     {
-                        insightsListings.Add(comp);
+                        ebayListings.Add(comp);
                     }
                 }
             }
 
             // 4. Recalculate insights based on the current comps
-            RecalculateInsightsFromCurrentComps();
+            await RecalculateInsightsFromCurrentComps();
 
             // 5. If already visible, we only needed to refresh the data
             if (InsightsOverlay.IsVisible)
@@ -221,54 +214,6 @@ namespace CollectIQ.Controls
             Closed?.Invoke(this, EventArgs.Empty);
         }
 
-        #region Event Handlers
-
-        private async void OnScrimTapped(object sender, TappedEventArgs e)
-        {
-            await HideAsync();
-        }
-
-        private async void OnCloseTapped(object sender, TappedEventArgs e)
-        {
-            await HideAsync();
-        }
-
-        /// <summary>
-        /// Handles the "Remove" swipe action on a single comp row.
-        /// Recalculates all metrics after removal.
-        /// </summary>
-        private void OnRemoveCompSwipe(object sender, EventArgs e)
-        {
-            try
-            {
-                EbayListing? comp = null;
-
-                if (sender is SwipeItem swipeItem &&
-                    swipeItem.CommandParameter is EbayListing parameterListing)
-                {
-                    comp = parameterListing;
-                }
-
-                if (comp == null)
-                {
-                    return;
-                }
-
-                if (insightsListings.Contains(comp))
-                {
-                    insightsListings.Remove(comp);
-                }
-
-                RecalculateInsightsFromCurrentComps();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[INSIGHTS REMOVE ERROR] {ex.Message}");
-            }
-        }
-
-        #endregion
-
         #region Insights Calculation
 
         /// <summary>
@@ -276,7 +221,7 @@ namespace CollectIQ.Controls
         /// volatility) and refreshes the graph.
         /// </summary>
 
-        private void RecalculateInsightsFromCurrentComps()
+        private async Task RecalculateInsightsFromCurrentComps()
         {
             try
             {
@@ -291,7 +236,7 @@ namespace CollectIQ.Controls
                 // -----------------------------------------------------------------
                 List<double> ebayPrices = new List<double>();
 
-                foreach (EbayListing l in insightsListings)
+                foreach (EbayListing l in ebayListings)
                 {
                     double? p = GetEbayEffectivePrice(l);
                     if (p.HasValue && p.Value > 0)
@@ -312,9 +257,22 @@ namespace CollectIQ.Controls
                 double? ebayMax = ebayPrices.Count > 0 ? ebayPrices.Last() : null;
                 double? ebayAvg = ebayPrices.Count > 0 ? ebayPrices.Average() : null;
                 double? ebayMedian = ebayPrices.Count > 0 ? ComputeMedianSorted(ebayPrices) : null;
-
-
                 string detectedGrade = DetectGradeFromText(baseListing.Title ?? string.Empty);
+
+                // -----------------------------------------------------------------
+                // 3) Populate SportCardPro object
+                // -----------------------------------------------------------------
+                if (UsePriceGuideSwitch?.IsToggled == true)
+                {
+                    var q = BuildSportsCardProQuery(baseListing);
+                    // Fix for CS8652, CS8601, CS8602:
+                    if (insightsData != null && sportsCardsProService != null)
+                    {
+                        var item = await sportsCardsProService.GetBestMatchAsync(q);
+
+                        insightsData.SportsCardsProItem = item;
+                    }
+                }
 
                 // -----------------------------------------------------------------
                 // 3) Suggested price (blend guide + eBay)
@@ -353,10 +311,10 @@ namespace CollectIQ.Controls
                     ConfidenceScore = confidence,
                
                     // eBay breakdown
-                    EbayMedianPrice = ebayMedian,
-                    EbayAveragePrice = ebayAvg,
+                    EbayMedianPrice = (decimal)ebayMedian,
+                    EbayAveragePrice = (decimal)ebayAvg,
                     EbayListingCountUsed = ebayPrices.Count,
-                    EbayBlendWeight = blendEbay ? ebayWeight : 0,
+                    EbayBlendWeight = blendEbay ? (decimal)ebayWeight : 0,
 
                 };
 
@@ -404,7 +362,7 @@ namespace CollectIQ.Controls
                     return;
                 }
 
-                priceGuideQuery = BuildPriceGuideQuery(baseListing);
+                priceGuideQuery = BuildSportsCardProQuery(baseListing);
 
                 if (string.IsNullOrWhiteSpace(priceGuideQuery))
                 {
@@ -419,7 +377,7 @@ namespace CollectIQ.Controls
             }
         }
 
-        private static string BuildPriceGuideQuery(EbayListing listing)
+        private static string BuildSportsCardProQuery(EbayListing listing)
         {
             string title = (listing?.Title ?? string.Empty).Trim();
 
@@ -653,11 +611,6 @@ namespace CollectIQ.Controls
         {
             try
             {
-                if (UsePriceGuideSwitch?.IsToggled == true)
-                {
-                    _ = LoadPriceGuideForCurrentAsync();
-                }
-
                 RecalculateInsightsFromCurrentComps();
             }
             catch
@@ -821,5 +774,72 @@ namespace CollectIQ.Controls
         }
 
         #endregion
+
+
+        #region Event Handlers
+
+        /// <summary>
+        /// Fired after the overlay finishes closing.
+        /// </summary>
+        public event EventHandler? Closed;
+
+
+        private async void OnScrimTapped(object sender, TappedEventArgs e)
+        {
+            await HideAsync();
+        }
+
+        private async void OnCloseTapped(object sender, TappedEventArgs e)
+        {
+            await HideAsync();
+        }
+
+        /// <summary>
+        /// Handles the "Remove" swipe action on a single comp row.
+        /// Recalculates all metrics after removal.
+        /// </summary>
+        private void OnRemoveCompSwipe(object sender, EventArgs e)
+        {
+            try
+            {
+                EbayListing? comp = null;
+
+                if (sender is SwipeItem swipeItem &&
+                    swipeItem.CommandParameter is EbayListing parameterListing)
+                {
+                    comp = parameterListing;
+                }
+
+                if (comp == null)
+                {
+                    return;
+                }
+
+                if (ebayListings.Contains(comp))
+                {
+                    ebayListings.Remove(comp);
+                }
+
+                RecalculateInsightsFromCurrentComps();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[INSIGHTS REMOVE ERROR] {ex.Message}");
+            }
+        }
+
+        private void ApplySuggestedValue_Clicked(object sender, EventArgs e)
+        {
+            if (InsightsData != null && InsightsData.SuggestedPrice.HasValue)
+            {
+                // Send value back to the page
+                OnEstimatedValueReady?.Invoke((decimal)InsightsData.SuggestedPrice);
+            }
+        }
+
+
+
+        #endregion
+
     }
 }

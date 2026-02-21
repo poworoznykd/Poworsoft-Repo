@@ -2,9 +2,7 @@
 
 namespace CollectIQ.Models.SportsCardsPro
 {
-    // This is the /api/product response.
-    // Keep it tight and aligned to real JSON keys.
-    public class SportCardsProPricesSnapshot
+    public class SportsCardsProProduct
     {
         [JsonPropertyName("status")]
         public string Status { get; set; }
@@ -24,17 +22,19 @@ namespace CollectIQ.Models.SportsCardsPro
         [JsonPropertyName("release-date")]
         public string ReleaseDate { get; set; }
 
-        // Comes back as "8" (string) in your real JSON.
-        // Keep it as string so we never blow up on parse again.
         [JsonPropertyName("sales-volume")]
-        public string SalesVolume { get; set; }
+        public string SalesVolumeRaw { get; set; }
 
-        // These show up as 0 in your JSON sometimes.
-        [JsonPropertyName("gamestop-price")]
-        public long? GameStopPrice { get; set; }
+        public int SalesVolume
+        {
+            get
+            {
+                if (int.TryParse(SalesVolumeRaw, out int value))
+                    return value;
 
-        [JsonPropertyName("gamestop-trade-price")]
-        public long? GameStopTradePrice { get; set; }
+                return 0;
+            }
+        }
 
         // Prices (pennies)
         [JsonPropertyName("loose-price")]
@@ -46,7 +46,6 @@ namespace CollectIQ.Models.SportsCardsPro
         [JsonPropertyName("cib-price")]
         public long? CibPrice { get; set; }
 
-        // Retail buy/sell (pennies)
         [JsonPropertyName("retail-loose-buy")]
         public long? RetailLooseBuy { get; set; }
 
@@ -65,27 +64,14 @@ namespace CollectIQ.Models.SportsCardsPro
         [JsonPropertyName("retail-cib-sell")]
         public long? RetailCibSell { get; set; }
 
-        // Optional extra keys that sometimes exist for other items.
-        [JsonPropertyName("graded-price")]
-        public long? GradedPrice { get; set; }
+        [JsonPropertyName("gamestop-price")]
+        public long? GameStopPrice { get; set; }
 
-        [JsonPropertyName("box-only-price")]
-        public long? BoxOnlyPrice { get; set; }
+        [JsonPropertyName("gamestop-trade-price")]
+        public long? GameStopTradePrice { get; set; }
 
-        [JsonPropertyName("manual-only-price")]
-        public long? ManualOnlyPrice { get; set; }
-
-        [JsonPropertyName("bgs-10-price")]
-        public long? Bgs10Price { get; set; }
-
-        [JsonPropertyName("condition-17-price")]
-        public long? Condition17Price { get; set; }
-
-        [JsonPropertyName("condition-18-price")]
-        public long? Condition18Price { get; set; }
-
-        [JsonIgnore]
-        public bool IsSuccess => string.Equals(Status, "success", System.StringComparison.OrdinalIgnoreCase);
+        public decimal? LoosePriceDollars => LoosePrice.HasValue ? LoosePrice.Value / 100m : null;
+        public decimal? NewPriceDollars => NewPrice.HasValue ? NewPrice.Value / 100m : null;
+        public decimal? CibPriceDollars => CibPrice.HasValue ? CibPrice.Value / 100m : null;
     }
-
 }

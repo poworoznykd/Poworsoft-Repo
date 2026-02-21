@@ -12,6 +12,14 @@ namespace CollectIQ.Models
 {
     public class CardInsights : INotifyPropertyChanged
     {
+        public int EbayListingCountUsed { get; set; }
+
+        public decimal? EbayMedianPrice { get; set; }
+
+        public decimal? EbayAveragePrice { get; set; }
+
+        public decimal? EbayBlendWeight { get; set; }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string propertyName = null)
         {
