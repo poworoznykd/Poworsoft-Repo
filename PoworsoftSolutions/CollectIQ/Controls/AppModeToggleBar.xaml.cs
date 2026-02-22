@@ -177,7 +177,7 @@ namespace CollectIQ.Controls
                     InspectLabel.FontAttributes = FontAttributes.Bold;
                     break;
 
-                case AppMode.Trade:
+                case AppMode.BuySellTrade:
                     CurrentModeLabel.Text = "Trading lane – deals, offers, and trade block (coming soon).";
                     TradeButton.Opacity = 1.0;
                     TradeLabel.TextColor = activeColor;

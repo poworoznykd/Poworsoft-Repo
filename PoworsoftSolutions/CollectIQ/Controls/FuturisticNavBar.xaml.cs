@@ -114,7 +114,7 @@ namespace CollectIQ.Controls
                         SetSlotIcon(Slot4Wrapper, "corners_icon.png");
                         break;
 
-                    case AppMode.Trade:
+                    case AppMode.BuySellTrade:
                         SetSlotLabel(Slot1Wrapper, "Deals");
                         SetSlotLabel(Slot2Wrapper, "Sell");
                         SetSlotLabel(Slot3Wrapper, "Buy");
@@ -396,7 +396,7 @@ namespace CollectIQ.Controls
             return mode switch
             {
                 AppMode.Inspect => Color.FromArgb("#C084FC"), // purple base
-                AppMode.Trade => Color.FromArgb("#F97316"),   // orange base
+                AppMode.BuySellTrade => Color.FromArgb("#F97316"),   // orange base
                 _ => Color.FromArgb("#0ACAF9")                // cyan base
             };
         }
@@ -407,7 +407,7 @@ namespace CollectIQ.Controls
             return mode switch
             {
                 AppMode.Inspect => Color.FromArgb("#E879F9"),
-                AppMode.Trade => Color.FromArgb("#FDBA74"),
+                AppMode.BuySellTrade => Color.FromArgb("#FDBA74"),
                 _ => Color.FromArgb("#00E0FF")                // Collect active blue
             };
         }

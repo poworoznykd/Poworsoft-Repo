@@ -1,4 +1,5 @@
-﻿using SQLite;
+﻿using System;
+using SQLite;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 

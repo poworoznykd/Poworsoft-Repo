@@ -1,21 +1,31 @@
-﻿/*
+/*
 * FILE: SqliteDatabase.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-10-25
+* UPDATED: 2026-02-21
 * DESCRIPTION:
 *     Provides a concrete SQLite data access implementation for CollectIQ.
 *     Implements the IDatabase interface for CRUD operations on user profiles,
 *     authentication, and card collection management.
+*
+*     UPDATE (2026-02-21):
+*     - Added defensive schema migration for Card enum persistence.
+*       We now store Card.Sport as an INT column (SportValue) to prevent
+*       SQLite-net from Enum.Parse(""), which was breaking collection loads.
+*     - Migration adds SportValue column if missing.
+*     - GetAllCardsAsync is hardened to log and fail gracefully.
 */
 
 using System;
-using System.IO;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using SQLite;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using SQLite;
 
 namespace CollectIQ.Services
 {
@@ -25,7 +35,7 @@ namespace CollectIQ.Services
     /// </summary>
     public sealed class SqliteDatabase : IDatabase
     {
-        private SQLiteAsyncConnection? _connection;
+        private SQLiteAsyncConnection? connection;
 
         // ============================================================
         //  INITIALIZATION
@@ -33,20 +43,74 @@ namespace CollectIQ.Services
 
         /// <summary>
         /// Initializes the database connection and creates tables if they do not exist.
+        /// Also performs lightweight schema migrations needed for newer models.
         /// </summary>
         public async Task InitializeAsync()
         {
-            if (_connection != null)
+            if (connection != null)
+            {
                 return;
+            }
 
             string dbPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "collectiq.db3");
 
-            _connection = new SQLiteAsyncConnection(dbPath);
+            connection = new SQLiteAsyncConnection(dbPath);
 
-            await _connection.CreateTableAsync<UserProfile>();
-            await _connection.CreateTableAsync<Card>();
+            await connection.CreateTableAsync<UserProfile>();
+            await connection.CreateTableAsync<Card>();
+
+            // Keep schema compatible with older app installs.
+            await EnsureCardSchemaAsync();
+        }
+
+        /// <summary>
+        /// Ensures Card table has the columns required by the current Card model.
+        /// This is intentionally "small" migration logic (no full migration framework).
+        /// </summary>
+        private async Task EnsureCardSchemaAsync()
+        {
+            await InitializeAsync();
+
+            try
+            {
+                // We only need to detect whether SportValue exists.
+                // If it doesn't, inserts/updates will fail even if reads happen to work.
+                List<TableInfoRow> cols = await connection!
+                    .QueryAsync<TableInfoRow>("PRAGMA table_info('Card');");
+
+                bool hasSportValue = cols.Any(c =>
+                    string.Equals(c.name, "SportValue", StringComparison.OrdinalIgnoreCase));
+
+                if (!hasSportValue)
+                {
+                    Debug.WriteLine("[SqliteDatabase] Migrating Card table: adding SportValue (INTEGER DEFAULT 0)");
+
+                    // Add the column.
+                    await connection.ExecuteAsync(
+                        "ALTER TABLE Card ADD COLUMN SportValue INTEGER NOT NULL DEFAULT 0;");
+
+                    // If an older Sport column exists, it was typically stored as TEXT.
+                    // We don't attempt to map old strings to enum ints here.
+                    // Leaving SportValue at 0 (Unknown) is safer than risking parse errors.
+                }
+            }
+            catch (Exception ex)
+            {
+                // If this fails, we still want the app to run.
+                Debug.WriteLine("[SqliteDatabase] EnsureCardSchemaAsync failed: " + ex.Message);
+            }
+        }
+
+        private sealed class TableInfoRow
+        {
+            public int cid { get; set; }
+            public string name { get; set; } = string.Empty;
+            public string type { get; set; } = string.Empty;
+            public int notnull { get; set; }
+            public string dflt_value { get; set; } = string.Empty;
+            public int pk { get; set; }
         }
 
         // ============================================================
@@ -59,7 +123,7 @@ namespace CollectIQ.Services
         public async Task<UserProfile?> GetUserProfileAsync()
         {
             await InitializeAsync();
-            return await _connection!.Table<UserProfile>().FirstOrDefaultAsync();
+            return await connection!.Table<UserProfile>().FirstOrDefaultAsync();
         }
 
         /// <summary>
@@ -68,7 +132,8 @@ namespace CollectIQ.Services
         public async Task<UserProfile?> GetUserProfileByEmailAsync(string email)
         {
             await InitializeAsync();
-            return await _connection!.Table<UserProfile>()
+
+            return await connection!.Table<UserProfile>()
                 .Where(u => u.Email == email)
                 .FirstOrDefaultAsync();
         }
@@ -79,25 +144,27 @@ namespace CollectIQ.Services
         public async Task UpsertUserProfileAsync(UserProfile profile)
         {
             await InitializeAsync();
-            await _connection!.InsertOrReplaceAsync(profile);
+            await connection!.InsertOrReplaceAsync(profile);
         }
 
         /// <summary>
         /// Stores a hashed password for the given email.
+        /// NOTE: This currently reuses DisplayName as a temporary storage location.
         /// </summary>
         public async Task StorePasswordHashAsync(string email, string passwordHash)
         {
             await InitializeAsync();
-            var existing = await GetUserProfileByEmailAsync(email);
+
+            UserProfile? existing = await GetUserProfileByEmailAsync(email);
 
             if (existing == null)
             {
                 existing = new UserProfile { Email = email };
-                await _connection!.InsertAsync(existing);
+                await connection!.InsertAsync(existing);
             }
 
-            existing.DisplayName = passwordHash; // Temporary reuse for password hash
-            await _connection!.UpdateAsync(existing);
+            existing.DisplayName = passwordHash;
+            await connection!.UpdateAsync(existing);
         }
 
         /// <summary>
@@ -106,7 +173,7 @@ namespace CollectIQ.Services
         public async Task<string?> GetPasswordHashAsync(string email)
         {
             await InitializeAsync();
-            var profile = await GetUserProfileByEmailAsync(email);
+            UserProfile? profile = await GetUserProfileByEmailAsync(email);
             return profile?.DisplayName;
         }
 
@@ -120,7 +187,7 @@ namespace CollectIQ.Services
         public async Task UpsertAsync<T>(T entity) where T : BaseModel, new()
         {
             await InitializeAsync();
-            await _connection!.InsertOrReplaceAsync(entity);
+            await connection!.InsertOrReplaceAsync(entity);
         }
 
         /// <summary>
@@ -129,7 +196,7 @@ namespace CollectIQ.Services
         public async Task DeleteAsync<T>(string id) where T : BaseModel, new()
         {
             await InitializeAsync();
-            await _connection!.DeleteAsync<T>(id);
+            await connection!.DeleteAsync<T>(id);
         }
 
         // ============================================================
@@ -142,7 +209,7 @@ namespace CollectIQ.Services
         public async Task<int> AddCardAsync(Card card)
         {
             await InitializeAsync();
-            return await _connection!.InsertAsync(card);
+            return await connection!.InsertAsync(card);
         }
 
         /// <summary>
@@ -151,33 +218,51 @@ namespace CollectIQ.Services
         public async Task<List<Card>> GetAllCardsAsync()
         {
             await InitializeAsync();
-            return await _connection!.Table<Card>().ToListAsync();
+
+            try
+            {
+                // Fast path.
+                return await connection!.Table<Card>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[SqliteDatabase] GetAllCardsAsync FAILED: " + ex);
+
+                // Defensive fallback: return empty instead of crashing UI.
+                // If we ever need a recovery path, we can read raw rows and salvage them.
+                return new List<Card>();
+            }
         }
 
         /// <summary>
-        /// Deletes a card and its related images from the collection.
+        /// Deletes a card record from the collection.
         /// </summary>
-        /// <param name="cardId">The unique ID of the card to delete.</param>
-        /// <returns>Number of rows deleted from the Card table.</returns>
         public async Task<int> DeleteCardAsync(string cardId)
         {
             if (string.IsNullOrWhiteSpace(cardId))
+            {
                 return 0;
+            }
 
             await InitializeAsync();
 
             try
             {
-                // Delete related CardImage entries first
-                await _connection!.ExecuteAsync("DELETE FROM CardImage WHERE CardId = ?", cardId);
+                // CardImage table might not exist in early builds; ignore failures.
+                try
+                {
+                    await connection!.ExecuteAsync("DELETE FROM CardImage WHERE CardId = ?", cardId);
+                }
+                catch (Exception imageEx)
+                {
+                    Debug.WriteLine("[SqliteDatabase] DeleteCardAsync: CardImage cleanup skipped: " + imageEx.Message);
+                }
 
-                // Delete the card itself
-                int rows = await _connection.ExecuteAsync("DELETE FROM Card WHERE Id = ?", cardId);
-                return rows;
+                return await connection!.ExecuteAsync("DELETE FROM Card WHERE Id = ?", cardId);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SqliteDatabase] DeleteCardAsync failed: {ex.Message}");
+                Debug.WriteLine("[SqliteDatabase] DeleteCardAsync failed: " + ex.Message);
                 return 0;
             }
         }
@@ -185,28 +270,29 @@ namespace CollectIQ.Services
         /// <summary>
         /// Updates an existing card record in the SQLite collection.
         /// </summary>
-        /// <param name="card">The card entity with updated properties.</param>
-        /// <returns>The number of rows affected by the update operation.</returns>
         public async Task<int> UpdateCardAsync(Card card)
         {
             await InitializeAsync();
 
             if (card == null)
+            {
                 throw new ArgumentNullException(nameof(card), "Cannot update a null card entity.");
+            }
 
             if (string.IsNullOrWhiteSpace(card.Id))
+            {
                 throw new ArgumentException("Card must have a valid ID before updating.", nameof(card));
+            }
 
             try
             {
-                return await _connection!.UpdateAsync(card);
+                return await connection!.UpdateAsync(card);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SqliteDatabase] UpdateCardAsync failed: {ex.Message}");
+                Debug.WriteLine("[SqliteDatabase] UpdateCardAsync failed: " + ex.Message);
                 return 0;
             }
         }
-
     }
 }

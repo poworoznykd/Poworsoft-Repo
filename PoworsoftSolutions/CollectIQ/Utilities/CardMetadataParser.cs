@@ -1,22 +1,23 @@
-﻿/*
+/*
 * FILE: CardMetadataParser.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * FIRST VERSION: 2025-12-01
-* UPDATED: 2025-12-13
+* UPDATED: 2026-02-21
 * DESCRIPTION:
-*     Enhanced metadata parser for eBay listings.
-*     - Keeps ALL previous logic
-*     - Adds multilayer extraction for:
-*         * Name (athlete or Pokémon)
-*         * Sport
-*         * Parallels (Silver, Refractor, etc.)
-*         * Subsets (Canvas Legends, My House, Downtown, etc.)
-*         * Serial Numbers
-*         * Pokémon card variants
-*     - Uses BOTH Title and Description if available
-*     - Uses local CSV-based player lists (NFL/NBA/MLB/NHL)
-*       before falling back to regex-based name parsing.
+*     Metadata parser for eBay listings.
+*     - Extracts year, set, card number, serial (#/99), team, parallels, subsets, grading.
+*     - Uses BOTH Title + Description for extraction.
+*     - Uses local CSV-based player lists (NFL/NBA/MLB/NHL) before regex fallback.
+*
+* IMPORTANT IMPLEMENTATION NOTE:
+*     Card.Team, Card.Player, and Card.Grading are JSON-backed convenience properties.
+*     Their getters deserialize from JSON into a NEW object each time.
+*     That means this is WRONG (changes get lost): card.Team.Name = "Oilers";
+*     The correct pattern is:
+*         var team = card.Team;
+*         team.Name = "Oilers";
+*         card.Team = team;
 */
 
 using CollectIQ.Models;
@@ -36,7 +37,6 @@ namespace CollectIQ.Utilities
         //  STATIC CONFIGURATION
         // -----------------------------------------------------------------
 
-        // Sets (extended)
         private static readonly string[] setKeywords =
         {
             "Prizm","Panini Prizm","Panini","Select","Mosaic","Optic","Donruss",
@@ -45,7 +45,6 @@ namespace CollectIQ.Utilities
             "Tim Hortons","Artifacts","O-Pee-Chee","Ultimate","Premier"
         };
 
-        // Pokémon sets
         private static readonly string[] pokemonSets =
         {
             "Base Set","Jungle","Fossil","Team Rocket","Gym Heroes","Gym Challenge",
@@ -55,7 +54,6 @@ namespace CollectIQ.Utilities
             "Champion's Path","Evolving Skies","Vivid Voltage","Celebrations"
         };
 
-        // Teams (all sports)
         private static readonly string[] teamKeywords =
         {
             // NHL
@@ -74,7 +72,6 @@ namespace CollectIQ.Utilities
             "Grizzlies"
         };
 
-        // Parallels
         private static readonly string[] parallelKeywords =
         {
             "Refractor","XFractor","Superfractor","Mojo","Silver","Holo",
@@ -82,7 +79,6 @@ namespace CollectIQ.Utilities
             "Blue", "Orange", "Red", "Gold", "Black","Rainbow","Spectrum"
         };
 
-        // Subsets / Insert names
         private static readonly string[] subsetKeywords =
         {
             "Canvas","Canvas Legends","UD Canvas Legends","My House","Downtown",
@@ -90,19 +86,6 @@ namespace CollectIQ.Utilities
             "Legend","Legends","Retro","Throwback","Holiday Sweaters","Holiday Sweater"
         };
 
-        // Pokémon rarities & card types
-        private static readonly string[] pokemonRarities =
-        {
-            "Holo","Reverse Holo","Full Art","Ultra Rare","Secret Rare",
-            "Gold Rare","Rainbow Rare"
-        };
-
-        private static readonly string[] pokemonCardTypes =
-        {
-            "GX","EX","V","VMAX","VSTAR","Trainer","Energy"
-        };
-
-        // Pokémon names (partial list; can be expanded)
         private static readonly string[] pokemonNames =
         {
             "Pikachu","Charizard","Blastoise","Venusaur","Mew","Mewtwo","Eevee",
@@ -113,10 +96,6 @@ namespace CollectIQ.Utilities
         //  PLAYER CSV SUPPORT
         // -----------------------------------------------------------------
 
-        /// <summary>
-        /// Simple model for a player loaded from CSV.
-        /// Expected columns: FirstName, LastName, FullName.
-        /// </summary>
         private sealed class PlayerNameEntry
         {
             public string FirstName { get; set; } = string.Empty;
@@ -124,73 +103,36 @@ namespace CollectIQ.Utilities
             public string FullName { get; set; } = string.Empty;
         }
 
-        // CSV files live under Resources/Data and are marked as MauiAsset.
-        // Logical asset names we *intend* to use: "Data/NFL_players.csv", etc.
-        private static readonly Lazy<List<PlayerNameEntry>> NflPlayers =
-            new Lazy<List<PlayerNameEntry>>(
-                () => LoadPlayersFromCsv("Data/NFL_players.csv"));
+        private static readonly Lazy<List<PlayerNameEntry>> nflPlayers =
+            new Lazy<List<PlayerNameEntry>>(() => LoadPlayersFromCsv("Data/NFL_players.csv"));
 
-        private static readonly Lazy<List<PlayerNameEntry>> NbaPlayers =
-            new Lazy<List<PlayerNameEntry>>(
-                () => LoadPlayersFromCsv("Data/NBA_players.csv"));
+        private static readonly Lazy<List<PlayerNameEntry>> nbaPlayers =
+            new Lazy<List<PlayerNameEntry>>(() => LoadPlayersFromCsv("Data/NBA_players.csv"));
 
-        private static readonly Lazy<List<PlayerNameEntry>> MlbPlayers =
-            new Lazy<List<PlayerNameEntry>>(
-                () => LoadPlayersFromCsv("Data/MLB_players.csv"));
+        private static readonly Lazy<List<PlayerNameEntry>> mlbPlayers =
+            new Lazy<List<PlayerNameEntry>>(() => LoadPlayersFromCsv("Data/MLB_players.csv"));
 
-        private static readonly Lazy<List<PlayerNameEntry>> NhlPlayers =
-            new Lazy<List<PlayerNameEntry>>(
-                () => LoadPlayersFromCsv("Data/NHL_players.csv"));
+        private static readonly Lazy<List<PlayerNameEntry>> nhlPlayers =
+            new Lazy<List<PlayerNameEntry>>(() => LoadPlayersFromCsv("Data/NHL_players.csv"));
 
-        /// <summary>
-        /// Loads a CSV file of players (FirstName, LastName, FullName)
-        /// from MAUI assets using FileSystem.OpenAppPackageFileAsync.
-        ///
-        /// IMPORTANT:
-        /// MAUI sometimes flattens asset names, so we try both:
-        ///   - the full "Data/Name.csv"
-        ///   - just "Name.csv"
-        /// and use whichever one actually exists.
-        /// </summary>
-        /// <summary>
-        /// Loads a CSV file of players (FirstName, LastName, FullName)
-        /// from MAUI assets using FileSystem.OpenAppPackageFileAsync.
-        ///
-        /// We try several logical names because MAUI can pack assets as:
-        ///   - "Resources/Data/NFL_players.csv"
-        ///   - "Data/NFL_players.csv"
-        ///   - "NFL_players.csv"
-        /// depending on csproj configuration.
-        /// </summary>
         private static List<PlayerNameEntry> LoadPlayersFromCsv(string assetName)
         {
             List<PlayerNameEntry> players = new List<PlayerNameEntry>();
 
-            // Example assetName coming in: "Data/NFL_players.csv"
             string fileOnly = Path.GetFileName(assetName);
 
-            string[] candidateAssetNames =
+            string[] candidates =
             {
-                // What the caller asked for, e.g. "Data/NFL_players.csv"
                 assetName,
-
-                // Most likely MAUI asset name for Resources/Data/...
-                $"Resources/{assetName}",          // "Resources/Data/NFL_players.csv"
-
-                // Just the filename, in case assets are flattened
-                fileOnly,                          // "NFL_players.csv"
-
-                // Some projects end up with "Resources/NFL_players.csv"
-                $"Resources/{fileOnly}"            // "Resources/NFL_players.csv"
+                $"Resources/{assetName}",
+                fileOnly,
+                $"Resources/{fileOnly}"
             };
 
-            foreach (string candidate in candidateAssetNames)
+            foreach (string candidate in candidates)
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[PLAYER CSV] Trying asset '{candidate}'...");
-
                     using Stream stream = FileSystem.OpenAppPackageFileAsync(candidate)
                         .GetAwaiter()
                         .GetResult();
@@ -198,7 +140,7 @@ namespace CollectIQ.Utilities
                     using StreamReader reader = new StreamReader(stream);
 
                     // Skip header
-                    string? header = reader.ReadLine();
+                    reader.ReadLine();
 
                     while (!reader.EndOfStream)
                     {
@@ -209,7 +151,6 @@ namespace CollectIQ.Utilities
                         }
 
                         string[] parts = line.Split(',');
-
                         if (parts.Length < 3)
                         {
                             continue;
@@ -222,45 +163,29 @@ namespace CollectIQ.Utilities
                             FullName = parts[2].Trim()
                         };
 
-                        if (!string.IsNullOrWhiteSpace(entry.FullName))
+                        if (!string.IsNullOrWhiteSpace(entry.FullName) &&
+                            !entry.FullName.Equals("FullName", StringComparison.OrdinalIgnoreCase))
                         {
                             players.Add(entry);
                         }
                     }
 
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[PLAYER CSV] Loaded {players.Count} players from asset '{candidate}'");
-
-                    // Success – stop trying other candidates
                     return players;
                 }
-                catch (FileNotFoundException fnf)
+                catch (FileNotFoundException)
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[PLAYER CSV] Asset '{candidate}' not found: {fnf.Message}");
-                    // Try next candidate
+                    // try next name
                 }
-                catch (Exception ex)
+                catch
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[PLAYER CSV ERROR] Asset '{candidate}' - {ex.Message}");
-                    // For other errors just bail and return whatever we have (likely empty)
+                    // If parsing fails, return whatever we loaded so far.
                     return players;
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine(
-                $"[PLAYER CSV] No asset found for '{assetName}' or '{fileOnly}'. Returning empty list.");
-
             return players;
         }
 
-
-        /// <summary>
-        /// Attempts to find a player name from the preloaded CSV lists
-        /// by matching FullName or (FirstName + LastName) against the
-        /// normalized listing text. Returns the best match or String.Empty.
-        /// </summary>
         private static string TryFindPlayerNameFromCsv(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -269,23 +194,19 @@ namespace CollectIQ.Utilities
             }
 
             string normalized = NormalizeForNameSearch(text);
-            string padded = " " + normalized + " "; // for safe word-boundary matching
+            string padded = " " + normalized + " ";
 
             string bestName = string.Empty;
             int bestScore = 0;
 
-            bestScore = EvaluateLeagueList(NflPlayers.Value, padded, ref bestName, bestScore);
-            bestScore = EvaluateLeagueList(NbaPlayers.Value, padded, ref bestName, bestScore);
-            bestScore = EvaluateLeagueList(MlbPlayers.Value, padded, ref bestName, bestScore);
-            bestScore = EvaluateLeagueList(NhlPlayers.Value, padded, ref bestName, bestScore);
+            bestScore = EvaluateLeagueList(nflPlayers.Value, padded, ref bestName, bestScore);
+            bestScore = EvaluateLeagueList(nbaPlayers.Value, padded, ref bestName, bestScore);
+            bestScore = EvaluateLeagueList(mlbPlayers.Value, padded, ref bestName, bestScore);
+            bestScore = EvaluateLeagueList(nhlPlayers.Value, padded, ref bestName, bestScore);
 
             return bestName;
         }
 
-        /// <summary>
-        /// Scans one league's player list and updates the current best
-        /// name/score if a better match is found.
-        /// </summary>
         private static int EvaluateLeagueList(
             List<PlayerNameEntry> leaguePlayers,
             string paddedNormalizedText,
@@ -308,66 +229,44 @@ namespace CollectIQ.Utilities
                 string last = (entry.LastName ?? string.Empty).Trim();
                 string full = (entry.FullName ?? string.Empty).Trim();
 
-                // Skip header rows or junk
-                if (full.Equals("FullName", StringComparison.OrdinalIgnoreCase) ||
-                    first.Equals("FirstName", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 int score = 0;
 
-                // 1) Strongest: full name as a phrase in the text.
                 if (!string.IsNullOrWhiteSpace(full))
                 {
                     string fullNorm = NormalizeForNameSearch(full);
-                    string fullNeedle = " " + fullNorm + " ";
-
-                    if (paddedNormalizedText.Contains(fullNeedle, StringComparison.Ordinal))
+                    string needle = " " + fullNorm + " ";
+                    if (paddedNormalizedText.Contains(needle, StringComparison.Ordinal))
                     {
                         score = Math.Max(score, 200 + fullNorm.Length);
                     }
                 }
 
-                // 2) Next: first + last BOTH present as words (any order).
                 if (!string.IsNullOrWhiteSpace(first) && !string.IsNullOrWhiteSpace(last))
                 {
-                    string firstNorm = " " + NormalizeForNameSearch(first) + " ";
-                    string lastNorm = " " + NormalizeForNameSearch(last) + " ";
+                    string firstNeedle = " " + NormalizeForNameSearch(first) + " ";
+                    string lastNeedle = " " + NormalizeForNameSearch(last) + " ";
 
-                    bool firstInText = paddedNormalizedText.Contains(firstNorm, StringComparison.Ordinal);
-                    bool lastInText = paddedNormalizedText.Contains(lastNorm, StringComparison.Ordinal);
+                    bool firstIn = paddedNormalizedText.Contains(firstNeedle, StringComparison.Ordinal);
+                    bool lastIn = paddedNormalizedText.Contains(lastNeedle, StringComparison.Ordinal);
 
-                    if (firstInText && lastInText)
+                    if (firstIn && lastIn)
                     {
-                        int lengthScore = firstNorm.Length + lastNorm.Length;
-                        score = Math.Max(score, 150 + lengthScore);
+                        score = Math.Max(score, 150 + firstNeedle.Length + lastNeedle.Length);
                     }
                 }
 
                 if (score > currentBestScore)
                 {
                     currentBestScore = score;
-
-                    if (!string.IsNullOrWhiteSpace(full))
-                    {
-                        currentBestName = full;
-                    }
-                    else if (!string.IsNullOrWhiteSpace(first) &&
-                             !string.IsNullOrWhiteSpace(last))
-                    {
-                        currentBestName = $"{CapitalizeName(first)} {CapitalizeName(last)}";
-                    }
+                    currentBestName = !string.IsNullOrWhiteSpace(full)
+                        ? full
+                        : $"{CapitalizeName(first)} {CapitalizeName(last)}";
                 }
             }
 
             return currentBestScore;
         }
 
-        /// <summary>
-        /// Strips punctuation, lowercases, and collapses whitespace so
-        /// we can do reliable word-based matching.
-        /// </summary>
         private static string NormalizeForNameSearch(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -376,18 +275,11 @@ namespace CollectIQ.Utilities
             }
 
             string lower = text.ToLowerInvariant();
-
-            // Keep letters/digits/space only.
             lower = Regex.Replace(lower, @"[^a-z0-9\s]", " ");
             lower = Regex.Replace(lower, @"\s+", " ").Trim();
-
             return lower;
         }
 
-        /// <summary>
-        /// Simple "nice casing" for names loaded from CSV
-        /// if we have to reconstruct from first/last.
-        /// </summary>
         private static string CapitalizeName(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -396,14 +288,12 @@ namespace CollectIQ.Utilities
             }
 
             value = value.Trim();
-
             if (value.Length == 1)
             {
                 return value.ToUpperInvariant();
             }
 
-            return char.ToUpperInvariant(value[0]) +
-                   value.Substring(1).ToLowerInvariant();
+            return char.ToUpperInvariant(value[0]) + value.Substring(1).ToLowerInvariant();
         }
 
         // -----------------------------------------------------------------
@@ -419,7 +309,7 @@ namespace CollectIQ.Utilities
 
             string title = listing.Title ?? string.Empty;
             string desc = listing.Description ?? string.Empty;
-            string combined = title + " " + desc;
+            string combined = (title + " " + desc).Trim();
 
             Card card = new Card
             {
@@ -433,9 +323,9 @@ namespace CollectIQ.Utilities
 
             // YEAR
             Match yearMatch = Regex.Match(combined, @"\b(19|20)\d{2}\b");
-            if (yearMatch.Success)
+            if (yearMatch.Success && int.TryParse(yearMatch.Value, out int parsedYear))
             {
-                card.Year = int.Parse(yearMatch.Value);
+                card.Year = parsedYear;
             }
 
             // SERIAL NUMBER (#/99)
@@ -445,7 +335,7 @@ namespace CollectIQ.Utilities
                 card.SerialNumber = serial.Value;
             }
 
-            // CARD NUMBER (#CL-3, #205, #A-PICK)
+            // CARD NUMBER (#205, #A-PICK)
             Match cardNum = Regex.Match(combined, @"#\s?([A-Za-z0-9\-]+)");
             if (cardNum.Success)
             {
@@ -458,23 +348,31 @@ namespace CollectIQ.Utilities
                 if (combined.Contains(set, StringComparison.OrdinalIgnoreCase))
                 {
                     card.Set = set;
+                    break;
                 }
             }
 
-            foreach (string pset in pokemonSets)
+            if (string.IsNullOrWhiteSpace(card.Set))
             {
-                if (combined.Contains(pset, StringComparison.OrdinalIgnoreCase))
+                foreach (string set in pokemonSets)
                 {
-                    card.Set = pset;
+                    if (combined.Contains(set, StringComparison.OrdinalIgnoreCase))
+                    {
+                        card.Set = set;
+                        break;
+                    }
                 }
             }
 
-            // TEAM
-            foreach (string team in teamKeywords)
+            // TEAM (JSON-backed property: must assign back!)
+            foreach (string teamName in teamKeywords)
             {
-                if (combined.Contains(team, StringComparison.OrdinalIgnoreCase))
+                if (combined.Contains(teamName, StringComparison.OrdinalIgnoreCase))
                 {
-                    card.Team.Name = team;
+                    Team team = card.Team;
+                    team.Name = teamName;
+                    card.Team = team;
+                    break;
                 }
             }
 
@@ -484,6 +382,7 @@ namespace CollectIQ.Utilities
                 if (combined.Contains(par, StringComparison.OrdinalIgnoreCase))
                 {
                     card.Parallel = par;
+                    break;
                 }
             }
 
@@ -493,89 +392,96 @@ namespace CollectIQ.Utilities
                 if (combined.Contains(sub, StringComparison.OrdinalIgnoreCase))
                 {
                     card.Subset = sub;
+                    break;
                 }
             }
 
-            // GRADE & GRADER
-            Match psa = Regex.Match(combined, @"PSA\s?(\d+(\.\d)?)");
-            if (psa.Success)
-            {
-                card.Grading.Company = "PSA";
-                card.Grading.Grade = double.Parse(psa.Groups[1].Value);
-            }
-
-            Match bgs = Regex.Match(combined, @"BGS\s?(\d+(\.\d)?)");
-            if (bgs.Success)
-            {
-                card.Grading.Company = "BGS";
-                card.Grading.Grade = double.Parse(bgs.Groups[1].Value);
-            }
-
-            Match cgc = Regex.Match(combined, @"CGC\s?(\d+(\.\d)?)");
-            if (cgc.Success)
-            {
-                card.Grading.Company = "CGC";
-                card.Grading.Grade = double.Parse(cgc.Groups[1].Value);
-            }
-
-            Match sgc = Regex.Match(combined, @"SGC\s?(\d+(\.\d)?)");
-            if (sgc.Success)
-            {
-                card.Grading.Company = "SGC";
-                card.Grading.Grade = double.Parse(sgc.Groups[1].Value);
-            }
+            // GRADE & GRADER (JSON-backed property: must assign back!)
+            ApplyGradingIfPresent(card, combined);
 
             // NAME (CSV-first, then fallback)
             string extractedName = ExtractName(title, desc);
             if (!string.IsNullOrWhiteSpace(extractedName))
             {
-                card.Player.FullName = extractedName;
+                Player player = card.Player;
+                player.FullName = extractedName;
+                card.Player = player;
             }
-            // -----------------------------
-            // Ensure Player object is populated
-            // -----------------------------
-            PopulatePlayerFromCard(card);
+
+            // Sports/Pokemon flag (best-effort)
+            if (PokemonCardsFound(title, desc))
+            {
+                card.Sport = CollectingCardCategory.Pokemon;
+            }
+
             return card;
         }
 
-        /// <summary>
-        /// Ensures card.Player exists and copies over whatever
-        /// player-related info we know from the Card.
-        /// </summary>
-        private static void PopulatePlayerFromCard(Card card)
+        // -----------------------------------------------------------------
+        //  GRADING
+        // -----------------------------------------------------------------
+
+        private static void ApplyGradingIfPresent(Card card, string combined)
         {
-            if (card == null)
+            if (card == null || string.IsNullOrWhiteSpace(combined))
             {
                 return;
             }
 
-            // Get a working instance from the JSON-backed property.
-            // (Each get returns a new object, so we must assign it back after changes.)
-            Player player = card.Player ?? new Player();
-            bool dirty = false;
-
-            // Full name – prefer the parsed Card.Name
-            if (!string.IsNullOrWhiteSpace(card.Player.FullName) &&
-                string.IsNullOrWhiteSpace(player.FullName))
+            Match psa = Regex.Match(combined, @"PSA\s?(\d+(?:\.\d)?)", RegexOptions.IgnoreCase);
+            if (psa.Success)
             {
-                player.FullName = card.Player.FullName;
-                dirty = true;
+                if (double.TryParse(psa.Groups[1].Value, out double grade))
+                {
+                    Grading g = card.Grading;
+                    g.Company = "PSA";
+                    g.Grade = grade;
+                    card.Grading = g;
+                }
+
+                return;
             }
 
-            // Highlight reel – if the Card has Highlights, push into Player.HighlightReel
-            if (card.Highlights != null && player.HighlightReel == null)
+            Match bgs = Regex.Match(combined, @"BGS\s?(\d+(?:\.\d)?)", RegexOptions.IgnoreCase);
+            if (bgs.Success)
             {
-                player.HighlightReel = card.Highlights;
-                dirty = true;
+                if (double.TryParse(bgs.Groups[1].Value, out double grade))
+                {
+                    Grading g = card.Grading;
+                    g.Company = "BGS";
+                    g.Grade = grade;
+                    card.Grading = g;
+                }
+
+                return;
             }
 
-            // Only write back if we actually changed something; this updates PlayerJson.
-            if (dirty)
+            Match cgc = Regex.Match(combined, @"CGC\s?(\d+(?:\.\d)?)", RegexOptions.IgnoreCase);
+            if (cgc.Success)
             {
-                card.Player = player;
+                if (double.TryParse(cgc.Groups[1].Value, out double grade))
+                {
+                    Grading g = card.Grading;
+                    g.Company = "CGC";
+                    g.Grade = grade;
+                    card.Grading = g;
+                }
+
+                return;
+            }
+
+            Match sgc = Regex.Match(combined, @"SGC\s?(\d+(?:\.\d)?)", RegexOptions.IgnoreCase);
+            if (sgc.Success)
+            {
+                if (double.TryParse(sgc.Groups[1].Value, out double grade))
+                {
+                    Grading g = card.Grading;
+                    g.Company = "SGC";
+                    g.Grade = grade;
+                    card.Grading = g;
+                }
             }
         }
-
 
         // -----------------------------------------------------------------
         //  NAME EXTRACTION
@@ -585,28 +491,14 @@ namespace CollectIQ.Utilities
         {
             string combined = (title ?? string.Empty) + " " + (desc ?? string.Empty);
 
-            // PRIORITY 0: Try CSV-based player lists first.
+            // PRIORITY 0: CSV-based lookup.
             string csvName = TryFindPlayerNameFromCsv(combined);
             if (!string.IsNullOrWhiteSpace(csvName))
             {
                 return csvName;
             }
 
-            // Skip everything before first set keyword (avoid "Panini Illusions" as name)
-            foreach (string set in setKeywords)
-            {
-                int idx = combined.IndexOf(set, StringComparison.OrdinalIgnoreCase);
-                if (idx > -1)
-                {
-                    combined = combined.Substring(idx + set.Length);
-                    break;
-                }
-            }
-
-            // Normalize "- Name" → " Name"
-            combined = Regex.Replace(combined, @"-\s+", " ");
-
-            // Known Pokémon names
+            // Pokémon short-circuit.
             foreach (string p in pokemonNames)
             {
                 if (combined.Contains(p, StringComparison.OrdinalIgnoreCase))
@@ -615,56 +507,18 @@ namespace CollectIQ.Utilities
                 }
             }
 
-            // ALL-CAPS (e.g., BAKER MAYFIELD)
-            string allCapsCandidate = FindBestAllCapsNameCandidate(combined);
-            if (!string.IsNullOrWhiteSpace(allCapsCandidate) &&
-                !IsFalseName(allCapsCandidate))
+            // All-caps candidate (e.g. "BAKER MAYFIELD")
+            string caps = FindBestAllCapsNameCandidate(combined);
+            if (!string.IsNullOrWhiteSpace(caps) && !IsFalseName(caps))
             {
-                return allCapsCandidate;
+                return caps;
             }
 
-            // TitleCase human name
-            string humanCandidate = FindBestHumanNameCandidate(combined);
-            if (!string.IsNullOrWhiteSpace(humanCandidate) &&
-                !IsFalseName(humanCandidate))
+            // TitleCase candidate (e.g. "Connor McDavid")
+            string human = FindBestHumanNameCandidate(combined);
+            if (!string.IsNullOrWhiteSpace(human) && !IsFalseName(human))
             {
-                return humanCandidate;
-            }
-
-            // Name after the year
-            Match yearMatch = Regex.Match(combined, @"\b(19|20)\d{2}\b");
-            if (yearMatch.Success)
-            {
-                string afterYear = combined.Substring(yearMatch.Index + yearMatch.Length);
-
-                string nameAfterYear = FindBestHumanNameCandidate(afterYear);
-                if (!string.IsNullOrWhiteSpace(nameAfterYear) &&
-                    !IsFalseName(nameAfterYear))
-                {
-                    return nameAfterYear.Trim();
-                }
-            }
-
-            // Name after set/parallel keywords
-            string[] hardSplitKeywords =
-            {
-                "Prizm", "Select", "Draft Picks", "Panini", "Topps", "Upper Deck"
-            };
-
-            foreach (string key in hardSplitKeywords)
-            {
-                int idx = combined.IndexOf(key, StringComparison.OrdinalIgnoreCase);
-                if (idx > -1)
-                {
-                    string part = combined.Substring(idx + key.Length);
-                    string newName = FindBestHumanNameCandidate(part);
-
-                    if (!string.IsNullOrWhiteSpace(newName) &&
-                        !IsFalseName(newName))
-                    {
-                        return newName.Trim();
-                    }
-                }
+                return human;
             }
 
             return string.Empty;
@@ -682,7 +536,6 @@ namespace CollectIQ.Utilities
                 @"\b([A-Z]{2,}(?:\s+[A-Z0-9]{2,}){1,3})\b");
 
             List<string> candidates = new List<string>();
-
             foreach (Match m in matches)
             {
                 if (!m.Success)
@@ -691,32 +544,20 @@ namespace CollectIQ.Utilities
                 }
 
                 string candidate = m.Value.Trim();
-                if (string.IsNullOrWhiteSpace(candidate))
-                {
-                    continue;
-                }
-
-                if (IsFalseName(candidate))
-                {
-                    continue;
-                }
-
                 if (candidate.Length < 4)
                 {
                     continue;
                 }
 
-                candidates.Add(candidate);
+                if (!IsFalseName(candidate))
+                {
+                    candidates.Add(candidate);
+                }
             }
 
-            if (candidates.Count == 0)
-            {
-                return string.Empty;
-            }
-
-            return candidates
-                .OrderByDescending(c => c.Length)
-                .First();
+            return candidates.Count == 0
+                ? string.Empty
+                : candidates.OrderByDescending(c => c.Length).First();
         }
 
         private static string FindBestHumanNameCandidate(string text)
@@ -725,8 +566,6 @@ namespace CollectIQ.Utilities
             {
                 return string.Empty;
             }
-
-            text = Regex.Replace(text, @"-\s+", " ");
 
             MatchCollection matches = Regex.Matches(
                 text,
@@ -737,9 +576,7 @@ namespace CollectIQ.Utilities
                 return string.Empty;
             }
 
-            List<(string Candidate, double Score)> scored =
-                new List<(string Candidate, double Score)>();
-
+            List<(string Candidate, double Score)> scored = new List<(string Candidate, double Score)>();
             foreach (Match m in matches)
             {
                 if (!m.Success)
@@ -753,31 +590,12 @@ namespace CollectIQ.Utilities
                     continue;
                 }
 
-                string[] tokens = candidate
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                if (tokens.Length == 0)
-                {
-                    continue;
-                }
-
-                double score = 0;
-
-                score += candidate.Length;
+                string[] tokens = candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                double score = candidate.Length;
 
                 if (tokens.Length >= 2 && tokens.Length <= 3)
                 {
                     score += 40.0;
-                }
-
-                if (tokens.Any(t =>
-                        t.Equals("II", StringComparison.OrdinalIgnoreCase) ||
-                        t.Equals("III", StringComparison.OrdinalIgnoreCase) ||
-                        t.Equals("IV", StringComparison.OrdinalIgnoreCase) ||
-                        t.Equals("Jr", StringComparison.OrdinalIgnoreCase) ||
-                        t.Equals("Sr", StringComparison.OrdinalIgnoreCase)))
-                {
-                    score += 10.0;
                 }
 
                 if (ContainsAnyTokenIn(tokens, setKeywords))
@@ -800,26 +618,15 @@ namespace CollectIQ.Utilities
                     score -= 50.0;
                 }
 
-                if (IsFalseName(candidate))
-                {
-                    score -= 100.0;
-                }
-
-                if (score > 0.0)
+                if (!IsFalseName(candidate) && score > 0.0)
                 {
                     scored.Add((candidate, score));
                 }
             }
 
-            if (scored.Count == 0)
-            {
-                return string.Empty;
-            }
-
-            return scored
-                .OrderByDescending(x => x.Score)
-                .First()
-                .Candidate;
+            return scored.Count == 0
+                ? string.Empty
+                : scored.OrderByDescending(x => x.Score).First().Candidate;
         }
 
         private static bool ContainsAnyTokenIn(string[] tokens, string[] phraseList)
@@ -832,7 +639,6 @@ namespace CollectIQ.Utilities
                 }
 
                 string[] parts = phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
                 foreach (string part in parts)
                 {
                     foreach (string token in tokens)
@@ -848,10 +654,6 @@ namespace CollectIQ.Utilities
             return false;
         }
 
-        /// <summary>
-        /// Filters out known bad "names": brands, subsets, and team names.
-        /// This is used by both ALL-CAPS and TitleCase candidate logic.
-        /// </summary>
         private static bool IsFalseName(string s)
         {
             if (string.IsNullOrWhiteSpace(s))
@@ -872,14 +674,12 @@ namespace CollectIQ.Utilities
                 "Rookie Holiday Sweaters","Rookie Holiday Sweater"
             };
 
-            if (banned.Any(b =>
-                    candidate.Equals(b, StringComparison.OrdinalIgnoreCase)))
+            if (banned.Any(b => candidate.Equals(b, StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }
 
-            if (teamKeywords.Any(t =>
-                    candidate.Equals(t, StringComparison.OrdinalIgnoreCase)))
+            if (teamKeywords.Any(t => candidate.Equals(t, StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }

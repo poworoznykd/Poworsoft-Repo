@@ -10,6 +10,6 @@ namespace CollectIQ.Navigation
     {
         Collect,
         Inspect,
-        Trade // keep for later
+        BuySellTrade // keep for later
     }
 }

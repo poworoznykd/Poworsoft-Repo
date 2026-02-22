@@ -15,7 +15,6 @@
 *     the estimated value label) update automatically when properties change.
 */
 
-using CollectIQ.Services;
 using SQLite;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -117,8 +116,25 @@ namespace CollectIQ.Models
         [Indexed]
         public string CollectionId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Primary display title for the card.
+        /// IMPORTANT: some pages historically bind to SelectedCard.Name.
+        /// Title is the real stored field; Name is an alias (see below).
+        /// </summary>
         [Indexed]
         public string Title { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Alias for Title.
+        /// Keeping this prevents blank UI when older XAML still references "Name".
+        /// Not persisted as a separate column.
+        /// </summary>
+        [Ignore]
+        public string Name
+        {
+            get => Title;
+            set => Title = value ?? string.Empty;
+        }
 
         public int? Year { get; set; }
         public string Set { get; set; } = string.Empty;
@@ -172,7 +188,20 @@ namespace CollectIQ.Models
         /// </summary>
         public string BackOverlayImagePath { get; set; } = string.Empty;
         // --- Advanced fields ---
-        public CollectingCardCategory Sport { get; set; }
+        // IMPORTANT (SQLite enum safety)
+        // --------------------------
+        // SQLite-net can persist enums as TEXT in some configurations and then uses Enum.Parse(...) when reading.
+        // If an older row contains an empty string (""), Enum.Parse throws:
+        //   "Must specify valid information for parsing in the string"
+        // To permanently prevent this, we store the enum as an INT column and expose the enum via an [Ignore] wrapper.
+        public int SportValue { get; set; } = 0;
+
+        [Ignore]
+        public CollectingCardCategory Sport
+        {
+            get => (CollectingCardCategory)SportValue;
+            set => SportValue = (int)value;
+        }
         public string Parallel { get; set; } = string.Empty;
         public string Subset { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
@@ -191,8 +220,8 @@ namespace CollectIQ.Models
         [Ignore]
         public Team Team
         {
-            get => SafeDeserialize<Team>(PlayerJson) ?? new Team();
-            set => PlayerJson = SafeSerialize(value);
+            get => SafeDeserialize<Team>(TeamJson) ?? new Team();
+            set => TeamJson = SafeSerialize(value);
         }
 
         [Ignore]

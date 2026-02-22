@@ -714,5 +714,7 @@ namespace CollectIQ.Services
         public string EBAY_CLIENT_ID { get; set; } = string.Empty;
         public string EBAY_CLIENT_SECRET { get; set; } = string.Empty;
         public string EBAY_REFRESH_TOKEN { get; set; } = string.Empty;
+
+        public string SPORTS_CARDSPRO_TOKEN { get; set; } = string.Empty;
     }
 }
