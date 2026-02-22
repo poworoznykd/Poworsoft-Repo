@@ -237,7 +237,7 @@
                                 <!-- LINE 1: PLAYER NAME -->
                                 <Label Grid.Row="0"
                                        Grid.Column="1"
-                                       Text="{Binding Name}"
+                                       Text="{Binding DisplayName}"
                                        FontSize="16"
                                        FontAttributes="Bold"
                                        TextColor="#F2F6FF"
@@ -290,9 +290,9 @@
                                        MaxLines="1">
                                     <Label.FormattedText>
                                         <FormattedString>
-                                            <Span Text="{Binding Team}" />
+                                            <Span Text="{Binding TeamName}" />
                                             <Span Text=" · " />
-                                            <Span Text="{Binding Sport}" />
+                                            <Span Text="{Binding SportName}" />
                                             <Span Text=" · " />
                                             <Span Text="{Binding Year}" />
                                         </FormattedString>

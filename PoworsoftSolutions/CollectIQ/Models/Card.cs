@@ -15,7 +15,6 @@
 *     the estimated value label) update automatically when properties change.
 */
 
-using CollectIQ.Services;
 using SQLite;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -117,8 +116,25 @@ namespace CollectIQ.Models
         [Indexed]
         public string CollectionId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Primary display title for the card.
+        /// IMPORTANT: some pages historically bind to SelectedCard.Name.
+        /// Title is the real stored field; Name is an alias (see below).
+        /// </summary>
         [Indexed]
         public string Title { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Alias for Title.
+        /// Keeping this prevents blank UI when older XAML still references "Name".
+        /// Not persisted as a separate column.
+        /// </summary>
+        [Ignore]
+        public string Name
+        {
+            get => Title;
+            set => Title = value ?? string.Empty;
+        }
 
         public int? Year { get; set; }
         public string Set { get; set; } = string.Empty;
@@ -172,60 +188,23 @@ namespace CollectIQ.Models
         /// </summary>
         public string BackOverlayImagePath { get; set; } = string.Empty;
         // --- Advanced fields ---
-        // IMPORTANT:
-        // Older database rows may have Sport stored as TEXT (including empty strings).
-        // SQLite-net will attempt Enum.Parse when mapping to an enum and will THROW on empty values.
-        // To keep backwards compatibility and stop collection load from crashing, we persist sport
-        // as TEXT and expose an enum wrapper for the UI.
+        // IMPORTANT (SQLite enum safety)
+        // --------------------------
+        // SQLite-net can persist enums as TEXT in some configurations and then uses Enum.Parse(...) when reading.
+        // If an older row contains an empty string (""), Enum.Parse throws:
+        //   "Must specify valid information for parsing in the string"
+        // To permanently prevent this, we store the enum as an INT column and expose the enum via an [Ignore] wrapper.
+        public int SportValue { get; set; } = 0;
 
-        /// <summary>
-        /// Raw persisted sport value (TEXT). Example: "NFL", "NHL", "Pokemon", etc.
-        /// </summary>
-        public string Sport { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Strongly-typed convenience wrapper for UI and parsing logic.
-        /// </summary>
         [Ignore]
-        public CollectingCardCategory SportEnum
+        public CollectingCardCategory Sport
         {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(Sport))
-                {
-                    return CollectingCardCategory.Other;
-                }
-
-                if (Enum.TryParse(Sport, true, out CollectingCardCategory parsed))
-                {
-                    return parsed;
-                }
-
-                return CollectingCardCategory.Other;
-            }
-            set
-            {
-                Sport = value.ToString();
-            }
+            get => (CollectingCardCategory)SportValue;
+            set => SportValue = (int)value;
         }
         public string Parallel { get; set; } = string.Empty;
         public string Subset { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
-
-        // ============================================================
-        //  SOURCE / QUERY (helps Insights)
-        // ============================================================
-
-        /// <summary>
-        /// The original title from the source listing / scan result.
-        /// </summary>
-        public string SourceTitle { get; set; } = string.Empty;
-
-        /// <summary>
-        /// The last query used for comps/insights for this card.
-        /// If empty, the UI should build a query from the edited form fields.
-        /// </summary>
-        public string InsightsQuery { get; set; } = string.Empty;
 
         // ============================================================
         //   COMPOSITION PROPERTIES (IGNORED BY SQLITE)
@@ -258,6 +237,47 @@ namespace CollectIQ.Models
             get => SafeDeserialize<HighlightReel>(HighlightJson) ?? new HighlightReel();
             set => HighlightJson = SafeSerialize(value);
         }
+
+        // ============================================================
+        //   DISPLAY / UI CONVENIENCE PROPERTIES (NOT STORED IN SQLITE)
+        // ============================================================
+
+        /// <summary>
+        /// Primary line used in CollectionPage list items.
+        /// Prefer extracted player name; fall back to the original title.
+        /// </summary>
+        [Ignore]
+        public string DisplayName
+        {
+            get
+            {
+                string player = Player?.FullName ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(player))
+                {
+                    return player.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(Title))
+                {
+                    return Title.Trim();
+                }
+
+                return "(Untitled Card)";
+            }
+        }
+
+        /// <summary>
+        /// Display-friendly team name for list bindings.
+        /// </summary>
+        [Ignore]
+        public string TeamName => Team?.Name ?? string.Empty;
+
+        /// <summary>
+        /// Display-friendly sport name for list bindings.
+        /// </summary>
+        [Ignore]
+        public string SportName => Sport.ToString();
+
 
         // ============================================================
         //   JSON BACKING FIELDS (STORAGE ONLY, KEEP AS STRINGS)

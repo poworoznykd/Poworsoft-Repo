@@ -66,7 +66,7 @@ namespace CollectIQ.ViewModels
                     return CollectingCardCategory.Other;
                 }
 
-                return SelectedCard.SportEnum;
+                return SelectedCard.Sport;
             }
             set
             {
@@ -75,7 +75,7 @@ namespace CollectIQ.ViewModels
                     return;
                 }
 
-                SelectedCard.SportEnum = value;
+                SelectedCard.Sport = value;
                 OnPropertyChanged();
             }
         }
@@ -110,7 +110,7 @@ namespace CollectIQ.ViewModels
                 playerName = SelectedCard.Player.FullName.Trim();
             }
 
-            string sport = SelectedCard.SportEnum.ToString().Trim();
+            string sport = SelectedCard.Sport.ToString().Trim();
             string team = SelectedCard.Team.Name?.Trim() ?? string.Empty;
             string year = SelectedCard.Year.ToString()?.Trim() ?? string.Empty;
 
