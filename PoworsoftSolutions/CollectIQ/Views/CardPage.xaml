@@ -237,7 +237,7 @@
                                 <Entry
                                     x:Name="PlayerEntry"
                                     Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.Name}"
+                                    Text="{Binding SelectedCard.Player.FullName}"
                                     Grid.Row="0"
                                     Grid.Column="1"
                                     FontSize="13"
@@ -310,7 +310,7 @@
                                 <Entry
                                     x:Name="TeamEntry"
                                     Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.Team}"
+                                    Text="{Binding SelectedCard.Team.Name}"
                                     Grid.Row="4"
                                     Grid.Column="1"
                                     FontSize="13"
@@ -328,7 +328,7 @@
                                 <Entry
                                     x:Name="GradeCoEntry"
                                     Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.GradeCompany}"   
+                                    Text="{Binding SelectedCard.Grading.Company}"   
                                     Grid.Row="5"
                                     Grid.Column="1"
                                     FontSize="13"
@@ -346,7 +346,7 @@
                                 <Entry
                                     x:Name="GradeEntry"
                                     Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.Grade}"
+                                    Text="{Binding SelectedCard.Grading.Grade}"
                                     Grid.Row="6"
                                     Grid.Column="1"
                                     FontSize="13"
@@ -380,16 +380,15 @@
                                     Text="Sport"
                                     TextColor="#A0AEC0"
                                     FontSize="12" />
-                                <Entry
-                                    x:Name="SportEntry"
-                                    Style="{StaticResource AuroraEntry_Blue}"
-                                     Text="{Binding SelectedCard.Sport}"
+                                <Picker
+                                    x:Name="SportPicker"
                                     Grid.Row="8"
                                     Grid.Column="1"
                                     FontSize="13"
-                                    Keyboard="Numeric"
                                     TextColor="#E2E8F0"
-                                    Placeholder="e.g. Football, Basketball, Pokémon" />
+                                    Title="Sport"
+                                    ItemsSource="{Binding SportOptions}"
+                                    SelectedItem="{Binding SelectedSport}" />
                             </Grid>
                         </VerticalStackLayout>
                     </Border>
@@ -421,6 +420,7 @@
                                     Grid.Column="0"
                                     x:Name="EbayQueryEntry"
                                     Placeholder="Search phrase for this card…"
+                                    Text="{Binding SelectedCard.InsightsQuery}"
                                     FontSize="13"
                                     TextColor="#E2E8F0"
                                     HorizontalOptions="FillAndExpand" />    
@@ -435,6 +435,16 @@
                                     HorizontalOptions="End"
                                     MinimumWidthRequest="120" />
                             </Grid>
+
+                            <Label
+                                Text="Source title:"
+                                FontSize="11"
+                                TextColor="#94A3B8" />
+                            <Label
+                                Text="{Binding SelectedCard.SourceTitle}"
+                                FontSize="11"
+                                TextColor="#CBD5E1"
+                                LineBreakMode="TailTruncation" />
 
 
                             <!-- Status / helper text -->

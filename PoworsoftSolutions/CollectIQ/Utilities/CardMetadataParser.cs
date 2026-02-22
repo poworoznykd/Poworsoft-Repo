@@ -411,7 +411,7 @@ namespace CollectIQ.Utilities
             // Sports/Pokemon flag (best-effort)
             if (PokemonCardsFound(title, desc))
             {
-                card.Sport = CollectingCardCategory.Pokemon;
+                card.Sport = CollectingCardCategory.Pokemon.ToString();
             }
 
             return card;

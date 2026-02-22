@@ -1,51 +1,38 @@
-//
-//  FILE            : CardPageViewModel.cs
-//  PROJECT         : CollectIQ (Mobile Application)
-//  PROGRAMMER      : Darryl Poworoznyk
-//  DESCRIPTION     :
-//      ViewModel for CardPage.
-//      - Exposes the selected Card.
-//      - Builds a clean subtitle for the page header.
-//      - Builds a YouTube search query for a highlight reel.
-//
-
+﻿using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Services;
 using System;
 using System.Collections.Generic;
+using System.Formats.Tar;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using static CollectIQ.Enums.Enums;
 
 namespace CollectIQ.ViewModels
 {
     public class CardPageViewModel : BaseViewModel
     {
         private string cardSubTitle;
-
         public string CardSubTitle
         {
             get { return cardSubTitle; }
             private set
             {
-                if (cardSubTitle == value)
-                {
-                    return;
-                }
-
+                if (cardSubTitle == value) return;
                 cardSubTitle = value;
                 OnPropertyChanged();
             }
         }
 
         private Card selectedCard;
-
         public Card SelectedCard
         {
             get { return selectedCard; }
             private set
             {
-                if (selectedCard == value)
-                {
-                    return;
-                }
-
+                if (selectedCard == value) return;
                 selectedCard = value;
                 OnPropertyChanged();
             }
@@ -53,44 +40,57 @@ namespace CollectIQ.ViewModels
 
         public CardPageViewModel(Card card)
         {
-            SelectedCard = card;
-            CardSubTitle = BuildSubtitle(card);
-        }
-
-        // ----------------------------------------------------------
-        //  PRIVATE HELPERS
-        // ----------------------------------------------------------
-
-        private static string BuildSubtitle(Card card)
-        {
-            if (card == null)
-            {
-                return string.Empty;
-            }
-
-            // Team is a composed object (TeamJson backing field), so always use Team.Name.
-            string year = card.Year?.ToString() ?? string.Empty;
+            this.selectedCard = card;
             string team = card.Team?.Name ?? string.Empty;
             string set = card.Set ?? string.Empty;
+            string year = card.Year > 0 ? card.Year.ToString() : string.Empty;
             string number = card.Number ?? string.Empty;
-
-            string raw = $"{year}  {team}  {set}  #{number}";
-            return raw.Replace("  ", " ").Trim();
+            cardSubTitle = $"{year} - {team} - {set} - #{number}".Trim(' ', '-');
         }
 
-        // ----------------------------------------------------------
-        //  PUBLIC METHODS
-        // ----------------------------------------------------------
+        // ============================================================
+        //  SPORT PICKER SUPPORT
+        // ============================================================
+
+        public List<CollectingCardCategory> SportOptions { get; } =
+            Enum.GetValues(typeof(CollectingCardCategory))
+                .Cast<CollectingCardCategory>()
+                .ToList();
+
+        public CollectingCardCategory SelectedSport
+        {
+            get
+            {
+                if (SelectedCard == null)
+                {
+                    return CollectingCardCategory.Other;
+                }
+
+                return SelectedCard.SportEnum;
+            }
+            set
+            {
+                if (SelectedCard == null)
+                {
+                    return;
+                }
+
+                SelectedCard.SportEnum = value;
+                OnPropertyChanged();
+            }
+        }
 
         /*
-        * FUNCTION     : BuildHighlightSearchQuery
-        * DESCRIPTION  :
-        *     Builds a YouTube search query for this card's highlight reel.
-        *     - Sports cards: bias toward game highlights.
-        *     - Pokémon: bias toward TCG / character content.
-        * RETURNS      :
-        *     string - Query string suitable for YouTube search.
-        */
+       * FUNCTION     : BuildHighlightSearchQuery
+       * DESCRIPTION  :
+       *     Builds a YouTube search query for this card's highlight reel.
+       *     - For sports cards, we bias toward game highlights.
+       *     - For Pokémon, we bias toward TCG / character highlights.
+       * PARAMETERS   :
+       *     none
+       * RETURNS      :
+       *     string  - query string suitable for YouTube search.
+       */
         public string BuildHighlightSearchQuery()
         {
             if (SelectedCard == null)
@@ -98,23 +98,27 @@ namespace CollectIQ.ViewModels
                 return string.Empty;
             }
 
-            string playerName = SelectedCard.Player?.FullName?.Trim() ?? string.Empty;
-
-            // Fallback: the listing/title usually contains the player name.
-            if (string.IsNullOrWhiteSpace(playerName))
+            // Prefer Player.FullName, fall back to card.Name
+            string playerName = string.Empty;
+            if (SelectedCard.Player != null &&
+                !string.IsNullOrWhiteSpace(SelectedCard.Player.FullName))
             {
-                playerName = (SelectedCard.Title ?? string.Empty).Trim();
+                playerName = SelectedCard.Player.FullName.Trim();
+            }
+            else if (!string.IsNullOrWhiteSpace(SelectedCard.Player.FullName))
+            {
+                playerName = SelectedCard.Player.FullName.Trim();
             }
 
-            string sport = SelectedCard.Sport.ToString()?.Trim() ?? string.Empty;
-            string team = SelectedCard.Team?.Name?.Trim() ?? string.Empty;
-            string year = SelectedCard.Year?.ToString()?.Trim() ?? string.Empty;
+            string sport = SelectedCard.SportEnum.ToString().Trim();
+            string team = SelectedCard.Team.Name?.Trim() ?? string.Empty;
+            string year = SelectedCard.Year.ToString()?.Trim() ?? string.Empty;
 
             bool isPokemon =
                 sport.Contains("pokemon", StringComparison.OrdinalIgnoreCase) ||
                 playerName.Contains("pokemon", StringComparison.OrdinalIgnoreCase);
 
-            List<string> parts = new List<string>();
+            var parts = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(playerName))
             {
@@ -126,7 +130,8 @@ namespace CollectIQ.ViewModels
                 parts.Add(year);
             }
 
-            if (!string.IsNullOrWhiteSpace(team) && !isPokemon)
+            if (!string.IsNullOrWhiteSpace(team) &&
+                !isPokemon) // teams usually don’t matter for Pokémon
             {
                 parts.Add(team);
             }
@@ -136,10 +141,11 @@ namespace CollectIQ.ViewModels
                 parts.Add(sport);
             }
 
-            string baseQuery = string.Join(" ", parts).Trim();
+            string baseQuery = string.Join(" ", parts);
 
             if (isPokemon)
             {
+                // Pokémon bias – character + TCG + highlight gameplay
                 if (!baseQuery.Contains("pokemon", StringComparison.OrdinalIgnoreCase))
                 {
                     baseQuery += " Pokémon";
@@ -149,6 +155,7 @@ namespace CollectIQ.ViewModels
             }
             else
             {
+                // Sports bias – actual highlight reel, not someone’s vlog
                 if (!baseQuery.Contains("highlight", StringComparison.OrdinalIgnoreCase))
                 {
                     baseQuery += " highlight reel";
@@ -159,5 +166,7 @@ namespace CollectIQ.ViewModels
 
             return baseQuery.Trim();
         }
+
+
     }
 }
