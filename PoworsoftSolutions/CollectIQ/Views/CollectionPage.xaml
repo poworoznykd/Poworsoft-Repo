@@ -7,14 +7,13 @@
 * DESCRIPTION:
 *     Displays the user's sports card collection with swipe actions,
 *     dynamic scrolling, and a bottom-anchored Add Card button.
-*     Follows SET coding standards and Aurora Blue UI theme.
+*     Includes compact search + filter controls that do NOT consume
+*     much screen real estate (Aurora Blue theme).
 *
-* UI UPDATE (NO FUNCTIONALITY CHANGES):
-*     Header rebuilt to match your 2nd reference image:
-*       - Compact "My Collection" + stats row
-*       - Export buttons grouped bottom-left
-*       - Add button as a clean square action on the right
-*     All x:Names, bindings, and click handlers are preserved.
+* NOTES:
+*     - All original x:Names and click handlers are preserved.
+*     - Search/filter UI is embedded in the header card so the list
+*       still dominates the screen.
 -->
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -24,11 +23,6 @@
              Title="My Collection"
              BackgroundColor="#050814">
 
-    <!-- 4 rows:
-         0 = top mode toggle bar
-         1 = header panel (compact, reference-style)
-         2 = collection list
-         3 = gradient footer + bottom nav -->
     <Grid RowDefinitions="Auto,Auto,*,Auto"
           Padding="0">
 
@@ -37,7 +31,7 @@
             Grid.Row="0"
             Margin="0,0,0,4" />
 
-        <!-- HEADER PANEL (MATCHES YOUR 2ND IMAGE LAYOUT) -->
+        <!-- HEADER PANEL -->
         <Grid Grid.Row="1"
               Padding="16,10,16,0">
 
@@ -45,12 +39,12 @@
                     Padding="12,10">
 
                 <!-- 2 columns:
-                     Left = title/stats/exports
+                     Left = title/stats/search/filters/exports
                      Right = add button -->
                 <Grid ColumnDefinitions="*,Auto"
                       ColumnSpacing="12"
-                      RowDefinitions="Auto,Auto,Auto"
-                      RowSpacing="6">
+                      RowDefinitions="Auto,Auto,Auto,Auto"
+                      RowSpacing="8">
 
                     <!-- Title -->
                     <Label Grid.Row="0"
@@ -62,7 +56,7 @@
                            LineBreakMode="TailTruncation"
                            MaxLines="1" />
 
-                    <!-- Keep existing subtitle label (just hide it to match your reference) -->
+                    <!-- Keep existing subtitle label (hidden to match reference) -->
                     <Label Grid.Row="0"
                            Grid.Column="0"
                            x:Name="CollectionSubtitleLabel"
@@ -71,32 +65,7 @@
                            TextColor="#A0AEC0"
                            IsVisible="False" />
 
-                    <!-- Add button on right (clean square like your reference) -->
-                    <Border Grid.Row="0"
-                            Grid.RowSpan="3"
-                            Grid.Column="1"
-                            Stroke="#7CF9FF"
-                            StrokeThickness="1.5"
-                            BackgroundColor="#142334"
-                            StrokeShape="RoundRectangle 16"
-                            Padding="0"
-                            VerticalOptions="Center"
-                            HorizontalOptions="End">
-
-                        <!-- SAME HANDLER, SAME IMAGE SOURCE -->
-                        <Button Style="{StaticResource AuroraNeonRoundIconButton}"
-                                ImageSource="add_icon.png"
-                                BackgroundColor="Transparent"
-                                BorderWidth="0"
-                                HeightRequest="56"
-                                WidthRequest="56"
-                                CornerRadius="16"
-                                Padding="0"
-                                Margin="0"
-                                Clicked="OnAddCardClicked" />
-                    </Border>
-
-                    <!-- Stats row (like your reference: "20 Cards" + "Est. Total Value: $...") -->
+                    <!-- Stats row -->
                     <Grid Grid.Row="1"
                           Grid.Column="0"
                           ColumnDefinitions="Auto,Auto,*"
@@ -128,8 +97,141 @@
                                MaxLines="1" />
                     </Grid>
 
-                    <!-- Export buttons (bottom-left cluster like your reference) -->
-                    <HorizontalStackLayout Grid.Row="2"
+                    <!-- SEARCH + FILTER TOGGLE (compact) -->
+                    <Grid Grid.Row="2"
+                          Grid.Column="0"
+                          RowDefinitions="Auto,Auto,Auto"
+                          ColumnDefinitions="*,Auto"
+                          ColumnSpacing="10"
+                          RowSpacing="6">
+
+                        <!-- Search bar -->
+                        <Border Grid.Row="0"
+                                Grid.Column="0"
+                                Stroke="#1F2A44"
+                                StrokeThickness="1"
+                                BackgroundColor="#0E1726"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="10,6">
+                            <SearchBar x:Name="CollectionSearchBar"
+                                       Placeholder="Search (player, title, set, team...)"
+                                       PlaceholderColor="#5E7A92"
+                                       TextColor="#E2E8F0"
+                                       BackgroundColor="Transparent"
+                                       FontSize="12"
+                                       HeightRequest="26"
+                                       TextChanged="OnSearchTextChanged" />
+                        </Border>
+
+                        <!-- Filter toggle button -->
+                        <Border Grid.Row="0"
+                                Grid.Column="1"
+                                Stroke="#00E5FF"
+                                StrokeThickness="1.5"
+                                BackgroundColor="#16283A"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="0"
+                                VerticalOptions="Center">
+                            <Button x:Name="FilterToggleButton"
+                                    Text="Filter"
+                                    Style="{StaticResource AuroraNeonButton}"
+                                    BackgroundColor="Transparent"
+                                    BorderWidth="0"
+                                    HeightRequest="26"
+                                    FontSize="11"
+                                    Padding="14,6"
+                                    Clicked="OnToggleFilterPanelClicked" />
+                        </Border>
+
+                        <!-- Active filters label -->
+                        <Label x:Name="ActiveFiltersLabel"
+                               Grid.Row="1"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               Text=""
+                               FontSize="11"
+                               TextColor="#94A3B8"
+                               LineBreakMode="TailTruncation"
+                               MaxLines="1"
+                               Margin="2,0,0,0" />
+
+                        <!-- Collapsible filter panel -->
+                        <Border x:Name="FilterPanelBorder"
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="2"
+                                IsVisible="False"
+                                Stroke="#1F2A44"
+                                StrokeThickness="1"
+                                BackgroundColor="#0E1726"
+                                StrokeShape="RoundRectangle 18"
+                                Padding="10"
+                                Margin="0,2,0,0">
+
+                            <VerticalStackLayout Spacing="10">
+
+                                <!-- Compact pickers -->
+                                <Grid ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="10"
+                                      RowDefinitions="Auto,Auto,Auto"
+                                      RowSpacing="8">
+
+                                    <Label Grid.Row="0" Grid.Column="0"
+                                           Text="Sport"
+                                           FontSize="11"
+                                           TextColor="#A0AEC0"
+                                           VerticalOptions="Center" />
+                                    <Picker x:Name="SportPicker"
+                                            Grid.Row="0" Grid.Column="1"
+                                            Title="Any"
+                                            TextColor="#E2E8F0"
+                                            BackgroundColor="Transparent"
+                                            SelectedIndexChanged="OnFilterChanged" />
+
+                                    <Label Grid.Row="1" Grid.Column="0"
+                                           Text="Team"
+                                           FontSize="11"
+                                           TextColor="#A0AEC0"
+                                           VerticalOptions="Center" />
+                                    <Picker x:Name="TeamPicker"
+                                            Grid.Row="1" Grid.Column="1"
+                                            Title="Any"
+                                            TextColor="#E2E8F0"
+                                            BackgroundColor="Transparent"
+                                            SelectedIndexChanged="OnFilterChanged" />
+
+                                    <Label Grid.Row="2" Grid.Column="0"
+                                           Text="Set"
+                                           FontSize="11"
+                                           TextColor="#A0AEC0"
+                                           VerticalOptions="Center" />
+                                    <Picker x:Name="SetPicker"
+                                            Grid.Row="2" Grid.Column="1"
+                                            Title="Any"
+                                            TextColor="#E2E8F0"
+                                            BackgroundColor="Transparent"
+                                            SelectedIndexChanged="OnFilterChanged" />
+                                </Grid>
+
+                                <!-- Clear filters -->
+                                <HorizontalStackLayout Spacing="10"
+                                                       HorizontalOptions="End">
+                                    <Button Text="Clear"
+                                            FontSize="11"
+                                            TextColor="#E2E8F0"
+                                            BackgroundColor="#142334"
+                                            CornerRadius="14"
+                                            Padding="14,8"
+                                            Clicked="OnClearFiltersClicked" />
+                                </HorizontalStackLayout>
+
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </Grid>
+
+                    <!-- Export buttons -->
+                    <HorizontalStackLayout Grid.Row="3"
                                            Grid.Column="0"
                                            Spacing="10"
                                            HorizontalOptions="Start"
@@ -144,7 +246,7 @@
                                     Style="{StaticResource AuroraNeonButton}"
                                     BackgroundColor="Transparent"
                                     BorderWidth="0"
-                                    HeightRequest="36"
+                                    HeightRequest="26"
                                     FontSize="11"
                                     Padding="14,6"
                                     Clicked="OnExportExcelClicked" />
@@ -159,10 +261,32 @@
                                     Style="{StaticResource AuroraNeonButton}"
                                     BackgroundColor="Transparent"
                                     BorderWidth="0"
-                                    HeightRequest="36"
+                                    HeightRequest="26"
                                     FontSize="11"
                                     Padding="14,6"
                                     Clicked="OnExportPdfClicked" />
+                        </Border>
+
+                        <!-- Add button on right -->
+                        <Border 
+                            Stroke="#7CF9FF"
+                            StrokeThickness="1.5"
+                            BackgroundColor="#142334"
+                            StrokeShape="RoundRectangle 16"
+                            Padding="0"
+                            VerticalOptions="Center"
+                            HorizontalOptions="End">
+
+                            <Button Style="{StaticResource AuroraNeonRoundIconButton}"
+                                ImageSource="add_icon.png"
+                                BackgroundColor="Transparent"
+                                BorderWidth="0"
+                                HeightRequest="26"
+                                WidthRequest="26"
+                                CornerRadius="16"
+                                Padding="0"
+                                Margin="0"
+                                Clicked="OnAddCardClicked" />
                         </Border>
 
                     </HorizontalStackLayout>
@@ -190,6 +314,7 @@
                        Margin="24,40,24,0" />
             </CollectionView.EmptyView>
 
+            <!-- ITEM TEMPLATE (UNCHANGED) -->
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <SwipeView>
@@ -323,7 +448,7 @@
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- Gradient footer + nav bar for smoother transition -->
+        <!-- Gradient footer + nav bar -->
         <Grid Grid.Row="3"
               HeightRequest="90">
             <Grid.Background>
