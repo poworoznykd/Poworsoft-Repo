@@ -294,5 +294,10 @@ namespace CollectIQ.Services
                 return 0;
             }
         }
+
+        public Task<bool> UserExistsAsync(string email)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

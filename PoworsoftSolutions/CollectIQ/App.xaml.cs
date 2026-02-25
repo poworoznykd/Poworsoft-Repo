@@ -34,7 +34,8 @@ namespace CollectIQ
         public App()
         {
             InitializeComponent();
-            SecureStorage.RemoveAll();
+            // Do NOT wipe SecureStorage at startup; this breaks persisted login.
+            // SecureStorage.RemoveAll();
             // Initialize authentication and database service
             _authService = new LocalAuthService(Database);
 

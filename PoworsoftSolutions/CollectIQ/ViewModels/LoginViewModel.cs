@@ -9,9 +9,11 @@
 
 using Android.Content.Res;
 using CollectIQ.Domain.Enums;
+using CollectIQ.Enums;
 using CollectIQ.Interfaces;
 using CollectIQ.Views;
 using Microsoft.Maui.Controls;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -42,6 +44,9 @@ namespace CollectIQ.ViewModels.Auth
 
             LoginCommand = new Command(async () => await LoginAsync());
             RegisterCommand = new Command(async () => await RegisterAsync());
+            GoogleLoginCommand = new Command(async () => await ProviderLoginAsync(AuthProvider.Google));
+            FacebookLoginCommand = new Command(async () => await ProviderLoginAsync(AuthProvider.Facebook));
+            GuestLoginCommand = new Command(async () => await GuestLoginAsync());
             TogglePasswordVisibilityCommand = new Command(TogglePasswordVisibility);
             PasswordEyeIcon = "eye_closed.png";
         }
@@ -137,6 +142,9 @@ namespace CollectIQ.ViewModels.Auth
 
         public ICommand LoginCommand { get; }
         public ICommand RegisterCommand { get; }
+        public ICommand GoogleLoginCommand { get; }
+        public ICommand FacebookLoginCommand { get; }
+        public ICommand GuestLoginCommand { get; }
         public ICommand TogglePasswordVisibilityCommand { get; }
 
         private async Task RegisterAsync()
@@ -191,6 +199,58 @@ namespace CollectIQ.ViewModels.Auth
                 await Shell.Current.GoToAsync("///DashboardPage");
             });
 
+        }
+
+        private async Task ProviderLoginAsync(AuthProvider provider)
+        {
+            try
+            {
+                Message = string.Empty;
+
+                bool ok = await authService.SignInWithProviderAsync(provider);
+                if (!ok)
+                {
+                    Message = $"{provider} sign-in is not configured yet.";
+                    return;
+                }
+
+                Application.Current.MainPage = new AppShell();
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync("///DashboardPage");
+                });
+            }
+            catch (Exception ex)
+            {
+                Message = ex.Message;
+            }
+        }
+
+        private async Task GuestLoginAsync()
+        {
+            try
+            {
+                Message = string.Empty;
+
+                bool ok = await authService.SignInGuestAsync();
+                if (!ok)
+                {
+                    Message = "Unable to sign in as guest.";
+                    return;
+                }
+
+                Application.Current.MainPage = new AppShell();
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync("///DashboardPage");
+                });
+            }
+            catch (Exception ex)
+            {
+                Message = ex.Message;
+            }
         }
 
         private void TogglePasswordVisibility()

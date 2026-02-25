@@ -17,13 +17,14 @@
 *       into a CollectionViewModel with an ObservableCollection.
 */
 
+using CollectIQ.Interfaces;
+using CollectIQ.Models;
+using CollectIQ.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using CollectIQ.Interfaces;
-using CollectIQ.Models;
 
 namespace CollectIQ.Views
 {
@@ -358,70 +359,136 @@ namespace CollectIQ.Views
 
         private async void OnExportExcelClicked(object sender, EventArgs e)
         {
-            await TryRunExporterAsync("ExportToExcelAsync");
-        }
-
-        private async void OnExportPdfClicked(object sender, EventArgs e)
-        {
-            await TryRunExporterAsync("ExportToPdfAsync");
-        }
-
-        private async Task TryRunExporterAsync(string methodName)
-        {
             try
             {
-                // Pull the currently visible list (filtered) if present.
-                List<Card> visibleCards = CardsCollectionView.ItemsSource as List<Card>
-                    ?? (CardsCollectionView.ItemsSource as IEnumerable<Card>)?.ToList()
-                    ?? allCards.ToList();
+                IEnumerable<Card> Cards = CardsCollectionView.ItemsSource as List<Card>
+                   ?? (CardsCollectionView.ItemsSource as IEnumerable<Card>)?.ToList()
+                   ?? allCards.ToList();
 
-                // Use reflection so this file does NOT require a compile-time reference
-                // to CollectionExporter (keeps this page stable across refactors).
-                Type? exporterType = Type.GetType("CollectIQ.Services.CollectionExporter, CollectIQ");
-                if (exporterType == null)
+                if (Cards == null)
                 {
-                    await DisplayAlert("Export", "Exporter not available in this build yet.", "OK");
+                    await DisplayAlert("Export", "No cards to export yet.", "OK");
                     return;
                 }
 
-                object? exporter = Activator.CreateInstance(exporterType);
-                MethodInfo? method = exporterType.GetMethod(methodName);
+                await DisplayAlert(
+                    "Export",
+                    "CollectIQ is preparing your Excel package in the background.\n\n" +
+                    "You can keep using the app – you'll be asked where to share it " +
+                    "as soon as it's ready.",
+                    "OK");
 
-                if (method == null)
-                {
-                    await DisplayAlert("Export", "Exporter method not available in this build yet.", "OK");
-                    return;
-                }
-
-                object? resultObj = method.Invoke(exporter, new object[] { visibleCards });
-                if (resultObj is Task task)
-                {
-                    await task;
-
-                    // If the exporter returns an object with a Message property, show it.
-                    PropertyInfo? messageProp = task.GetType().GetProperty("Result")?.PropertyType.GetProperty("Message");
-                    object? result = task.GetType().GetProperty("Result")?.GetValue(task);
-
-                    if (result != null && messageProp != null)
-                    {
-                        string? msg = messageProp.GetValue(result) as string;
-                        if (!string.IsNullOrWhiteSpace(msg))
-                        {
-                            await DisplayAlert("Export", msg, "OK");
-                            return;
-                        }
-                    }
-
-                    await DisplayAlert("Export", "Export completed.", "OK");
-                    return;
-                }
-
-                await DisplayAlert("Export", "Export not available in this build yet.", "OK");
+                _ = RunExcelExportAndShareAsync();
             }
             catch (Exception ex)
             {
                 await DisplayAlert("Export Error", ex.Message, "OK");
             }
+        }
+
+        private async Task RunExcelExportAndShareAsync()
+        {
+            try
+            {
+                var exportPath = await ExcelCollectionExportService.ExportAsync(
+                      CardsCollectionView.ItemsSource as List<Card>
+                    ?? (CardsCollectionView.ItemsSource as IEnumerable<Card>)?.ToList()
+                    ?? allCards.ToList(),
+                    FileSystem.CacheDirectory);
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Share.Default.RequestAsync(new ShareFileRequest
+                    {
+                        Title = "Export Collection (Excel)",
+                        File = new ShareFile(exportPath)
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Export Error", ex.Message, "OK");
+                });
+            }
+        }
+
+        private async void OnExportPdfClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                IEnumerable<Card> Cards = CardsCollectionView.ItemsSource as List<Card>
+                    ?? (CardsCollectionView.ItemsSource as IEnumerable<Card>)?.ToList()
+                    ?? allCards.ToList();
+                if (Cards == null )
+                {
+                    await DisplayAlert("Export", "No cards to export yet.", "OK");
+                    return;
+                }
+
+                // Ask whether to include images
+                bool includeImages = await DisplayAlert(
+                    "PDF Export",
+                    "Include images in the PDF?\n\nYes = larger/slower\nNo = smaller/faster",
+                    "Yes",
+                    "No");
+
+                await DisplayAlert(
+                    "Export",
+                    "CollectIQ is preparing your PDF in the background.\n\n" +
+                    "You can keep using the app – you'll be asked where to share it " +
+                    "as soon as it's ready.",
+                    "OK");
+
+                _ = RunPdfExportAndShareAsync(includeImages);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Export Error", ex.Message, "OK");
+            }
+        }
+
+        private async Task RunPdfExportAndShareAsync(bool includeImages)
+        {
+            try
+            {
+              
+                var exportPath = await PdfCollectionExportService.ExportAsync(
+                      CardsCollectionView.ItemsSource as List<Card>
+                    ?? (CardsCollectionView.ItemsSource as IEnumerable<Card>)?.ToList()
+                    ?? allCards.ToList(),
+                    FileSystem.CacheDirectory,
+                    includeImages);
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Share.Default.RequestAsync(new ShareFileRequest
+                    {
+                        Title = "Export Collection (PDF)",
+                        File = new ShareFile(exportPath)
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Export Error", ex.Message, "OK");
+                });
+            }
+        }
+
+        private static string EscapeCsv(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            bool mustQuote = value.Contains(',') || value.Contains('"') || value.Contains('\n');
+            string escaped = value.Replace("\"", "\"\"");
+            return mustQuote ? $"\"{escaped}\"" : escaped;
         }
 
         // ============================================================

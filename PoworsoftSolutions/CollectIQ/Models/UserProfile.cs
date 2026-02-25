@@ -7,6 +7,7 @@ namespace CollectIQ.Models
     /// </summary>
     public sealed class UserProfile : BaseModel
     {
+        public DateTime? LastLoginUtc { get; set; }
         // --- Authorization Role ---
         public string Role { get; set; } = "Admin";
 

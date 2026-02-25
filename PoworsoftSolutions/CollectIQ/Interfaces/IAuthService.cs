@@ -9,6 +9,8 @@
 //      login, sign-out, and user session verification.
 //
 using System.Threading.Tasks;
+using CollectIQ.Enums;
+using CollectIQ.Models;
 
 namespace CollectIQ.Interfaces
 {
@@ -22,5 +24,25 @@ namespace CollectIQ.Interfaces
         Task<bool> SignOutAsync();
         Task<bool> IsSignedInAsync();
         Task<string?> GetCurrentUserEmailAsync();
+
+        // ============================================================
+        //  OPTIONAL AUTH FLOWS
+        // ============================================================
+
+        /// <summary>
+        /// Signs the user in as a guest (no password).
+        /// </summary>
+        Task<bool> SignInGuestAsync();
+
+        /// <summary>
+        /// Attempts to sign in using an OAuth provider.
+        /// NOTE: Requires platform-specific configuration.
+        /// </summary>
+        Task<bool> SignInWithProviderAsync(AuthProvider provider);
+
+        /// <summary>
+        /// Gets the current signed-in user profile (if any).
+        /// </summary>
+        Task<UserProfile?> GetCurrentUserProfileAsync();
     }
 }

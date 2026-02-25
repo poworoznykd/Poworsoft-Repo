@@ -86,6 +86,10 @@
                                 Auto,   
                                 20,
                                 Auto,   
+                                Auto,
+                                16,
+                                Auto,
+                                Auto,
                                 Auto">
                         <!-- 12 Sign In -->
 
@@ -218,6 +222,46 @@
                             Text="Sign in"
                             Command="{Binding LoginCommand}"
                             HeightRequest="50" />
+
+                        <!-- SOCIAL / GUEST -->
+                        <Label
+                            Grid.Row="14"
+                            Text="Or continue with"
+                            FontSize="13"
+                            TextColor="#B9C6D4"
+                            HorizontalOptions="Center" />
+
+                        <HorizontalStackLayout
+                            Grid.Row="15"
+                            Spacing="10"
+                            HorizontalOptions="Center">
+                            <Button
+                                Text="Google"
+                                Command="{Binding GoogleLoginCommand}"
+                                HeightRequest="44"
+                                CornerRadius="12"
+                                BackgroundColor="#1A2430"
+                                TextColor="White" />
+
+                            <Button
+                                Text="Facebook"
+                                Command="{Binding FacebookLoginCommand}"
+                                HeightRequest="44"
+                                CornerRadius="12"
+                                BackgroundColor="#1A2430"
+                                TextColor="White" />
+                        </HorizontalStackLayout>
+
+                        <Button
+                            Grid.Row="16"
+                            Text="Continue as Guest"
+                            Command="{Binding GuestLoginCommand}"
+                            HeightRequest="44"
+                            CornerRadius="12"
+                            BackgroundColor="#10141B"
+                            BorderColor="#2A3646"
+                            BorderWidth="1"
+                            TextColor="#E0F5FF" />
 
                     </Grid>
                 </Border>
