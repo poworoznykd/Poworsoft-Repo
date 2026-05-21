@@ -235,21 +235,30 @@
                             Grid.Row="15"
                             Spacing="10"
                             HorizontalOptions="Center">
-                            <Button
-                                Text="Google"
-                                Command="{Binding GoogleLoginCommand}"
-                                HeightRequest="44"
-                                CornerRadius="12"
-                                BackgroundColor="#1A2430"
-                                TextColor="White" />
+                            <ImageButton
+    Command="{Binding GoogleLoginCommand}"
+    HeightRequest="60"
+    WidthRequest="100"
+    CornerRadius="12"
+    Source="google_icon.png"
+    Aspect="AspectFit"
+    Style="{StaticResource AuroraNeonRoundIconButton}"
+    BackgroundColor="Transparent"
+    HorizontalOptions="Center"
+    VerticalOptions="Center" />
 
-                            <Button
-                                Text="Facebook"
-                                Command="{Binding FacebookLoginCommand}"
-                                HeightRequest="44"
-                                CornerRadius="12"
-                                BackgroundColor="#1A2430"
-                                TextColor="White" />
+                            <ImageButton
+    Command="{Binding FacebookLoginCommand}"
+    HeightRequest="60"
+    WidthRequest="100"
+    CornerRadius="12"
+    Source="facebook_icon.png"
+    Aspect="AspectFit"
+    Style="{StaticResource AuroraNeonRoundIconButton}"
+    BackgroundColor="Transparent"
+    HorizontalOptions="Center"
+    VerticalOptions="Center" />
+
                         </HorizontalStackLayout>
 
                         <Button

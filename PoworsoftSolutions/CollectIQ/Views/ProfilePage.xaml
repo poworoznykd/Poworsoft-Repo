@@ -297,6 +297,14 @@
                             CornerRadius="14"
                             HeightRequest="44"
                             Clicked="OnUnderConstructionClicked" />
+                        <Button
+                            Text="Logout"
+                            Style="{StaticResource AuroraNeonButton}"
+                            BackgroundColor="#2A1010"
+                            TextColor="#FFE4E6"
+                            CornerRadius="14"
+                            HeightRequest="44"
+                            Clicked="OnLogoutClicked" />    
                     </VerticalStackLayout>
                 </Border>
 

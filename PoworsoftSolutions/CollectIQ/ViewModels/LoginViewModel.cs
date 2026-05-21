@@ -203,28 +203,34 @@ namespace CollectIQ.ViewModels.Auth
 
         private async Task ProviderLoginAsync(AuthProvider provider)
         {
-            try
-            {
-                Message = string.Empty;
+            // Social login is not enabled yet (Google setup still pending).
+            await Application.Current.MainPage.DisplayAlert(
+                "Under construction",
+                "Provider sign-in is coming soon.",
+                "OK");
 
-                bool ok = await authService.SignInWithProviderAsync(provider);
-                if (!ok)
-                {
-                    Message = $"{provider} sign-in is not configured yet.";
-                    return;
-                }
+            //try
+            //{
+            //    Message = string.Empty;
 
-                Application.Current.MainPage = new AppShell();
+            //    bool ok = await authService.SignInWithProviderAsync(provider);
+            //    if (!ok)
+            //    {
+            //        Message = $"{provider} sign-in is not configured yet.";
+            //        return;
+            //    }
 
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                {
-                    await Shell.Current.GoToAsync("///DashboardPage");
-                });
-            }
-            catch (Exception ex)
-            {
-                Message = ex.Message;
-            }
+            //    Application.Current.MainPage = new AppShell();
+
+            //    await MainThread.InvokeOnMainThreadAsync(async () =>
+            //    {
+            //        await Shell.Current.GoToAsync("///DashboardPage");
+            //    });
+            //}
+            //catch (Exception ex)
+            //{
+            //    Message = ex.Message;
+            //}
         }
 
         private async Task GuestLoginAsync()

@@ -135,5 +135,17 @@ namespace CollectIQ.ViewModels
 
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        /// <summary>
+        /// Clears all ebay results and resets state.
+        /// </summary>
+        public void ClearResults()
+        {
+            Listings.Clear();
+
+            SelectedListing = null;
+
+            StatusText = "READY";
+        }
     }
 }

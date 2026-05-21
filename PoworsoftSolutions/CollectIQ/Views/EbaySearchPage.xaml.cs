@@ -342,12 +342,11 @@ namespace CollectIQ.Views
                     SetSearchingState(true, "Identifying card and retrieving listings...");
 
                     // Simple active (or other) mode: still off UI thread
-                    results = await Task.Run(async () =>
-                        await ebayService.SearchByImageAsync(
-                            lastImageBase64,
-                            limit: Math.Max(averageCountFilter, 25),
-                            listingTypeFilter: listingTypeFilter,
-                            daysRange: lookbackDays));
+                    results = await ebayService.SearchByImageAsync(
+                                lastImageBase64,
+                                limit: Math.Max(averageCountFilter, 25),
+                                listingTypeFilter: listingTypeFilter,
+                                daysRange: lookbackDays);
                 }
 
                 // Now we’re back on the UI thread – update the collection & label
@@ -474,7 +473,7 @@ namespace CollectIQ.Views
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 // Give Shell enough time to apply query params the first time
-                await Task.Delay(50);
+                //await Task.Delay(50);
 
                 if (!string.IsNullOrWhiteSpace(FrontImagePath) &&
                     File.Exists(FrontImagePath))

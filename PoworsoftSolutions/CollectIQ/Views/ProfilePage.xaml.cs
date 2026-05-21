@@ -173,5 +173,25 @@ namespace CollectIQ.Views
                 ProfileService.PersistAvatarPath(path);
             }
         }
+
+        private async void OnLogoutClicked(object sender, EventArgs e)
+        {
+            bool confirm = await DisplayAlert("Logout", "Log out of CollectIQ?", "Logout", "Cancel");
+            if (!confirm)
+            {
+                return;
+            }
+
+            // Use the same auth flow App.xaml.cs uses (LocalAuthService + App.Database)
+            var auth = new LocalAuthService(App.Database);
+            await auth.SignOutAsync();
+
+            // Bounce back to the login screen, same styling as App.OnStart()
+            Application.Current.MainPage = new NavigationPage(new AuthSheet(auth))
+            {
+                BarBackgroundColor = Color.FromArgb("#0B0B0D"),
+                BarTextColor = Color.FromArgb("#00B4FF")
+            };
+        }
     }
 }

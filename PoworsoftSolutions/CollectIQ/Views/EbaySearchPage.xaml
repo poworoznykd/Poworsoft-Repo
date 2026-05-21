@@ -32,99 +32,83 @@
             <!-- ========================= -->
             <!-- MAIN LAYOUT (ROWS)       -->
             <!-- ========================= -->
-            <!-- Goal:
-                 - KEEP functionality (names + handlers).
-                 - Bottom “command center” is one card and DOES NOT squeeze title (no side-by-side badge).
-                 - Status is a full-width ribbon so long text never ruins layout.
-                 - Tight margins/padding so nav bar stays visible. -->
             <Grid x:Name="MainLayout"
-                  RowDefinitions="*,Auto,Auto"
-                  Padding="0"
-                  RowSpacing="6">
+                  RowDefinitions="*,Auto,Auto">
+                <!-- Border for list of items-->
+                <Border Grid.Row="0"
+                 Style="{StaticResource AuroraGlassBorder}"
+                 Margin="14,0,14,0">
+                    <!-- RESULTS LIST -->
+                    <CollectionView x:Name="EbayResultsView"
+                        ItemSizingStrategy="MeasureFirstItem"
+                        ItemsUpdatingScrollMode="KeepScrollOffset"
+                        Grid.Row="0"
+                        Margin="3,10,3,0"
+                        SelectionMode="None"
+                        SelectedItem="{x:Null}"
+                        BackgroundColor="Transparent"
+                        ItemsSource="{Binding Listings}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <SwipeView SwipeStarted="SwipeView_SwipeStarted"
+                                    SwipeEnded="SwipeView_SwipeEnded">
 
-                <!-- RESULTS LIST -->
-                <CollectionView x:Name="EbayResultsView"
-                                Grid.Row="0"
-                                Margin="14,10,14,0"
-                                SelectionMode="None"
-                                SelectedItem="{x:Null}"
-                                BackgroundColor="Transparent"
-                                ItemsSource="{Binding Listings}">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <SwipeView SwipeStarted="SwipeView_SwipeStarted"
-                                       SwipeEnded="SwipeView_SwipeEnded">
+                                    <!-- Swipe actions -->
+                                    <SwipeView.RightItems>
+                                        <SwipeItems Mode="Reveal">
+                                            <!-- VIEW ON EBAY -->
+                                            <SwipeItem Text="Ebay"
+                                               BackgroundColor="#147d89"
+                                               IconImageSource="open_link_icon.png"
+                                               CommandParameter="{Binding .}"
+                                               Invoked="OnViewOnEbaySwipe" />
+                                            <!-- ADD TO COLLECTION -->
+                                            <SwipeItem Text="Add"
+                                               BackgroundColor="#14891b"
+                                               IconImageSource="add_icon.png"
+                                               CommandParameter="{Binding .}"
+                                               Invoked="OnAddToCollectionSwipe" />
+                                        </SwipeItems>
+                                    </SwipeView.RightItems>
 
-                                <!-- Swipe actions -->
-                                <SwipeView.RightItems>
-                                    <SwipeItems Mode="Reveal">
-                                        <!-- VIEW ON EBAY -->
-                                        <SwipeItem Text="Ebay"
-                                                   BackgroundColor="#147d89"
-                                                   IconImageSource="open_link_icon.png"
-                                                   CommandParameter="{Binding .}"
-                                                   Invoked="OnViewOnEbaySwipe" />
-                                        <!-- ADD TO COLLECTION -->
-                                        <SwipeItem Text="Add"
-                                                   BackgroundColor="#14891b"
-                                                   IconImageSource="add_icon.png"
-                                                   CommandParameter="{Binding .}"
-                                                   Invoked="OnAddToCollectionSwipe" />
-                                    </SwipeItems>
-                                </SwipeView.RightItems>
-
-                                <!-- RESULT CARD -->
-                                <Border Style="{StaticResource AuroraGlassBorder}"
+                                    <!-- RESULT CARD -->
+                                    <Border Style="{StaticResource AuroraGlassBorder}"
                                         Padding="10"
                                         Margin="0,6,0,6">
 
-                                    <!-- Selection glow -->
-                                    <Border.Triggers>
-                                        <DataTrigger TargetType="Border"
-                                                     Binding="{Binding IsSelected}"
-                                                     Value="True">
-                                            <Setter Property="Stroke" Value="#39FF14" />
-                                            <Setter Property="StrokeThickness" Value="2.5" />
-                                            <Setter Property="Shadow">
-                                                <Setter.Value>
-                                                    <Shadow Brush="#39FF14"
-                                                            Radius="18"
-                                                            Opacity="0.85"
-                                                            Offset="0,0" />
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
+                                        <!-- Selection glow -->
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                                <Setter Property="Stroke" Value="#39FF14" />
+                                                <Setter Property="StrokeThickness" Value="2.5" />
+                                               
+                                            </DataTrigger>
 
-                                        <DataTrigger TargetType="Border"
-                                                     Binding="{Binding IsSelected}"
-                                                     Value="False">
-                                            <Setter Property="Stroke" Value="#00B4D8" />
-                                            <Setter Property="StrokeThickness" Value="1.5" />
-                                            <Setter Property="Shadow">
-                                                <Setter.Value>
-                                                    <Shadow Brush="#00000000"
-                                                            Radius="0"
-                                                            Opacity="0"
-                                                            Offset="0,0" />
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Border.Triggers>
+                                            <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="False"> 
+                                                <Setter Property="Stroke" Value="#00B4D8" />
+                                                <Setter Property="StrokeThickness" Value="1.5" />
+                                             
+                                            </DataTrigger>
+                                        </Border.Triggers>
 
-                                    <!-- MAIN ROW -->
-                                    <Grid ColumnDefinitions="100,*,64"
+                                        <!-- MAIN ROW -->
+                                        <Grid ColumnDefinitions="100,*,64"
                                           ColumnSpacing="10"
                                           RowDefinitions="Auto,Auto,Auto">
 
-                                        <!-- Tap anywhere -->
-                                        <Grid.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Tapped="OnItemTapped"
-                                                CommandParameter="{Binding .}" />
-                                        </Grid.GestureRecognizers>
+                                            <!-- Tap anywhere -->
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Tapped="OnItemTapped"
+                                                    CommandParameter="{Binding .}" />
+                                            </Grid.GestureRecognizers>
 
-                                        <!-- IMAGE -->
-                                        <Image Grid.RowSpan="3"
+                                            <!-- IMAGE -->
+                                            <Image Grid.RowSpan="3"
                                                Source="{Binding ImageUrl}"
                                                WidthRequest="96"
                                                HeightRequest="96"
@@ -132,120 +116,90 @@
                                                VerticalOptions="Center"
                                                HorizontalOptions="Center" />
 
-                                        <!-- TITLE -->
-                                        <Label Grid.Column="1"
+                                            <!-- TITLE -->
+                                            <Label Grid.Column="1"
                                                Text="{Binding DisplayTitle}"
                                                FontSize="12"
                                                FontAttributes="Bold"
                                                TextColor="#F9FDFF"
                                                LineBreakMode="WordWrap"
-                                               MaxLines="5" />
+                                               MaxLines="2" />
 
-                                        <!-- PRICE + EST PILL -->
-                                        <VerticalStackLayout Grid.Column="1"
-                                                             Grid.Row="1"
-                                                             Spacing="2">
-                                            <Label Text="{Binding Price, StringFormat='${0:F2}'}"
+                                            <!-- PRICE + EST PILL -->
+                                            <VerticalStackLayout Grid.Column="1"
+                                             Grid.Row="1"
+                                             Spacing="2">
+                                                <Label Text="{Binding Price, StringFormat='${0:F2}'}"
                                                    FontSize="14"
                                                    FontAttributes="Bold"
-                                                   TextColor="#6CD4FF" />
+                                                   TextColor="#6CD4FF" />   
 
-                                            <Grid ColumnDefinitions="Auto,Auto"
-                                                  IsVisible="{Binding IsSelected}">
-                                                <Label Grid.Column="0"
-                                                       TextColor="AliceBlue"
-                                                       Text="Est. "
-                                                       VerticalOptions="Center"
-                                                       Margin="0,0,4,0" />
-                                                <Label Grid.Column="1"
-                                                       TextColor="AliceBlue"
-                                                       VerticalOptions="Center"
-                                                       Text="{Binding EstimatedValue, StringFormat='${0:0.00} USD'}" />
-                                            </Grid>
-                                        </VerticalStackLayout>
-
-                                        <!-- STATUS -->
-                                        <Label Grid.Column="1"
-                                               Grid.Row="2"
-                                               Text="{Binding Status}"
-                                               FontSize="12"
-                                               TextColor="#FFCB6B" />
-
-                                        <!-- INSIGHTS ICON -->
-                                        <Grid Grid.Column="2"
-                                              Grid.Row="1"
-                                              VerticalOptions="Center"
-                                              HorizontalOptions="Center">
-                                            <VerticalStackLayout Spacing="2"
-                                                                 HorizontalOptions="Center"
-                                                                 VerticalOptions="Center">
-                                                <Image Source="insights_icon.png"
-                                                       WidthRequest="30"
-                                                       HeightRequest="30">
-                                                    <Image.GestureRecognizers>
-                                                        <TapGestureRecognizer
-                                                            Tapped="OnInsightsIconTapped"
-                                                            CommandParameter="{Binding .}" />
-                                                    </Image.GestureRecognizers>
-                                                </Image>
-                                                <Label Text="Insights"
-                                                       FontSize="10"
-                                                       TextColor="#39FF14"
-                                                       HorizontalTextAlignment="Center" />
+                                                <Grid ColumnDefinitions="Auto,Auto"
+                                                    IsVisible="{Binding IsSelected}">
+                                                    <Label Grid.Column="0"
+                                       TextColor="AliceBlue"
+                                       Text="Est. "
+                                       VerticalOptions="Center"
+                                       Margin="0,0,4,0" />
+                                                    <Label Grid.Column="1"
+                                       TextColor="AliceBlue"
+                                       VerticalOptions="Center"
+                                       Text="{Binding EstimatedValue, StringFormat='${0:0.00} USD'}" />
+                                                </Grid>
                                             </VerticalStackLayout>
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-                            </SwipeView>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
 
+                                            <!-- STATUS -->
+                                            <Label Grid.Column="1"
+                               Grid.Row="2"
+                               Text="{Binding Status}"
+                               FontSize="12"
+                               TextColor="#FFCB6B" />
+
+                                            <!-- INSIGHTS ICON -->
+                                            <Grid Grid.Column="2"
+                              Grid.Row="1"
+                              VerticalOptions="Center"
+                              HorizontalOptions="Center">
+                                                <VerticalStackLayout Spacing="2"
+                                                 HorizontalOptions="Center"
+                                                 VerticalOptions="Center">
+                                                    <Image Source="insights_icon.png"
+                                       WidthRequest="30"
+                                       HeightRequest="30">
+                                                        <Image.GestureRecognizers>
+                                                            <TapGestureRecognizer
+                                            Tapped="OnInsightsIconTapped"
+                                            CommandParameter="{Binding .}" />
+                                                        </Image.GestureRecognizers>
+                                                    </Image>
+                                                    <Label Text="Insights"
+                                       FontSize="10"
+                                       TextColor="#39FF14"
+                                       HorizontalTextAlignment="Center" />
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </SwipeView>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+
+                </Border>
+                
                 <!-- ========================= -->
-                <!-- BOTTOM COMMAND CENTER     -->
+                <!-- BOTTOM COMMAND CENTER MENU   -->
                 <!-- (Hero + Status + Manual)  -->
                 <!-- ========================= -->
                 <Border Grid.Row="1"
                         Style="{StaticResource AuroraGlassBorder}"
                         Margin="14,0,14,0">
 
-                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                    <Grid RowDefinitions="Auto,Auto,Auto"
                           RowSpacing="6">
-
-                        <!-- Title / Hero (compact, no side-by-side badge to crush layout) -->
-                        <Grid Grid.Row="0"
-                              ColumnDefinitions="Auto,*"
-                              ColumnSpacing="10"
-                              VerticalOptions="Center">
-
-                            <!-- Neon dot -->
-                            <Border WidthRequest="10"
-                                    HeightRequest="10"
-                                    Stroke="#00E5FF"
-                                    StrokeThickness="2"
-                                    BackgroundColor="#2200E5FF"
-                                    StrokeShape="RoundRectangle 5"
-                                    VerticalOptions="Center" />
-
-                            <VerticalStackLayout Grid.Column="1"
-                                                 Spacing="1"
-                                                 VerticalOptions="Center">
-                                <Label Text="Search with eBay"
-                                       FontSize="15"
-                                       FontAttributes="Bold"
-                                       TextColor="#F2F6FF"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="1" />
-                                <Label Text="Swipe results for actions • Or search manually below"
-                                       FontSize="10"
-                                       TextColor="#9FB3C8"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="1" />
-                            </VerticalStackLayout>
-                        </Grid>
-
                         <!-- Status ribbon (FULL WIDTH so your long status text never destroys layout) -->
-                        <Border Grid.Row="1"
+                        <Border Grid.Row="0"
                                 StrokeThickness="1.5"
                                 Stroke="#00E5FF"
                                 BackgroundColor="#101624"
@@ -273,7 +227,7 @@
                         </Border>
 
                         <!-- Manual prompt (small, readable, not tall) -->
-                        <Label Grid.Row="2"
+                        <Label Grid.Row="1"
                                Text="Didn’t find your card? Search manually:"
                                FontSize="11"
                                TextColor="#A8EFFF"
@@ -281,7 +235,7 @@
                                MaxLines="1" />
 
                         <!-- Entry + buttons (tight) -->
-                        <Grid Grid.Row="3"
+                        <Grid Grid.Row="2"
                               RowDefinitions="Auto,Auto"
                               RowSpacing="6">
 
@@ -293,7 +247,7 @@
                                     Padding="10,6">
 
                                 <Entry x:Name="ManualSearchBox"
-                                       Placeholder="Player, year, set, card #, grade..."
+                                       Placeholder="Search with eBay... Player, Year, Set"
                                        FontSize="13"
                                        BackgroundColor="Transparent"
                                        TextColor="White"

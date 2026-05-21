@@ -20,6 +20,9 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace CollectIQ.Services
 {
@@ -129,25 +132,75 @@ namespace CollectIQ.Services
 
         public async Task<bool> SignInWithProviderAsync(AuthProvider provider)
         {
-            // Minimal OAuth scaffold using WebAuthenticator.
-            // You must configure provider client ids + redirect URI for it to work.
+            // Step 4: Implement Google OAuth (Authorization Code + PKCE).
+            // Step 5: Facebook will be implemented later.
 
-            var (authUrl, callbackUrl) = SocialAuthSettings.GetAuthUrls(provider);
-            if (string.IsNullOrWhiteSpace(authUrl) || string.IsNullOrWhiteSpace(callbackUrl))
+            try
+            {
+                if (provider == AuthProvider.Google)
+                {
+                    return await SignInWithGoogleAsync();
+                }
+
+                // Not implemented until Step 5
+                return false;
+            }
+            catch
             {
                 return false;
             }
+        }
+
+        private async Task<bool> SignInWithGoogleAsync()
+        {
+            if (string.IsNullOrWhiteSpace(SocialAuthSettings.GoogleClientId))
+            {
+                return false;
+            }
+
+            // PKCE
+            string codeVerifier = CreateCodeVerifier();
+            string codeChallenge = CreateCodeChallenge(codeVerifier);
+
+            // CSRF protection
+            string state = Guid.NewGuid().ToString("N");
+
+            string authUrl = SocialAuthSettings.BuildGoogleAuthorizeUrl(codeChallenge, state);
+            string callbackUrl = SocialAuthSettings.CallbackUrl;
 
             WebAuthenticatorResult result = await WebAuthenticator.AuthenticateAsync(
                 new Uri(authUrl),
                 new Uri(callbackUrl));
 
-            string email = SocialAuthSettings.TryGetEmail(result);
+            // Validate state
+            string returnedState = SocialAuthSettings.TryGetState(result);
+            if (string.IsNullOrWhiteSpace(returnedState) || !string.Equals(state, returnedState, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            // Get auth code
+            string code = SocialAuthSettings.TryGetAuthCode(result);
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return false;
+            }
+
+            // Exchange code -> token
+            TokenResponse? token = await ExchangeGoogleCodeForTokenAsync(code, codeVerifier);
+            if (token == null || string.IsNullOrWhiteSpace(token.AccessToken))
+            {
+                return false;
+            }
+
+            // Get userinfo (email)
+            string email = await GetGoogleEmailAsync(token.AccessToken);
             if (string.IsNullOrWhiteSpace(email))
             {
                 return false;
             }
 
+            // Persist user like local login
             await _db.InitializeAsync();
 
             UserProfile? profile = await _db.GetUserProfileByEmailAsync(email);
@@ -167,12 +220,122 @@ namespace CollectIQ.Services
 
             await SecureStorage.SetAsync(SessionKey, email);
             await SecureStorage.SetAsync(LastLoginKey, DateTime.UtcNow.ToString("O"));
-            await SecureStorage.SetAsync(SessionProviderKey, provider.ToString());
+            await SecureStorage.SetAsync(SessionProviderKey, AuthProvider.Google.ToString());
 
             UserSession.CurrentUser = profile;
             UserSession.CurrentRoleBehavior = new RegularRoleBehavior();
 
             return true;
+        }
+
+        private async Task<TokenResponse?> ExchangeGoogleCodeForTokenAsync(string code, string codeVerifier)
+        {
+            using HttpClient client = new HttpClient();
+
+            var form = new Dictionary<string, string>
+            {
+                { "client_id", SocialAuthSettings.GoogleClientId },
+                { "code", code },
+                { "code_verifier", codeVerifier },
+                { "redirect_uri", SocialAuthSettings.CallbackUrl },
+                { "grant_type", "authorization_code" }
+            };
+
+            using var content = new FormUrlEncodedContent(form);
+
+            using HttpResponseMessage response = await client.PostAsync(SocialAuthSettings.GoogleTokenEndpoint, content);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            string json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TokenResponse>(json);
+        }
+
+        private async Task<string> GetGoogleEmailAsync(string accessToken)
+        {
+            using HttpClient client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using HttpResponseMessage response = await client.GetAsync(SocialAuthSettings.GoogleUserInfoEndpoint);
+            if (!response.IsSuccessStatusCode)
+            {
+                return string.Empty;
+            }
+
+            string json = await response.Content.ReadAsStringAsync();
+            UserInfoResponse? userInfo = JsonSerializer.Deserialize<UserInfoResponse>(json);
+
+            return userInfo?.Email ?? string.Empty;
+        }
+
+        private static string CreateCodeVerifier()
+        {
+            // 32 bytes -> 43-44 chars base64url (safe range for PKCE)
+            byte[] bytes = RandomNumberGenerator.GetBytes(32);
+            return Base64UrlEncode(bytes);
+        }
+
+        private static string CreateCodeChallenge(string verifier)
+        {
+            using var sha = SHA256.Create();
+            byte[] bytes = Encoding.ASCII.GetBytes(verifier);
+            byte[] hash = sha.ComputeHash(bytes);
+            return Base64UrlEncode(hash);
+        }
+
+        private static string Base64UrlEncode(byte[] bytes)
+        {
+            return Convert.ToBase64String(bytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", string.Empty);
+        }
+
+        private sealed class TokenResponse
+        {
+            public string? AccessToken { get; set; }
+            public string? IdToken { get; set; }
+            public int ExpiresIn { get; set; }
+            public string? TokenType { get; set; }
+
+            // JSON property names from Google
+            public string? access_token
+            {
+                get => AccessToken;
+                set => AccessToken = value;
+            }
+
+            public string? id_token
+            {
+                get => IdToken;
+                set => IdToken = value;
+            }
+
+            public int expires_in
+            {
+                get => ExpiresIn;
+                set => ExpiresIn = value;
+            }
+
+            public string? token_type
+            {
+                get => TokenType;
+                set => TokenType = value;
+            }
+        }
+
+        private sealed class UserInfoResponse
+        {
+            public string? Email { get; set; }
+
+            // JSON property names from Google userinfo
+            public string? email
+            {
+                get => Email;
+                set => Email = value;
+            }
         }
 
         public async Task<UserProfile?> GetCurrentUserProfileAsync()
