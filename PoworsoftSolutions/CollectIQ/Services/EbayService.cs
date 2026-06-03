@@ -125,9 +125,7 @@ namespace CollectIQ.Services
                 var response = await httpClient.SendAsync(request);
                 var content = await response.Content.ReadAsStringAsync();
 
-                Debug.WriteLine($"[eBay TOKEN] {(int)response.StatusCode} {response.ReasonPhrase}");
-                Debug.WriteLine($"[eBay TOKEN BODY] {content}");
-
+                Debug.WriteLine("[eBay TOKEN] Token received successfully.");
                 if (!response.IsSuccessStatusCode)
                     return null;
 

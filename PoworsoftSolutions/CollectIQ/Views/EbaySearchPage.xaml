@@ -276,7 +276,52 @@
 
                     </Grid>
                 </Border>
+                <Border IsVisible="{Binding IsLoadingResults}"
+                    BackgroundColor="#DD050814"
+                    Stroke="#00E5FF"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 24"
+                    Padding="18"
+                    Margin="24"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">   
 
+                    <VerticalStackLayout Spacing="12"
+                         HorizontalOptions="Center"
+                         VerticalOptions="Center">
+
+                        <ActivityIndicator Color="Lime"
+                           IsRunning="{Binding IsLoadingResults}"
+                           IsVisible="{Binding IsLoadingResults}"
+                           WidthRequest="42"
+                           HeightRequest="42" />
+
+                        <Label Text="Building Result Deck"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="#F2F6FF"
+                           HorizontalTextAlignment="Center" />
+
+                        <Label Text="{Binding StatusText}"
+                           FontSize="12"
+                           TextColor="#6CD4FF"
+                           HorizontalTextAlignment="Center"
+                           MaxLines="2" />
+
+                        <Border Stroke="#39FF14"
+                            StrokeThickness="1"
+                            BackgroundColor="#1839FF14"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="10,4">
+
+                            <Label Text="Please wait while the cards are loaded"
+                               FontSize="11"
+                               TextColor="#39FF14"
+                               HorizontalTextAlignment="Center" />
+                        </Border>
+
+                    </VerticalStackLayout>
+                </Border>
                 <!-- NAV BAR (tight so it stays on screen) -->
                 <controls:FuturisticNavBar Grid.Row="2"
                                            Margin="0,4,0,0" />

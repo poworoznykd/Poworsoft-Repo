@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <!-- Brand -->
+    <Color x:Key="Primary">#054d68</Color>
+    <Color x:Key="PrimaryDark">#011219</Color>
+    <Color x:Key="Secondary">#0ab8f9</Color>
+    <Color x:Key="Magenta">#011219</Color>
+    <Color x:Key="MidnightBlue">#0acaf9</Color>
+    <Color x:Key="OffBlack">#011219</Color>
+    <Color x:Key="PrimaryDarkText">#E6E6E6</Color>
+
+    <!-- Neutrals -->
+    <Color x:Key="White">#FFFFFF</Color>
+    <Color x:Key="Black">#000000</Color>
+
+    <!-- Grays -->
+    <Color x:Key="Gray100">#F5F5F5</Color>
+    <Color x:Key="Gray200">#EEEEEE</Color>
+    <Color x:Key="Gray300">#E0E0E0</Color>
+    <Color x:Key="Gray400">#BDBDBD</Color>
+    <Color x:Key="Gray500">#9E9E9E</Color>
+    <Color x:Key="Gray600">#757575</Color>
+    <Color x:Key="Gray900">#212121</Color>
+    <Color x:Key="Gray950">#121212</Color>
+
+    <Color x:Key="SecondaryDarkText">#CCCCCC</Color>
+
+    <!-- ⚡ Neon Green Accents -->
+    <Color x:Key="NeonGreen">#39FF14</Color>
+    <Color x:Key="ElectricLime">#00FF9C</Color>
+
+    <!-- Neon Gradient -->
+    <LinearGradientBrush x:Key="NeonGreenGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource NeonGreen}" Offset="0.0" />
+        <GradientStop Color="{StaticResource ElectricLime}" Offset="1.0" />
+    </LinearGradientBrush>
+</ResourceDictionary>

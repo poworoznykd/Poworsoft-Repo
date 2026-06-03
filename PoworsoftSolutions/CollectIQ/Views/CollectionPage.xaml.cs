@@ -304,7 +304,6 @@ namespace CollectIQ.Views
                 }
 
                 await DeleteCardFromDatabaseAsync(card);
-
                 await LoadCardsAsync();
             }
         }

@@ -32,7 +32,6 @@ namespace CollectIQ
                 .InitializeFreakyControls()
                 .UseMauiCommunityToolkit()
                 .UseMauiCommunityToolkitCamera()
-                .UseOcr()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

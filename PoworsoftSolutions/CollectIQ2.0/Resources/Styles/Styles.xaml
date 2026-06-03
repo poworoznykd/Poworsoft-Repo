@@ -1,0 +1,1413 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xaml-comp compile="true" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- ===========
+         CONTROL STYLES
+         =========== -->
+
+    <Style TargetType="ActivityIndicator">
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+    </Style>
+
+    <Style TargetType="IndicatorView">
+        <Setter Property="IndicatorColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"/>
+        <Setter Property="SelectedIndicatorColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}"/>
+    </Style>
+
+    <Style TargetType="Border">
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+        <Setter Property="StrokeShape" Value="Rectangle"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+    </Style>
+
+    <Style TargetType="BoxView">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}" />
+    </Style>
+
+    <Style TargetType="Button">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource PrimaryDarkText}}" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="BorderWidth" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}" />
+                            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="PointerOver" />
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+
+    <Style TargetType="CheckBox">
+        <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="DatePicker">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Editor">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Entry">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00C6FF"
+            Radius="22"
+            Opacity="0.85"
+            Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ImageButton">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="BorderColor" Value="Transparent"/>
+        <Setter Property="BorderWidth" Value="0"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.5" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="PointerOver" />
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Label">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Label" x:Key="Headline">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}" />
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style TargetType="Label" x:Key="SubHeadline">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}" />
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style TargetType="ListView">
+        <Setter Property="SeparatorColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+        <Setter Property="RefreshControlColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray400}}" />
+    </Style>
+
+    <Style TargetType="Picker">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+        <Setter Property="TitleColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray400}}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                            <Setter Property="TitleColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ProgressBar">
+        <Setter Property="ProgressColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="ProgressColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="RadioButton">
+        <Setter Property="BackgroundColor" Value="Transparent"/>
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="RefreshView">
+        <Setter Property="RefreshColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray400}}" />
+    </Style>
+
+    <Style TargetType="SearchBar">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Gray500}" />
+        <Setter Property="CancelButtonColor" Value="{StaticResource Gray500}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                            <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="SearchHandler">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Gray500}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                            <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Shadow">
+        <Setter Property="Radius" Value="15" />
+        <Setter Property="Opacity" Value="0.5" />
+        <Setter Property="Brush" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource White}}" />
+        <Setter Property="Offset" Value="10,10" />
+    </Style>
+
+    <Style TargetType="Slider">
+        <Setter Property="MinimumTrackColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+        <Setter Property="MaximumTrackColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray600}}" />
+        <Setter Property="ThumbColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="MinimumTrackColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"/>
+                            <Setter Property="MaximumTrackColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"/>
+                            <Setter Property="ThumbColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="SwipeItem">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Black}}" />
+    </Style>
+
+    <Style TargetType="Switch">
+        <Setter Property="OnColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+        <Setter Property="ThumbColor" Value="{StaticResource White}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="OnColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                            <Setter Property="ThumbColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="On">
+                        <VisualState.Setters>
+                            <Setter Property="OnColor" Value="{AppThemeBinding Light={StaticResource Secondary}, Dark={StaticResource Gray400}}" />
+                            <Setter Property="ThumbColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Off">
+                        <VisualState.Setters>
+                            <Setter Property="ThumbColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TimePicker">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+        <Setter Property="BackgroundColor" Value="Transparent"/>
+        <Setter Property="FontFamily" Value="OpenSansRegular"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="MinimumHeightRequest" Value="44"/>
+        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- Global Page & Navigation visuals -->
+    <Style TargetType="Page" ApplyToDerivedTypes="True">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" />
+    </Style>
+
+    <Style TargetType="Shell" ApplyToDerivedTypes="True">
+        <Setter Property="Shell.BackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" />
+        <Setter Property="Shell.ForegroundColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource SecondaryDarkText}}" />
+        <Setter Property="Shell.TitleColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource SecondaryDarkText}}" />
+        <Setter Property="Shell.DisabledColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray950}}" />
+        <Setter Property="Shell.UnselectedColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray400}}" />
+        <Setter Property="Shell.NavBarHasShadow" Value="False" />
+        <Setter Property="Shell.TabBarBackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Black}}" />
+        <Setter Property="Shell.TabBarForegroundColor" Value="{AppThemeBinding Light={StaticResource Magenta}, Dark={StaticResource White}}" />
+        <Setter Property="Shell.TabBarTitleColor" Value="{AppThemeBinding Light={StaticResource Magenta}, Dark={StaticResource White}}" />
+        <Setter Property="Shell.TabBarUnselectedColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray400}}" />
+    </Style>
+
+    <Style TargetType="NavigationPage">
+        <Setter Property="BarBackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" />
+        <Setter Property="BarTextColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource White}}" />
+        <Setter Property="IconColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource White}}" />
+    </Style>
+
+    <Style TargetType="TabbedPage">
+        <Setter Property="BarBackgroundColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}" />
+        <Setter Property="BarTextColor" Value="{AppThemeBinding Light={StaticResource Magenta}, Dark={StaticResource White}}" />
+        <Setter Property="UnselectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray950}}" />
+        <Setter Property="SelectedTabColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray400}}" />
+    </Style>
+
+    <!--<Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="TextColor" Value="#F8FFFF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1AFFFFFF" Offset="0.0" />
+                    <GradientStop Color="#0020A0DD" Offset="0.4" />
+                    <GradientStop Color="#0040FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00FFC3" />
+        <Setter Property="BorderWidth" Value="1.5" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00FFC3" Radius="20" Opacity="0.85" Offset="0,5" />
+            </Setter.Value>
+        </Setter>
+    </Style>-->
+
+    <Style x:Key="AccentButton" TargetType="Button">
+        <Setter Property="TextColor" Value="#BFFFFF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#003366" Offset="0.0" />
+                    <GradientStop Color="#001020" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00C6FF"
+                    Radius="22"
+                    Opacity="0.85"
+                    Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <Style x:Key="AccentButtonRed" TargetType="Button">
+        <Setter Property="TextColor" Value="#efbbc1" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#4c020b" Offset="0.0" />
+                    <GradientStop Color="#1e0105" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#f91e38"
+            Radius="22"
+            Opacity="0.85"
+            Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <Style x:Key="AccentButtonPurple" TargetType="Button">
+        <Setter Property="TextColor" Value="#e7b5f1" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#4a0c56" Offset="0.0" />
+                    <GradientStop Color="#28062f" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#cd2bed"
+              Radius="22"
+              Opacity="0.85"
+              Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <Style x:Key="AccentButtonGreen" TargetType="Button">
+        <Setter Property="TextColor" Value="#c0f4b9" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22,12" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <RadialGradientBrush Center="0.5,0.5" Radius="0.8">
+                    <GradientStop Color="#11460a" Offset="0.0" />
+                    <GradientStop Color="#061903" Offset="1.0" />
+                </RadialGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#27f90a"
+                 Radius="22"
+                 Opacity="0.85"
+                 Offset="0,6" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 🔵 Aurora Blue Button -->
+    <Style x:Key="AuroraButtonBlue" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#00B4FF" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5500B4FF"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00B4FF" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#0088CC" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#7700B4FF" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    
+    <!-- Aurora Blue Accent Button -->
+    <Style x:Key="AccentButton_AuroraBlue"
+               TargetType="Button">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="HeightRequest" Value="54" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush EndPoint="1,1">
+                    <GradientStop Color="#00B4D8" Offset="0.0" />
+                    <GradientStop Color="#0077B6" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00B4D880" Radius="15" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ========================================= -->
+    <!--  AURORA BUTTON STYLES                     -->
+    <!--  Programmer: Darryl Poworoznyk            -->
+    <!-- ========================================= -->
+
+    <!-- Aurora Green Button -->
+    <Style x:Key="AuroraButtonGreen" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#00FF88" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6600FF88"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#00FF88" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#00CC66" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#AA00FF88" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Red Button -->
+    <Style x:Key="AuroraButtonRed" TargetType="Button">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="BackgroundColor" Value="#FF0044" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#88FF0044"
+                    Radius="18"
+                    Opacity="0.9"
+                    Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderColor" Value="#FF0044" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="#CC0033" />
+                            <Setter Property="Shadow">
+                                <Setter.Value>
+                                    <Shadow Brush="#AAFF0044" Radius="24" Opacity="1.0" Offset="0,2" />
+                                </Setter.Value>
+                            </Setter>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+     </Style>
+
+        <!-- Futuristic glass-card background -->
+        <Style x:Key="GlassCardBorder" TargetType="Border">
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Stroke" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#151525" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Shadow">
+                <Setter.Value>
+                    <Shadow Brush="#80000000" Radius="18" Offset="0,6" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Est. Value pill-style border (for the right-hand chip) -->
+    <Style x:Key="EstValueChipBorder" TargetType="Border">
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush EndPoint="1,1">
+                    <GradientStop Color="#00B4D8" Offset="0.0" />
+                    <GradientStop Color="#0077B6" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#00B4D880" Radius="12" Offset="0,3" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="18" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Aurora Green Glass Border -->
+    <Style x:Key="AuroraGlassBorder_Green" TargetType="Border">
+
+        <!-- Neon green rim -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#8800FFB3" />
+
+        <!-- Crystal glass + Aurora green tint -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1A0A3F2A" Offset="0.0" />
+                    <!-- Dark glass -->
+                    <GradientStop Color="#3344E6CC" Offset="0.5" />
+                    <!-- Aurora green tint -->
+                    <GradientStop Color="#5580FFCC" Offset="1.0" />
+                    <!-- Glow fade -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora green glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00FFB3" Radius="30" Offset="0,10" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <!-- Aurora Red Glass Border -->
+    <Style x:Key="AuroraGlassBorder_Red" TargetType="Border">
+
+        <!-- Neon red rim -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#CCFF4F4F" />
+
+        <!-- Crystal red aurora glass -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1A3F0A0A" Offset="0.0" />
+                    <!-- Dark smoky glass -->
+                    <GradientStop Color="#33E66666" Offset="0.5" />
+                    <!-- Red tint -->
+                    <GradientStop Color="#55FF8080" Offset="1.0" />
+                    <!-- Glow fade -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora red glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#DDFF4F4F" Radius="30" Offset="0,12" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+
+    <!-- Aurora Glass Border (Glass + Aurora Glow + Neon Tint) -->
+    <Style x:Key="AuroraGlassBorder" TargetType="Border">
+
+        <!-- Aurora neon edge -->
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="#8800E0FF" />
+        <!-- Bright aurora neon -->
+
+        <!-- Translucent aurora glass background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Glass crystal blue -->
+                    <GradientStop Color="#1A0D3A4F" Offset="0.0" />
+                    <!-- Aurora frost blue -->
+                    <GradientStop Color="#3344B6D6" Offset="0.5" />
+                    <!-- Ice-glow -->
+                    <GradientStop Color="#5580EFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Slight transparency for glass effect -->
+        <Setter Property="Opacity" Value="0.92" />
+
+        <!-- Aurora glow shadow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00B4D8" Radius="30" Offset="0,10" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Smooth futuristic corners -->
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="20" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="Padding" Value="18" />
+
+    </Style>
+
+
+    <!-- Aurora Green Neon Button -->
+    <Style x:Key="AuroraNeonButton_Green" TargetType="Button">
+
+        <!-- Aurora green gradient -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#00FFB3" Offset="0.0" />
+                    <!-- Bright mint -->
+                    <GradientStop Color="#00B36A" Offset="0.7" />
+                    <!-- Deep aurora green -->
+                    <GradientStop Color="#80FFE6" Offset="1.0" />
+                    <!-- Ice-green glow -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Neon emerald border -->
+        <Setter Property="BorderColor" Value="#99FFEECC" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- High-intensity green glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00FFB3" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#F0FFF9" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Behavior -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="BorderColor" Value="#CCFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CC00FFB3" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#DDFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DD55FFCC" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+    <!-- Aurora Red Neon Button -->
+    <Style x:Key="AuroraNeonButton_Red" TargetType="Button">
+
+        <!-- Aurora red gradient -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF4F4F" Offset="0.0" />
+                    <!-- Bright red -->
+                    <GradientStop Color="#B30000" Offset="0.7" />
+                    <!-- Deep crimson -->
+                    <GradientStop Color="#FFB3B3" Offset="1.0" />
+                    <!-- Ice-red glow -->
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Neon red border -->
+        <Setter Property="BorderColor" Value="#FFFFCCCC" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- Intense red glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#CCFF4F4F" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#FFF7F7" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Behavior -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="BorderColor" Value="#FFFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#FFDD4444" Radius="45" Offset="0,15" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#FFFFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#FFFF6A6A" Radius="48" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+
+    <!-- Aurora Neon Holographic Button -->
+    <Style x:Key="AuroraNeonButton" TargetType="Button">
+
+        <!-- Aurora-gradient neon background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Aurora bright blue -->
+                    <GradientStop Color="#00E0FF" Offset="0.0" />
+                    <!-- Deep aurora ocean blue -->
+                    <GradientStop Color="#0077B6" Offset="0.7" />
+                    <!-- Aurora ice-glow -->
+                    <GradientStop Color="#80E6FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Strong aurora glow border -->
+        <Setter Property="BorderColor" Value="#AA00E0FF" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <!-- High-intensity Aurora neon glow -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA00B4D8" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <!-- Typography -->
+        <Setter Property="TextColor" Value="#F0FCFFFF" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <!-- Pressed/hover visual states -->
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <!-- Normal -->
+                        <VisualState x:Name="Normal" />
+
+                        <!-- Pressed: deeper aurora pulse -->
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#CC66FFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CC00E0FF" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <!-- Hover: glowing aurora rim (desktop) -->
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#D9FFFFFF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DD44CCFF" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+    <Style x:Key="AuroraEntry_Blue" TargetType="Entry">
+        <!-- Typography / colour to match AuroraLabel_Blue -->
+        <Setter Property="TextColor" Value="#4BE7F2" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <!-- Field look -->
+        <Setter Property="BackgroundColor" Value="#111827" />
+        <Setter Property="PlaceholderColor" Value="#64748B" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <!-- Soft neon glow, same idea as AuroraLabel_Blue -->
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533E6FF"
+                    Radius="8"
+                    Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    
+    <Style x:Key="AuroraLabel_Blue" TargetType="Label">
+        <Setter Property="TextColor" Value="#4BE7F2" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533E6FF" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Green" TargetType="Label">
+        <Setter Property="TextColor" Value="#00FFB3" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#5533FFCC" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Red" TargetType="Label">
+        <Setter Property="TextColor" Value="#FF4F4F" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Shadow Brush="#55FF5A5A" Radius="8" Offset="0,1" />
+        </Setter>
+    </Style>
+    
+    <!-- Aurora Neon Round Icon ImageButton (stable version) -->
+    <Style x:Key="AuroraNeonRoundIconButton" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <!-- Gradient background -->
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#00E0FF" Offset="0.0" />
+                    <GradientStop Color="#0077B6" Offset="0.7" />
+                    <GradientStop Color="#80E6FFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <!-- Border + shadow -->
+        <Setter Property="BorderColor" Value="#AA00E0FF" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6600E0FF" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    <!-- ===================== -->
+    <!--  PURPLE VARIANTS      -->
+    <!-- ===================== -->
+
+    <!-- Aurora Neon Holographic Button – PURPLE -->
+    <Style x:Key="AuroraNeonButton_Purple" TargetType="Button">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Soft violet -->
+                    <GradientStop Color="#C084FC" Offset="0.0" />
+                    <!-- Deep purple -->
+                    <GradientStop Color="#7C3AED" Offset="0.7" />
+                    <!-- Light lavender glow -->
+                    <GradientStop Color="#E9D5FF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCB794F4" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA7C3AED" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="TextColor" Value="#FDF4FF" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#E5C4FF" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#D17C3AED" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#F5EFFE" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#E67C3AED" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Neon Round Icon ImageButton – PURPLE -->
+    <Style x:Key="AuroraNeonRoundIconButton_Purple" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#C084FC" Offset="0.0" />
+                    <GradientStop Color="#7C3AED" Offset="0.7" />
+                    <GradientStop Color="#E9D5FF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCB794F4" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AA7C3AED" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Purple" TargetType="Label">
+        <Setter Property="TextColor" Value="#E9D5FF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#663B0764" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraEntry_Purple" TargetType="Entry">
+        <Setter Property="TextColor" Value="#E9D5FF" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <Setter Property="BackgroundColor" Value="#171227" />
+        <Setter Property="PlaceholderColor" Value="#9F7AEA" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#663B0764" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================== -->
+    <!--  TRADE / AMBER VARS   -->
+    <!-- ===================== -->
+
+    <!-- Aurora Neon Holographic Button – AMBER (Trade) -->
+    <Style x:Key="AuroraNeonButton_Amber" TargetType="Button">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <!-- Warm amber / gold -->
+                    <GradientStop Color="#FBBF24" Offset="0.0" />
+                    <!-- Deeper orange -->
+                    <GradientStop Color="#F97316" Offset="0.7" />
+                    <!-- Soft highlight -->
+                    <GradientStop Color="#FEF3C7" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCFACC15" />
+        <Setter Property="BorderWidth" Value="2.5" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AAF97316" Radius="28" Offset="0,9" />
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="TextColor" Value="#FFFBEB" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <Setter.Value>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal" />
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="0.94" />
+                                <Setter Property="Opacity" Value="0.88" />
+                                <Setter Property="BorderColor" Value="#FFFDE68A" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#CCF97316" Radius="40" Offset="0,14" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BorderColor" Value="#FFF9F5" />
+                                <Setter Property="Shadow">
+                                    <Shadow Brush="#DDF97316" Radius="44" Offset="0,12" />
+                                </Setter>
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aurora Neon Round Icon ImageButton – AMBER (Trade) -->
+    <Style x:Key="AuroraNeonRoundIconButton_Amber" TargetType="ImageButton">
+        <Setter Property="HeightRequest" Value="40" />
+        <Setter Property="WidthRequest" Value="40" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="6" />
+
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FBBF24" Offset="0.0" />
+                    <GradientStop Color="#F97316" Offset="0.7" />
+                    <GradientStop Color="#FEF3C7" Offset="1.0" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+
+        <Setter Property="BorderColor" Value="#CCFACC15" />
+        <Setter Property="BorderWidth" Value="2" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#AAF97316" Radius="18" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraLabel_Amber" TargetType="Label">
+        <Setter Property="TextColor" Value="#FEF3C7" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6649240F" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AuroraEntry_Amber" TargetType="Entry">
+        <Setter Property="TextColor" Value="#FEF3C7" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+
+        <Setter Property="BackgroundColor" Value="#1F1308" />
+        <Setter Property="PlaceholderColor" Value="#F59E0B" />
+        <Setter Property="Margin" Value="0,2,0,6" />
+        <Setter Property="HeightRequest" Value="34" />
+
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#6649240F" Radius="8" Offset="0,1" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aliases used by the BOTTOM nav bar -->
+    <Style x:Key="AuroraNeonButton_Current" TargetType="Button"
+           BasedOn="{StaticResource AuroraNeonButton}" />
+
+    <Style x:Key="AuroraNeonRoundIconButton_Current" TargetType="ImageButton"
+           BasedOn="{StaticResource AuroraNeonRoundIconButton}" />
+
+    <Style x:Key="AuroraLabel_Current" TargetType="Label"
+           BasedOn="{StaticResource AuroraLabel_Blue}" />
+
+    <Style x:Key="AuroraEntry_Current" TargetType="Entry"
+           BasedOn="{StaticResource AuroraEntry_Blue}" />
+
+
+
+</ResourceDictionary>
