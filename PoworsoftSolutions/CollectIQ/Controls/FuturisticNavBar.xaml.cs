@@ -16,6 +16,7 @@
 //
 using System;
 using System.Threading.Tasks;
+using CollectIQ.Helpers;
 using CollectIQ.Navigation;
 using CollectIQ.Services;
 using CollectIQ.Utilities;

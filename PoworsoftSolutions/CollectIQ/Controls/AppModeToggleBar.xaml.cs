@@ -12,6 +12,7 @@
 //      - Raises ModeChanged for any listeners on the page.
 //
 using System;
+using CollectIQ.Helpers;
 using CollectIQ.Navigation;
 using CollectIQ.Services;
 using CollectIQ.Utilities;

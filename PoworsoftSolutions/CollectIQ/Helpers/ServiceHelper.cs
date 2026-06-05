@@ -8,6 +8,11 @@ namespace CollectIQ.Helpers
     public static class ServiceHelper
     {
         /// <summary>
+        /// Stores the application's service provider.
+        /// </summary>
+        private static IServiceProvider? serviceProvider;
+
+        /// <summary>
         /// Gets the service provider for the current platform.
         /// </summary>
         public static IServiceProvider Services =>
@@ -20,6 +25,11 @@ namespace CollectIQ.Helpers
 #else
             throw new PlatformNotSupportedException();
 #endif
+
+        public static void Initialize(IServiceProvider services)
+        {
+            serviceProvider = services;
+        }
 
         /// <summary>
         /// Resolves a registered service.

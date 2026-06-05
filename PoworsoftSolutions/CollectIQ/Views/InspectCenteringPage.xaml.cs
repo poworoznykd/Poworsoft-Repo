@@ -10,6 +10,7 @@
 *       and actions (auto-analyze, manual fine-tune).
 */
 
+using CollectIQ.Helpers;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
 using Microsoft.Maui.Controls;

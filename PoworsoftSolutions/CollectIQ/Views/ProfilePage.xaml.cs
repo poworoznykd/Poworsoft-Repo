@@ -35,7 +35,7 @@ namespace CollectIQ.Views
         }
 
         // XAML/Shell-safe constructor
-        public ProfilePage() : this(CollectIQ.Utilities.ServiceHelper.GetService<IProfileService>() ?? new ProfileService())
+        public ProfilePage() : this(ServiceHelper.GetService<IProfileService>() ?? new ProfileService())
         {
         }
 

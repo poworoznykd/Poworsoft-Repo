@@ -8,6 +8,7 @@
 //      and ensures required services exist app-wide (Profile, Browser, Alerts, DB, Auth).
 //
 
+using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Services;
 using CollectIQ.Services.Roles;
@@ -17,7 +18,6 @@ using Maui.FreakyControls.Extensions;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
-using Plugin.Maui.OCR;
 
 namespace CollectIQ
 {
@@ -93,7 +93,7 @@ namespace CollectIQ
 #endif
 
             var app = builder.Build();
-            CollectIQ.Utilities.ServiceHelper.Services = app.Services;
+            ServiceHelper.Initialize(app.Services);
             return app;
         }
     }
