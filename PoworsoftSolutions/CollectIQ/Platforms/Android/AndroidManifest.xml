@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.companyname.collectiq">
 
-  <!-- Minimum Android SDK supported by CollectIQ. -->
+  <!-- ✅ Minimum SDK must be 23 for MLKit -->
   <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
 
   <!-- ✅ Permissions -->

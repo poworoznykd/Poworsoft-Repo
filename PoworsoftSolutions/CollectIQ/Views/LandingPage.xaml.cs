@@ -1,4 +1,4 @@
-﻿//
+//
 //  FILE            : LandingPage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -8,6 +8,7 @@
 //      navigation to authentication (sign-in/register) screens.
 //
 using CollectIQ.Interfaces;
+using CollectIQ.Services;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
@@ -27,7 +28,7 @@ namespace CollectIQ.Views
 
         /// <summary>
         /// Handles the Guest access button.
-        /// Creates a guest session, then navigates to the main AppShell.
+        /// Navigates directly to the main AppShell.
         /// </summary>
         private async void OnGuest(object sender, EventArgs e)
         {
@@ -36,14 +37,6 @@ namespace CollectIQ.Views
                 await DisplayAlert("Guest Mode",
                     "You are continuing as a guest. Some features may be limited.",
                     "OK");
-
-                bool signedIn = await _authService.SignInGuestAsync();
-
-                if (!signedIn)
-                {
-                    await DisplayAlert("Guest Mode", "Unable to create a guest session.", "OK");
-                    return;
-                }
 
                 Application.Current!.MainPage = new AppShell();
             }
@@ -61,7 +54,9 @@ namespace CollectIQ.Views
         {
             try
             {
-                // Navigate cleanly to AuthSheet using the injected auth service.
+                var db = new SqliteDatabase();
+                var authService = new LocalAuthService(db);
+                // Navigate cleanly to AuthSheet
                 await Navigation.PushAsync(new AuthSheet(_authService));
             }
             catch (Exception ex)

@@ -13,7 +13,6 @@ using CollectIQ.Interfaces;
 using CollectIQ.Services;
 using CollectIQ.Services.Roles;
 using CollectIQ.Views;
-using CollectIQ.ViewModels;
 using CommunityToolkit.Maui;
 using Maui.FreakyControls.Extensions;
 using Microsoft.Maui.Controls.Hosting;
@@ -52,15 +51,10 @@ namespace CollectIQ
             builder.Services.AddSingleton<IBrowserService, BrowserService>();
             builder.Services.AddSingleton<IAlertService, AlertService>();
 
-            // Marketplace / external API services
-            builder.Services.AddHttpClient<EbayService>();
-            builder.Services.AddTransient<EbaySearchViewModel>();
-
             // Views
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddTransient<AuthSheet>();
             builder.Services.AddTransient<LandingPage>();
-            builder.Services.AddTransient<EbaySearchPage>();
 
             // Role behaviors
             builder.Services.AddSingleton<IUserRoleBehavior, AdminRoleBehavior>();

@@ -1,95 +1,79 @@
-//
+﻿//
 //  FILE            : App.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-10-25
-//  UPDATED         : 2026-06-05
 //  DESCRIPTION     :
-//      Entry point for the CollectIQ application. Uses dependency injection
-//      for database and authentication services, initializes local storage,
-//      and chooses the correct startup page based on the current session.
+//      Entry point for the CollectIQ application. Initializes
+//      the SQLite database, applies the dark neon theme,
+//      and determines whether to launch LandingPage, 
+//      AuthSheet, or AppShell based on authentication state.
 //
-
-using CollectIQ.Interfaces;
 using CollectIQ.Views;
+using CollectIQ.Services;
 using Microsoft.Maui.Controls;
+using System.Threading.Tasks;
 
 namespace CollectIQ
 {
-    /// <summary>
-    /// Represents the root MAUI application object for CollectIQ.
-    /// </summary>
     public partial class App : Application
     {
-        #region Public Properties
+        // ============================================================
+        //  GLOBAL DATABASE ACCESS
+        // ============================================================
+        public static SqliteDatabase Database { get; } = new SqliteDatabase();
 
-        /// <summary>
-        /// Gets the application database service. This keeps older pages working
-        /// while the app is migrated toward repository-based access.
-        /// </summary>
-        public static IDatabase Database { get; private set; } = null!;
+        // ============================================================
+        //  PRIVATE FIELDS
+        // ============================================================
+        private readonly LocalAuthService _authService;
 
-        #endregion
-
-        #region Private Members
-
-        private readonly IAuthService authService;
-        private readonly IDatabase database;
-
-        #endregion
-
-        #region Constructors
-
-        /// <summary>
-        /// Initializes the application using services supplied by the MAUI
-        /// dependency injection container.
-        /// </summary>
-        /// <param name="authService">The authentication service.</param>
-        /// <param name="database">The local database service.</param>
-        public App(IAuthService authService, IDatabase database)
+        // ============================================================
+        //  CONSTRUCTOR
+        // ============================================================
+        public App()
         {
             InitializeComponent();
+            // Do NOT wipe SecureStorage at startup; this breaks persisted login.
+            // SecureStorage.RemoveAll();
+            // Initialize authentication and database service
+            _authService = new LocalAuthService(Database);
 
-            this.authService = authService ?? throw new ArgumentNullException(nameof(authService));
-            this.database = database ?? throw new ArgumentNullException(nameof(database));
-
-            Database = this.database;
-
-            MainPage = new NavigationPage(new LandingPage(this.authService))
-            {
-                BarBackgroundColor = Color.FromArgb("#0B0B0D"),
-                BarTextColor = Color.FromArgb("#00B4FF")
-            };
+            // Display the landing screen initially
+            MainPage = new LandingPage(_authService);
         }
 
-        #endregion
-
-        #region Lifecycle Events
-
-        /// <summary>
-        /// Initializes local storage and routes the user to the correct startup page.
-        /// </summary>
+        // ============================================================
+        //  LIFECYCLE EVENT - OnStart
+        // ============================================================
         protected override async void OnStart()
         {
             base.OnStart();
 
-            await database.InitializeAsync();
+            // Ensure SQLite tables exist
+            await Database.InitializeAsync();
 
-            bool isSignedIn = await authService.IsSignedInAsync();
+            // Check if the user is signed in using LocalAuthService
+            bool isSignedIn = await _authService.IsSignedInAsync();
 
             if (isSignedIn)
             {
+                // --------------------------------------------------------
+                // Authenticated user → Load main app shell (Dashboard)
+                // --------------------------------------------------------
                 MainPage = new AppShell();
-                return;
             }
-
-            MainPage = new NavigationPage(new AuthSheet(authService))
+            else
             {
-                BarBackgroundColor = Color.FromArgb("#0B0B0D"),
-                BarTextColor = Color.FromArgb("#00B4FF")
-            };
+                // --------------------------------------------------------
+                // Unauthenticated user → Show login/auth sheet
+                // --------------------------------------------------------
+                MainPage = new NavigationPage(new AuthSheet(_authService))
+                {
+                    BarBackgroundColor = Color.FromArgb("#0B0B0D"),
+                    BarTextColor = Color.FromArgb("#00B4FF")
+                };
+            }
         }
-
-        #endregion
     }
 }

@@ -7,6 +7,7 @@
 //     Implements MVVM bindings for AuthSheet.xaml, including
 //     password strength tracking, remember-me, and navigation.
 
+using Android.Content.Res;
 using CollectIQ.Domain.Enums;
 using CollectIQ.Enums;
 using CollectIQ.Interfaces;
@@ -169,11 +170,10 @@ namespace CollectIQ.ViewModels.Auth
                 : "Email already exists. Try signing in.";
         }
 
-        /// <summary>
-        /// Attempts to sign in using the credentials entered by the user.
-        /// </summary>
         private async Task LoginAsync()
         {
+            Email = "d@d.com";
+            Password = "1234";
             Message = string.Empty;
 
             if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))

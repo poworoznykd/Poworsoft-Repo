@@ -41,50 +41,23 @@ namespace CollectIQ.Services
             _db = db;
         }
 
-        /// <summary>
-        /// Registers a new local user account and starts a signed-in session.
-        /// </summary>
-        /// <param name="email">The user's email address.</param>
-        /// <param name="password">The user's plain text password.</param>
-        /// <returns>True when registration succeeds; otherwise false.</returns>
         public async Task<bool> RegisterAsync(string email, string password)
         {
             await _db.InitializeAsync();
-
-            string normalizedEmail = NormalizeEmail(email);
             string hash = ComputeHash(password);
-
-            UserProfile? existing = await _db.GetUserProfileByEmailAsync(normalizedEmail);
+            var existing = await _db.GetUserProfileByEmailAsync(email);
             if (existing != null)
-            {
-                return false;
-            }
+                return false; // already registered
 
-            await _db.StorePasswordHashAsync(normalizedEmail, hash);
-
-            UserProfile? user = await _db.GetUserProfileByEmailAsync(normalizedEmail);
-            if (user != null)
-            {
-                user.LastLoginUtc = DateTime.UtcNow;
-                await _db.UpsertUserProfileAsync(user);
-
-                UserSession.CurrentUser = user;
-                UserSession.CurrentRoleBehavior = RoleBehaviorResolver.Resolve(user.Role);
-            }
-
-            await SecureStorage.SetAsync(SessionKey, normalizedEmail);
-            await SecureStorage.SetAsync(LastLoginKey, DateTime.UtcNow.ToString("O"));
-            await SecureStorage.SetAsync(SessionProviderKey, AuthProvider.Local.ToString());
-
+            await _db.StorePasswordHashAsync(email, hash);
+            await SecureStorage.SetAsync(SessionKey, email);
             return true;
         }
 
         public async Task<bool> LoginAsync(string email, string password)
         {
             await _db.InitializeAsync();
-
-            string normalizedEmail = NormalizeEmail(email);
-            var storedHash = await _db.GetPasswordHashAsync(normalizedEmail);
+            var storedHash = await _db.GetPasswordHashAsync(email);
             if (storedHash == null)
                 return false;
 
@@ -94,28 +67,32 @@ namespace CollectIQ.Services
             // ============================================================
             //  STEP 1: Store session credentials securely
             // ============================================================
-            await SecureStorage.SetAsync(SessionKey, normalizedEmail);
+            await SecureStorage.SetAsync(SessionKey, email);
             await SecureStorage.SetAsync(LastLoginKey, DateTime.UtcNow.ToString("O"));
             await SecureStorage.SetAsync(SessionProviderKey, AuthProvider.Local.ToString());
 
             // ============================================================
             // STEP 2: Load the full user object
             // ============================================================
-            var user = await _db.GetUserProfileByEmailAsync(normalizedEmail);
+            var user = await _db.GetUserProfileByEmailAsync(email);
             if (user == null)
                 return false;
 
             // ============================================================
             // STEP 3: Resolve the role behavior (Strategy Pattern)
             // ============================================================
-            var roleBehavior = RoleBehaviorResolver.Resolve(user.Role);
+            var behaviors = new List<IUserRoleBehavior>
+            {
+                new AdminRoleBehavior(),
+                new RegularRoleBehavior(),
+                new GuestRoleBehavior()
+            };
+
+            var roleBehavior = behaviors.First(b => b.Role == user.Role);
 
             // ============================================================
             // STEP 4: Set Session
             // ============================================================
-            user.LastLoginUtc = DateTime.UtcNow;
-            await _db.UpsertUserProfileAsync(user);
-
             UserSession.CurrentUser = user;
             UserSession.CurrentRoleBehavior = roleBehavior;
 
@@ -405,16 +382,6 @@ namespace CollectIQ.Services
         public async Task<string?> GetCurrentUserEmailAsync()
         {
             return await SecureStorage.GetAsync(SessionKey);
-        }
-
-        /// <summary>
-        /// Normalizes email addresses before persistence or lookup.
-        /// </summary>
-        /// <param name="email">The email address to normalize.</param>
-        /// <returns>A trimmed, lower-case email value.</returns>
-        private static string NormalizeEmail(string email)
-        {
-            return (email ?? string.Empty).Trim().ToLowerInvariant();
         }
 
         private static string ComputeHash(string input)

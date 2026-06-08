@@ -182,9 +182,8 @@ namespace CollectIQ.Views
                 return;
             }
 
-            IAuthService auth = ServiceHelper.GetService<IAuthService>()
-                ?? throw new InvalidOperationException("IAuthService is not registered.");
-
+            // Use the same auth flow App.xaml.cs uses (LocalAuthService + App.Database)
+            var auth = new LocalAuthService(App.Database);
             await auth.SignOutAsync();
 
             // Bounce back to the login screen, same styling as App.OnStart()

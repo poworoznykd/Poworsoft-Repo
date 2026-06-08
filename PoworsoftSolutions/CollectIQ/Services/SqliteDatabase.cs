@@ -1,4 +1,4 @@
-﻿/*
+/*
 * FILE: SqliteDatabase.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
@@ -133,10 +133,8 @@ namespace CollectIQ.Services
         {
             await InitializeAsync();
 
-            string normalizedEmail = NormalizeEmail(email);
-
             return await connection!.Table<UserProfile>()
-                .Where(u => u.Email == normalizedEmail)
+                .Where(u => u.Email == email)
                 .FirstOrDefaultAsync();
         }
 
@@ -151,46 +149,32 @@ namespace CollectIQ.Services
 
         /// <summary>
         /// Stores a hashed password for the given email.
+        /// NOTE: This currently reuses DisplayName as a temporary storage location.
         /// </summary>
-        /// <param name="email">The user's email address.</param>
-        /// <param name="passwordHash">The computed password hash.</param>
         public async Task StorePasswordHashAsync(string email, string passwordHash)
         {
             await InitializeAsync();
 
-            string normalizedEmail = NormalizeEmail(email);
-            UserProfile? existing = await GetUserProfileByEmailAsync(normalizedEmail);
+            UserProfile? existing = await GetUserProfileByEmailAsync(email);
 
             if (existing == null)
             {
-                existing = new UserProfile
-                {
-                    Email = normalizedEmail,
-                    DisplayName = normalizedEmail,
-                    Role = UserRoles.Regular,
-                    CreatedUtc = DateTime.UtcNow
-                };
-
+                existing = new UserProfile { Email = email };
                 await connection!.InsertAsync(existing);
             }
 
-            existing.PasswordHash = passwordHash;
-            existing.UpdatedUtc = DateTime.UtcNow;
-
+            existing.DisplayName = passwordHash;
             await connection!.UpdateAsync(existing);
         }
 
         /// <summary>
         /// Retrieves the stored password hash for the specified user.
         /// </summary>
-        /// <param name="email">The user's email address.</param>
-        /// <returns>The stored password hash when the user exists; otherwise null.</returns>
         public async Task<string?> GetPasswordHashAsync(string email)
         {
             await InitializeAsync();
-
             UserProfile? profile = await GetUserProfileByEmailAsync(email);
-            return profile?.PasswordHash;
+            return profile?.DisplayName;
         }
 
         // ============================================================
@@ -311,37 +295,9 @@ namespace CollectIQ.Services
             }
         }
 
-        /// <summary>
-        /// Determines whether a user profile exists for the specified email address.
-        /// </summary>
-        /// <param name="email">The email address to check.</param>
-        /// <returns>True if the user exists; otherwise false.</returns>
-        public async Task<bool> UserExistsAsync(string email)
+        public Task<bool> UserExistsAsync(string email)
         {
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                return false;
-            }
-
-            await InitializeAsync();
-
-            string normalizedEmail = NormalizeEmail(email);
-
-            int count = await connection!.Table<UserProfile>()
-                .Where(user => user.Email == normalizedEmail)
-                .CountAsync();
-
-            return count > 0;
-        }
-
-        /// <summary>
-        /// Normalizes email addresses for consistent local lookup.
-        /// </summary>
-        /// <param name="email">The email address to normalize.</param>
-        /// <returns>A trimmed, lower-case email value.</returns>
-        private static string NormalizeEmail(string email)
-        {
-            return (email ?? string.Empty).Trim().ToLowerInvariant();
+            throw new NotImplementedException();
         }
     }
 }
