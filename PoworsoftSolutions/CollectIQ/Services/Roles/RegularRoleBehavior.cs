@@ -9,7 +9,7 @@ namespace CollectIQ.Services.Roles
 {
     public class RegularRoleBehavior : IUserRoleBehavior
     {
-        public string Role => "User";
+        public string Role => "Regular";
 
         public bool CanDeleteCards => false;
         public bool CanAddCards => true;

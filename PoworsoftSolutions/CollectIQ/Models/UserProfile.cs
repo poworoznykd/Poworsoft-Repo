@@ -24,6 +24,6 @@ namespace CollectIQ.Models
 
         // --- Local authentication fields ---
         public string? PasswordHash { get; set; }
-        public string Salt { get; set; }
+        public string? Salt { get; set; }
     }
 }

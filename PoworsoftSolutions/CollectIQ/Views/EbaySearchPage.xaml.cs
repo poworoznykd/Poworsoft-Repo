@@ -1,4 +1,4 @@
-//
+﻿//
 //  FILE            : EbaySearchPage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -11,6 +11,7 @@
 //      work such as navigation, alerts, browser launches, and overlay UI.
 //
 
+using CollectIQ.Helpers;
 using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
@@ -56,11 +57,21 @@ namespace CollectIQ.Views
         /// Initializes a new instance of the EbaySearchPage class.
         /// </summary>
         public EbaySearchPage()
+            : this(ServiceHelper.GetService<EbaySearchViewModel>()
+                   ?? new EbaySearchViewModel(new EbayService(new HttpClient())))
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the EbaySearchPage class.
+        /// </summary>
+        /// <param name="viewModel">The eBay search view model.</param>
+        public EbaySearchPage(EbaySearchViewModel viewModel)
         {
             InitializeComponent();
 
-            viewModel = new EbaySearchViewModel(new EbayService(new HttpClient()));
-            BindingContext = viewModel;
+            this.viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            BindingContext = this.viewModel;
 
             selectedListing = null;
             frontImagePathInternal = string.Empty;

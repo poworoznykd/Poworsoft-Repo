@@ -1,4 +1,4 @@
-//
+﻿//
 //  FILE            : EbaySearchViewModel.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -35,6 +35,10 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
+using Image = SixLabors.ImageSharp.Image;
 
 namespace CollectIQ.ViewModels
 {
@@ -108,9 +112,16 @@ namespace CollectIQ.ViewModels
                 {
                     isLoadingResults = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsBusy));
                 }
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether the page should show its loading overlay.
+        /// This is true while eBay is being called and while result cards are being built.
+        /// </summary>
+        public bool IsBusy => IsSearching || IsLoadingResults;
 
         /// <summary>
         /// Main result collection bound to the UI.
@@ -160,6 +171,7 @@ namespace CollectIQ.ViewModels
                 {
                     isSearching = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsBusy));
                 }
             }
         }
@@ -282,8 +294,13 @@ namespace CollectIQ.ViewModels
                 // Give the UI one frame to show the spinner/status text.
                 await Task.Delay(100);
 
-                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
-                lastImageBase64 = Convert.ToBase64String(imageBytes);
+                lastImageBase64 = await CreateEbayReadyImageBase64Async(imagePath);
+
+                if (string.IsNullOrWhiteSpace(lastImageBase64))
+                {
+                    await ClearResultsAsync("Image could not be prepared for eBay search.");
+                    return "Image could not be prepared for eBay search.";
+                }
 
                 List<EbayListing> results;
 
@@ -311,7 +328,7 @@ namespace CollectIQ.ViewModels
 
                 await ApplyResultsAsync(results);
 
-                UpdateStatusForResults(results);
+                await UpdateStatusForResults(results);
 
                 return string.Empty;
             }
@@ -372,7 +389,7 @@ namespace CollectIQ.ViewModels
                     StatusText = $"Preparing {preparedResults.Count} results...";
                 });
 
-                const int BatchSize = 1;
+                const int BatchSize = 5;
 
                 for (int i = 0; i < preparedResults.Count; i += BatchSize)
                 {
@@ -392,8 +409,8 @@ namespace CollectIQ.ViewModels
                             $"Loading result {Listings.Count} of {preparedResults.Count}...";
                     });
 
-                    // Allows Android to draw/respond between each row.
-                    await Task.Delay(175);
+                    // Allows Android to draw/respond between batches without making the app feel slow.
+                    await Task.Delay(25);
                 }
 
                 await MainThread.InvokeOnMainThreadAsync(() =>
@@ -401,14 +418,10 @@ namespace CollectIQ.ViewModels
                     StatusText = $"Finalizing {Listings.Count} result cards...";
                 });
 
-                await Task.Delay(1500);
-
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    StatusText = $"Loaded {Listings.Count} results. Cards may finish rendering as you scroll.";
+                    StatusText = $"Loaded {Listings.Count} results.";
                 });
-
-                await Task.Delay(1000);
             }
             finally
             {
@@ -461,9 +474,58 @@ namespace CollectIQ.ViewModels
 
         #region Private Search Helpers
 
+        /// <summary>
+        /// Creates a smaller JPEG representation of the captured card image for eBay image search.
+        /// Phone camera images can be very large, which can cause search_by_image requests to fail
+        /// or silently return no usable matches.
+        /// </summary>
+        /// <param name="imagePath">The original captured image path.</param>
+        /// <returns>A base64-encoded JPEG image suitable for eBay image search.</returns>
+        private static async Task<string> CreateEbayReadyImageBase64Async(string imagePath)
+        {
+            try
+            {
+                const int MaxDimension = 1200;
+                const int JpegQuality = 82;
+
+                using Image image = await Image.LoadAsync(imagePath);
+
+                int largestDimension = Math.Max(image.Width, image.Height);
+
+                if (largestDimension > MaxDimension)
+                {
+                    double scale = MaxDimension / (double)largestDimension;
+                    int newWidth = Math.Max(1, (int)Math.Round(image.Width * scale));
+                    int newHeight = Math.Max(1, (int)Math.Round(image.Height * scale));
+
+                    image.Mutate(context => context.Resize(newWidth, newHeight));
+                }
+
+                await using MemoryStream outputStream = new MemoryStream();
+                await image.SaveAsJpegAsync(outputStream, new JpegEncoder
+                {
+                    Quality = JpegQuality
+                });
+
+                byte[] resizedBytes = outputStream.ToArray();
+                Debug.WriteLine($"[eBay IMAGE] Prepared image bytes: {resizedBytes.Length}");
+
+                return Convert.ToBase64String(resizedBytes);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[eBay IMAGE] Resize failed, falling back to original image: {ex.Message}");
+
+                byte[] originalBytes = await File.ReadAllBytesAsync(imagePath);
+                return Convert.ToBase64String(originalBytes);
+            }
+        }
+
         private async Task<List<EbayListing>> SearchSoldCompsFromImageAsync(int lookbackDays)
         {
             var localResults = new List<EbayListing>();
+
+            StatusText = "Identifying card from image...";
 
             List<EbayListing> identified = await ebayService.SearchByImageAsync(
                 lastImageBase64,
@@ -489,6 +551,7 @@ namespace CollectIQ.ViewModels
             {
                 try
                 {
+                    StatusText = $"Finding sold comps for: {title}";
                     List<EbayListing> soldForTitle = await EbayService.SearchSoldAsync(
                         title,
                         limit: Math.Max(averageCountFilter * 3, 30),

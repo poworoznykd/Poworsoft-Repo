@@ -34,6 +34,9 @@ namespace CollectIQ.Interfaces
         // ----------------------------------------------------
         // Card collection operations (matches SqliteDatabase)
         // ----------------------------------------------------
+        Task<int> AddCardAsync(Card card);
+        Task<int> UpdateCardAsync(Card card);
+        Task<int> DeleteCardAsync(string cardId);
         Task<List<Card>> GetAllCardsAsync();
         Task<bool> UserExistsAsync(string email);
     }

@@ -547,6 +547,13 @@ namespace CollectIQ.Services
             string url =
                 $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}";
 
+            if (!string.IsNullOrWhiteSpace(encodedFilter))
+            {
+                url += $"&filter={encodedFilter}";
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[eBay IMAGE URL] {url}");
+
             var payload = new { image = base64Image };
             string jsonBody = JsonSerializer.Serialize(payload);
 

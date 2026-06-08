@@ -27,6 +27,7 @@
 //
 
 using CollectIQ.Controls;
+using CollectIQ.Helpers;
 using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
@@ -86,7 +87,7 @@ namespace CollectIQ.Views
         {
             InitializeComponent();
             viewModel = new CardPageViewModel(card);
-            ebayService = new EbayService(new HttpClient());
+            ebayService = ServiceHelper.GetService<EbayService>() ?? new EbayService(new HttpClient());
             BindingContext = viewModel;
 
             frontPath = viewModel.SelectedCard.FrontImagePath;
