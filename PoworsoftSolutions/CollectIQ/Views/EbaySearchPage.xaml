@@ -314,7 +314,7 @@
                             StrokeShape="RoundRectangle 14"
                             Padding="10,4">
 
-                            <Label Text="Please wait while CollectIQ searches and builds the result deck"
+                            <Label Text="Please wait while CollectIQ checks eBay"
                                FontSize="11"
                                TextColor="#39FF14"
                                HorizontalTextAlignment="Center" />

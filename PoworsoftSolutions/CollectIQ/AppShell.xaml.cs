@@ -1,4 +1,4 @@
-﻿/*
+/*
 * FILE: AppShell.xaml.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
@@ -36,6 +36,7 @@ namespace CollectIQ
             Routing.RegisterRoute(nameof(AuthSheet), typeof(AuthSheet));
             Routing.RegisterRoute(nameof(CardPage), typeof(CardPage));
             Routing.RegisterRoute(nameof(ImageViewerPage), typeof(ImageViewerPage));
+            Routing.RegisterRoute(nameof(DeveloperDatabasePage), typeof(DeveloperDatabasePage));
 
             // These are driven by the floating FuturisticNavBar:
             // DashboardPage, ScanPage, EbaySearchPage, CollectionPage.

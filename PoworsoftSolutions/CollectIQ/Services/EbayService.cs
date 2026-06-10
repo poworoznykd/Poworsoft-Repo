@@ -520,70 +520,59 @@ namespace CollectIQ.Services
         {
             List<EbayListing> results = new List<EbayListing>();
 
-            // ----------------------------------------------------------
-            // INPUT VALIDATION
-            // ----------------------------------------------------------
             if (string.IsNullOrWhiteSpace(base64Image))
             {
-                System.Diagnostics.Debug.WriteLine("[eBay IMAGE] Empty base64 image.");
+                Debug.WriteLine("[eBay IMAGE] Empty base64 image.");
                 return results;
             }
-
-            await InitializeAsync();
-            string? token = await RefreshAccessTokenAsync();
-
-            if (string.IsNullOrEmpty(token))
-            {
-                System.Diagnostics.Debug.WriteLine("[eBay IMAGE] Token unavailable.");
-                return results;
-            }
-
-            // ----------------------------------------------------------
-            // FILTER STRING CONSTRUCTION
-            // ----------------------------------------------------------
-            string filterValue = BuildFilterString(listingTypeFilter, daysRange);
-            string encodedFilter = Uri.EscapeDataString(filterValue);
-
-            string url =
-                $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={limit}";
-
-            if (!string.IsNullOrWhiteSpace(encodedFilter))
-            {
-                url += $"&filter={encodedFilter}";
-            }
-
-            System.Diagnostics.Debug.WriteLine($"[eBay IMAGE URL] {url}");
-
-            var payload = new { image = base64Image };
-            string jsonBody = JsonSerializer.Serialize(payload);
-
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
-            request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             try
             {
-                HttpResponseMessage response = await httpClient.SendAsync(request);
-                string json = await response.Content.ReadAsStringAsync();
+                await InitializeAsync();
 
-                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE STATUS] {(int)response.StatusCode} {response.ReasonPhrase}");
-                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE BODY] {json}");
+                string? token = await RefreshAccessTokenAsync();
 
-                if (!response.IsSuccessStatusCode)
+                if (string.IsNullOrEmpty(token))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[eBay IMAGE ERROR] {response.StatusCode}: {json}");
+                    Debug.WriteLine("[eBay IMAGE] Token unavailable.");
                     return results;
                 }
 
-                // ----------------------------------------------------------
-                // PARSE RESULTS
-                // ----------------------------------------------------------
+                int safeLimit = limit <= 0 ? 10 : Math.Min(limit, 25);
+
+                // Keep image search broad. The image endpoint should identify the card first.
+                // Sold filtering is handled after identification by a separate text sold-comps search.
+                string url = $"https://api.ebay.com/buy/browse/v1/item_summary/search_by_image?limit={safeLimit}";
+
+                var payload = new { image = base64Image };
+                string jsonBody = JsonSerializer.Serialize(payload);
+
+                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.Add("X-EBAY-C-MARKETPLACE-ID", "EBAY_US");
+                request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                Debug.WriteLine($"[eBay IMAGE URL] {url}");
+                Debug.WriteLine($"[eBay IMAGE REQUEST] base64Chars={base64Image.Length}, jsonChars={jsonBody.Length}");
+
+                using HttpResponseMessage response = await httpClient.SendAsync(request);
+                string json = await response.Content.ReadAsStringAsync();
+
+                Debug.WriteLine($"[eBay IMAGE STATUS] {(int)response.StatusCode} {response.ReasonPhrase}");
+                Debug.WriteLine($"[eBay IMAGE BODY PREVIEW] {CreatePreview(json, 1200)}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Debug.WriteLine($"[eBay IMAGE ERROR] {response.StatusCode}: {CreatePreview(json, 1200)}");
+                    return results;
+                }
+
                 using JsonDocument doc = JsonDocument.Parse(json);
+
                 if (!doc.RootElement.TryGetProperty("itemSummaries", out JsonElement items))
                 {
-                    System.Diagnostics.Debug.WriteLine("[eBay IMAGE] No itemSummaries found.");
+                    Debug.WriteLine("[eBay IMAGE] No itemSummaries found.");
                     return results;
                 }
 
@@ -593,11 +582,14 @@ namespace CollectIQ.Services
                     string imageUrl = item.GetNestedProperty("image", "imageUrl") ?? string.Empty;
                     string currency = item.GetNestedProperty("price", "currency") ?? "USD";
                     string priceString = item.GetNestedProperty("price", "value") ?? "0";
-                    decimal price = Convert.ToDecimal(priceString, CultureInfo.InvariantCulture);
-
                     string urlWeb = item.GetPropertyOrDefault("itemWebUrl", string.Empty);
                     string id = item.GetPropertyOrDefault("itemId", string.Empty);
+
+                    decimal price = 0m;
+                    decimal.TryParse(priceString, NumberStyles.Any, CultureInfo.InvariantCulture, out price);
+
                     string status = "Active";
+
                     if (item.TryGetProperty("itemEndDate", out JsonElement endDateElement) &&
                         endDateElement.ValueKind == JsonValueKind.String &&
                         !string.IsNullOrEmpty(endDateElement.GetString()))
@@ -617,14 +609,36 @@ namespace CollectIQ.Services
                     });
                 }
 
-                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE] Found {results.Count} listings.");
+                Debug.WriteLine($"[eBay IMAGE] Found {results.Count} listings.");
                 return results;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[eBay IMAGE EXCEPTION] {ex.Message}");
+                Debug.WriteLine($"[eBay IMAGE EXCEPTION] {ex}");
                 return results;
             }
+        }
+
+
+        /// <summary>
+        /// Creates a short debug preview for large API response bodies.
+        /// </summary>
+        /// <param name="value">The source string.</param>
+        /// <param name="maximumLength">Maximum preview length.</param>
+        /// <returns>A shortened preview string.</returns>
+        private static string CreatePreview(string value, int maximumLength)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            if (value.Length <= maximumLength)
+            {
+                return value;
+            }
+
+            return value.Substring(0, maximumLength) + "...";
         }
 
         #endregion

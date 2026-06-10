@@ -297,6 +297,15 @@
                             CornerRadius="14"
                             HeightRequest="44"
                             Clicked="OnUnderConstructionClicked" />
+
+                        <Button
+                            Text="Developer Database View"
+                            BackgroundColor="#0F172A"
+                            TextColor="#22C55E"
+                            CornerRadius="14"
+                            HeightRequest="44"
+                            Clicked="OnDeveloperDatabaseClicked" />
+
                         <Button
                             Text="Logout"
                             Style="{StaticResource AuroraNeonButton}"

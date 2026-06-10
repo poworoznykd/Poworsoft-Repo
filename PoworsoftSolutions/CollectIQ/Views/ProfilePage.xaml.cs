@@ -1,4 +1,4 @@
-﻿//
+//
 //  FILE            : ProfilePage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -172,6 +172,16 @@ namespace CollectIQ.Views
                 // Persist so it survives restarts AND is available app-wide
                 ProfileService.PersistAvatarPath(path);
             }
+        }
+
+        /// <summary>
+        /// Opens the local developer database view.
+        /// </summary>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event arguments.</param>
+        private async void OnDeveloperDatabaseClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new DeveloperDatabasePage());
         }
 
         private async void OnLogoutClicked(object sender, EventArgs e)

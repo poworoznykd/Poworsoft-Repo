@@ -26,9 +26,6 @@
 using CollectIQ.Models;
 using CollectIQ.Services;
 using Microsoft.Maui.ApplicationModel;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -38,7 +35,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Image = SixLabors.ImageSharp.Image;
 
 namespace CollectIQ.ViewModels
 {
@@ -49,32 +45,11 @@ namespace CollectIQ.ViewModels
     {
         #region Private Constants
 
-
-        /// <summary>
-        /// Maximum amount of time allowed for preparing an image before falling back to the original image.
-        /// </summary>
-        private const int ImagePreparationTimeoutMilliseconds = 8000;
-
-        /// <summary>
-        /// Maximum size allowed for fallback raw image upload.
-        /// </summary>
-        private const long MaxRawFallbackImageBytes = 5 * 1024 * 1024;
-
         /// <summary>
         /// Maximum amount of rows rendered.
         /// Keep this low while testing Android performance.
         /// </summary>
         private const int MaxResultsToDisplay = 15;
-
-        /// <summary>
-        /// Maximum width or height sent to eBay image search.
-        /// </summary>
-        private const int MaxEbayImageDimension = 1200;
-
-        /// <summary>
-        /// JPEG quality used for image-search payloads.
-        /// </summary>
-        private const int EbayImageJpegQuality = 82;
 
         #endregion
 
@@ -139,6 +114,12 @@ namespace CollectIQ.ViewModels
         }
 
         /// <summary>
+        /// Gets a value indicating whether the page is currently performing an eBay search
+        /// or building the result deck.
+        /// </summary>
+        public bool IsBusy => IsSearching || IsLoadingResults;
+
+        /// <summary>
         /// Main result collection bound to the UI.
         /// This collection is created once and then cleared/filled.
         /// Do not assign a new collection after construction.
@@ -190,12 +171,6 @@ namespace CollectIQ.ViewModels
                 }
             }
         }
-
-        /// <summary>
-        /// Gets a value indicating whether the search page is actively doing work.
-        /// This remains true while eBay is being called and while the result deck is being built.
-        /// </summary>
-        public bool IsBusy => IsSearching || IsLoadingResults;
 
         public string ListingTypeFilter
         {
@@ -284,6 +259,10 @@ namespace CollectIQ.ViewModels
             }
         }
 
+        /// <summary>
+        /// Performs the image search using the captured image path.
+        /// </summary>
+        /// <param name="imagePath">The path to the taken image.</param>
         public async Task<string> PerformImageSearchAsync(string imagePath)
         {
             if (IsSearching)
@@ -296,66 +275,66 @@ namespace CollectIQ.ViewModels
                 if (string.IsNullOrWhiteSpace(imagePath) ||
                     !File.Exists(imagePath))
                 {
-                    return string.Empty;
-                }
-
-                int lookbackDays = daysRangeFilter <= 0 ? 90 : daysRangeFilter;
-
-                if (lookbackDays > 90)
-                {
-                    lookbackDays = 90;
+                    await ClearResultsAsync("Image file was not found.");
+                    return "Image file was not found.";
                 }
 
                 IsSearching = true;
 
                 StatusText = IsSoldMode()
-                    ? "Identifying card and retrieving sold comps..."
-                    : "Identifying card and retrieving listings...";
+                    ? "Preparing original image for eBay visual search..."
+                    : "Preparing original image for eBay visual search...";
 
-                // Give the UI one frame to show the spinner/status text.
+                // Give the UI one frame to show the spinner/status text before file I/O starts.
                 await Task.Delay(100);
 
-                lastImageBase64 = await CreateEbayReadyImageBase64Async(imagePath);
+                FileInfo fileInfo = new FileInfo(imagePath);
+                Debug.WriteLine($"[eBay IMAGE] Source path: {imagePath}");
+                Debug.WriteLine($"[eBay IMAGE] Source bytes: {fileInfo.Length}");
 
-                if (string.IsNullOrWhiteSpace(lastImageBase64))
-                {
-                    await ClearResultsAsync("Image could not be prepared for eBay search.");
-                    return "Image could not be prepared for eBay search.";
-                }
+                byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
+                lastImageBase64 = Convert.ToBase64String(imageBytes);
+
+                Debug.WriteLine($"[eBay IMAGE] Base64 chars: {lastImageBase64.Length}");
+
+                StatusText = IsSoldMode()
+                    ? "Identifying card from image, then checking sold comps..."
+                    : "Searching eBay by image...";
 
                 List<EbayListing> results;
 
                 if (IsSoldMode())
                 {
-                    results = await SearchSoldCompsFromImageAsync(lookbackDays);
+                    results = await SearchSoldCompsFromImageAsync(daysRangeFilter);
                 }
                 else
                 {
                     results = await ebayService.SearchByImageAsync(
                         lastImageBase64,
                         limit: Math.Max(averageCountFilter, MaxResultsToDisplay),
-                        listingTypeFilter: listingTypeFilter,
-                        daysRange: lookbackDays);
+                        listingTypeFilter: "active",
+                        daysRange: daysRangeFilter);
                 }
 
                 if (results == null || results.Count == 0)
                 {
-                    await ClearResultsAsync("No results found.");
+                    await ClearResultsAsync("No image matches found.");
 
                     return IsSoldMode()
-                        ? "Could not identify this card or find sold comps."
-                        : "Could not identify this card from the image.";
+                        ? "eBay did not return image matches or sold comps for this photo."
+                        : "eBay did not return image matches for this photo.";
                 }
 
                 await ApplyResultsAsync(results);
 
-                UpdateStatusForResults(results);
+                await UpdateStatusForResults(results);
 
                 return string.Empty;
             }
             catch (Exception ex)
             {
-                await ClearResultsAsync("Search failed.");
+                Debug.WriteLine($"[eBay IMAGE SEARCH ERROR] {ex}");
+                await ClearResultsAsync("Image search failed.");
                 return $"Image search failed: {ex.Message}";
             }
             finally
@@ -430,23 +409,14 @@ namespace CollectIQ.ViewModels
                             $"Loading result {Listings.Count} of {preparedResults.Count}...";
                     });
 
-                    // Allows Android to draw/respond between each row.
-                    await Task.Delay(25);
+                    // Allows Android to draw/respond between batches without turning one search into a long wait.
+                    await Task.Delay(50);
                 }
 
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    StatusText = $"Finalizing {Listings.Count} result cards...";
+                    StatusText = $"Loaded {Listings.Count} results.";
                 });
-
-                await Task.Delay(25);
-
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    StatusText = $"Loaded {Listings.Count} results. Cards may finish rendering as you scroll.";
-                });
-
-                await Task.Delay(25);
             }
             finally
             {
@@ -499,124 +469,11 @@ namespace CollectIQ.ViewModels
 
         #region Private Search Helpers
 
-        /// <summary>
-        /// Creates a base64 image payload suitable for the eBay image-search endpoint.
-        /// </summary>
-        /// <param name="imagePath">The local image path captured by the camera workflow.</param>
-        /// <returns>A base64 encoded image.</returns>
-        private static async Task<string> CreateEbayReadyImageBase64Async(string imagePath)
-        {
-            if (string.IsNullOrWhiteSpace(imagePath) ||
-                !File.Exists(imagePath))
-            {
-                Debug.WriteLine("[eBay IMAGE PREP] Image path is empty or file does not exist.");
-                return string.Empty;
-            }
-
-            try
-            {
-                FileInfo fileInfo = new FileInfo(imagePath);
-
-                Debug.WriteLine($"[eBay IMAGE PREP] Source path: {imagePath}");
-                Debug.WriteLine($"[eBay IMAGE PREP] Source bytes: {fileInfo.Length}");
-
-                Task<string> resizeTask = Task.Run(() => CreateResizedImageBase64(imagePath));
-                Task timeoutTask = Task.Delay(ImagePreparationTimeoutMilliseconds);
-
-                Task completedTask = await Task.WhenAny(resizeTask, timeoutTask);
-
-                if (completedTask == resizeTask)
-                {
-                    string resizedBase64 = await resizeTask;
-
-                    if (!string.IsNullOrWhiteSpace(resizedBase64))
-                    {
-                        Debug.WriteLine($"[eBay IMAGE PREP] Resized base64 chars: {resizedBase64.Length}");
-                        return resizedBase64;
-                    }
-                }
-
-                Debug.WriteLine("[eBay IMAGE PREP] Resize timed out or returned empty. Falling back to original image.");
-
-                if (fileInfo.Length > MaxRawFallbackImageBytes)
-                {
-                    Debug.WriteLine("[eBay IMAGE PREP] Original image is too large for fallback upload.");
-                    return string.Empty;
-                }
-
-                byte[] originalBytes = await File.ReadAllBytesAsync(imagePath);
-                Debug.WriteLine($"[eBay IMAGE PREP] Fallback original bytes: {originalBytes.Length}");
-
-                return Convert.ToBase64String(originalBytes);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[eBay IMAGE PREP ERROR] {ex}");
-
-                try
-                {
-                    FileInfo fileInfo = new FileInfo(imagePath);
-
-                    if (fileInfo.Length <= MaxRawFallbackImageBytes)
-                    {
-                        byte[] originalBytes = await File.ReadAllBytesAsync(imagePath);
-                        Debug.WriteLine($"[eBay IMAGE PREP] Exception fallback original bytes: {originalBytes.Length}");
-
-                        return Convert.ToBase64String(originalBytes);
-                    }
-                }
-                catch (Exception fallbackEx)
-                {
-                    Debug.WriteLine($"[eBay IMAGE PREP FALLBACK ERROR] {fallbackEx}");
-                }
-
-                return string.Empty;
-            }
-        }
-
-        /// <summary>
-        /// Creates a resized JPEG image using ImageSharp.
-        /// </summary>
-        /// <param name="imagePath">The local image path.</param>
-        /// <returns>A base64 encoded resized JPEG image.</returns>
-        private static string CreateResizedImageBase64(string imagePath)
-        {
-            using SixLabors.ImageSharp.Image image = SixLabors.ImageSharp.Image.Load(imagePath);
-
-            int maxSide = Math.Max(image.Width, image.Height);
-
-            Debug.WriteLine($"[eBay IMAGE PREP] Loaded image dimensions: {image.Width}x{image.Height}");
-
-            if (maxSide > MaxEbayImageDimension)
-            {
-                double scale = (double)MaxEbayImageDimension / maxSide;
-                int newWidth = Math.Max(1, (int)Math.Round(image.Width * scale));
-                int newHeight = Math.Max(1, (int)Math.Round(image.Height * scale));
-
-                Debug.WriteLine($"[eBay IMAGE PREP] Resizing to: {newWidth}x{newHeight}");
-
-                image.Mutate(context => context.Resize(newWidth, newHeight));
-            }
-
-            using MemoryStream memoryStream = new MemoryStream();
-
-            JpegEncoder encoder = new JpegEncoder
-            {
-                Quality = EbayImageJpegQuality
-            };
-
-            image.SaveAsJpeg(memoryStream, encoder);
-
-            byte[] imageBytes = memoryStream.ToArray();
-
-            Debug.WriteLine($"[eBay IMAGE PREP] Prepared JPEG bytes: {imageBytes.Length}");
-
-            return Convert.ToBase64String(imageBytes);
-        }
-
         private async Task<List<EbayListing>> SearchSoldCompsFromImageAsync(int lookbackDays)
         {
-            var localResults = new List<EbayListing>();
+            List<EbayListing> soldResults = new List<EbayListing>();
+
+            StatusText = "Identifying the card from the photo...";
 
             List<EbayListing> identified = await ebayService.SearchByImageAsync(
                 lastImageBase64,
@@ -626,45 +483,51 @@ namespace CollectIQ.ViewModels
 
             if (identified == null || identified.Count == 0)
             {
-                return localResults;
+                Debug.WriteLine("[eBay IMAGE] Visual image search returned zero identified listings.");
+                return soldResults;
             }
 
-            List<string> topTitles = identified
+            string? bestTitle = identified
                 .Where(r =>
                     !string.IsNullOrWhiteSpace(r.Title) &&
                     !r.Title.Contains("your pick", StringComparison.OrdinalIgnoreCase))
-                .Select(r => r.Title!)
-                .Distinct()
-                .Take(3)
-                .ToList();
+                .Select(r => r.Title!.Trim())
+                .FirstOrDefault();
 
-            foreach (string title in topTitles)
+            if (string.IsNullOrWhiteSpace(bestTitle))
             {
-                try
-                {
-                    List<EbayListing> soldForTitle = await EbayService.SearchSoldAsync(
-                        title,
-                        limit: Math.Max(averageCountFilter * 3, 30),
-                        daysRange: lookbackDays);
-
-                    if (soldForTitle != null &&
-                        soldForTitle.Count > 0)
-                    {
-                        localResults.AddRange(soldForTitle);
-                    }
-                }
-                catch (Exception soldEx)
-                {
-                    Debug.WriteLine($"[eBay] Sold search failed for '{title}': {soldEx.Message}");
-                }
+                Debug.WriteLine("[eBay IMAGE] Could not get a usable title from visual matches. Returning visual matches.");
+                return identified;
             }
 
-            if (localResults.Count == 0)
+            StatusText = $"Checking sold comps for: {bestTitle}";
+            Debug.WriteLine($"[eBay IMAGE] Best visual match title: {bestTitle}");
+
+            try
             {
-                localResults.AddRange(identified);
+                List<EbayListing> soldForTitle = await EbayService.SearchSoldAsync(
+                    bestTitle,
+                    limit: Math.Max(averageCountFilter * 3, 30),
+                    daysRange: lookbackDays);
+
+                if (soldForTitle != null &&
+                    soldForTitle.Count > 0)
+                {
+                    soldResults.AddRange(soldForTitle);
+                }
+            }
+            catch (Exception soldEx)
+            {
+                Debug.WriteLine($"[eBay IMAGE] Sold search failed for '{bestTitle}': {soldEx.Message}");
             }
 
-            return localResults;
+            if (soldResults.Count == 0)
+            {
+                StatusText = "No sold comps found. Showing visual image matches instead.";
+                soldResults.AddRange(identified);
+            }
+
+            return soldResults;
         }
 
         private bool IsSoldMode()

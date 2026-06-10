@@ -14,7 +14,7 @@
     <ApplicationTitle>CollectIQ</ApplicationTitle>
 
     <!-- App Identifier -->
-    <ApplicationId>com.companyname.collectiq</ApplicationId>
+    <ApplicationId>ca.collectiq.app</ApplicationId>
 
     <!-- Versions -->
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

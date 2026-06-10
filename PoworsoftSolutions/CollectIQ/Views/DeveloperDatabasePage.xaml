@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Views.DeveloperDatabasePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="#020617"
+    Title="Database">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <Border
+            Grid.Row="0"
+            Style="{StaticResource AuroraGlassBorder}"
+            Margin="16,16,16,8"
+            Padding="10">
+            <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
+                <Border
+                    Stroke="#334155"
+                    StrokeThickness="1"
+                    Background="#0F172A"
+                    StrokeShape="RoundRectangle 14"
+                    HeightRequest="36"
+                    WidthRequest="44"
+                    Padding="0">
+                    <Grid>
+                        <Label
+                            Text="←"
+                            FontSize="18"
+                            TextColor="#E2E8F0"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center" />
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackClicked" />
+                        </Grid.GestureRecognizers>
+                    </Grid>
+                </Border>
+
+                <VerticalStackLayout Grid.Column="1" Spacing="0" Padding="10,0,0,0">
+                    <Label
+                        Text="CollectIQ Database"
+                        FontSize="18"
+                        FontAttributes="Bold"
+                        TextColor="#E2E8F0" />
+                    <Label
+                        Text="Local SQLite developer view"
+                        FontSize="11"
+                        TextColor="#94A3B8" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16" Spacing="16">
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label
+                            Text="Database Location"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
+
+                        <Label
+                            x:Name="DatabasePathLabel"
+                            Text="Loading..."
+                            FontSize="11"
+                            TextColor="#CBD5E1"
+                            LineBreakMode="WordWrap" />
+
+                        <HorizontalStackLayout Spacing="10">
+                            <Button
+                                Text="Copy Path"
+                                BackgroundColor="#0F172A"
+                                TextColor="#E2E8F0"
+                                CornerRadius="14"
+                                HeightRequest="42"
+                                Clicked="OnCopyPathClicked" />
+
+                            <Button
+                                Text="Refresh"
+                                BackgroundColor="#0F172A"
+                                TextColor="#E2E8F0"
+                                CornerRadius="14"
+                                HeightRequest="42"
+                                Clicked="OnRefreshClicked" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label
+                            Text="Quick Counts"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
+
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                            <Label Grid.Row="0" Grid.Column="0" Text="Users" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="0" Grid.Column="1" x:Name="UsersCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Profiles" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="1" Grid.Column="1" x:Name="ProfilesCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Collections" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="2" Grid.Column="1" x:Name="CollectionsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Cards" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="3" Grid.Column="1" x:Name="CardsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label
+                            Text="Tables"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#E2E8F0" />
+
+                        <CollectionView x:Name="TablesCollectionView" HeightRequest="360">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,8" ColumnDefinitions="*,Auto">
+                                        <Label
+                                            Grid.Column="0"
+                                            Text="{Binding Name}"
+                                            FontSize="12"
+                                            TextColor="#CBD5E1" />
+                                        <Label
+                                            Grid.Column="1"
+                                            Text="{Binding RowCount}"
+                                            FontSize="12"
+                                            FontAttributes="Bold"
+                                            TextColor="#22C55E" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label
+                    Text="For a full database view, copy the path and use ADB to pull collectiq.db3 from the device, then open it with DB Browser for SQLite."
+                    FontSize="11"
+                    TextColor="#64748B"
+                    LineBreakMode="WordWrap" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

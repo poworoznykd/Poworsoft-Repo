@@ -7,7 +7,6 @@
 //     Implements MVVM bindings for AuthSheet.xaml, including
 //     password strength tracking, remember-me, and navigation.
 
-using Android.Content.Res;
 using CollectIQ.Domain.Enums;
 using CollectIQ.Enums;
 using CollectIQ.Interfaces;
@@ -172,8 +171,6 @@ namespace CollectIQ.ViewModels.Auth
 
         private async Task LoginAsync()
         {
-            Email = "d@d.com";
-            Password = "1234";
             Message = string.Empty;
 
             if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
@@ -203,34 +200,29 @@ namespace CollectIQ.ViewModels.Auth
 
         private async Task ProviderLoginAsync(AuthProvider provider)
         {
-            // Social login is not enabled yet (Google setup still pending).
-            await Application.Current.MainPage.DisplayAlert(
-                "Under construction",
-                "Provider sign-in is coming soon.",
-                "OK");
+            try
+            {
+                Message = $"Opening {provider} sign-in...";
 
-            //try
-            //{
-            //    Message = string.Empty;
+                bool ok = await authService.SignInWithProviderAsync(provider);
+                if (!ok)
+                {
+                    Message = $"{provider} sign-in did not complete. Check provider setup and try again.";
+                    return;
+                }
 
-            //    bool ok = await authService.SignInWithProviderAsync(provider);
-            //    if (!ok)
-            //    {
-            //        Message = $"{provider} sign-in is not configured yet.";
-            //        return;
-            //    }
+                Message = $"{provider} sign-in successful.";
+                Application.Current.MainPage = new AppShell();
 
-            //    Application.Current.MainPage = new AppShell();
-
-            //    await MainThread.InvokeOnMainThreadAsync(async () =>
-            //    {
-            //        await Shell.Current.GoToAsync("///DashboardPage");
-            //    });
-            //}
-            //catch (Exception ex)
-            //{
-            //    Message = ex.Message;
-            //}
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync("///DashboardPage");
+                });
+            }
+            catch (Exception ex)
+            {
+                Message = ex.Message;
+            }
         }
 
         private async Task GuestLoginAsync()
