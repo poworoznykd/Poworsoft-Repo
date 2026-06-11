@@ -233,32 +233,20 @@
 
                         <HorizontalStackLayout
                             Grid.Row="15"
+                            Grid.ColumnSpan="2"
                             Spacing="10"
                             HorizontalOptions="Center">
                             <ImageButton
-    Clicked="GoogleLoginButton_Clicked"
-    HeightRequest="60"
-    WidthRequest="100"
-    CornerRadius="12"
-    Source="google_icon.png"
-    Aspect="AspectFit"
-    Style="{StaticResource AuroraNeonRoundIconButton}"
-    BackgroundColor="Transparent"
-    HorizontalOptions="Center"
-    VerticalOptions="Center" />
-
-                            <ImageButton
-    Clicked="FacebookLoginButton_Clicked"
-    HeightRequest="60"
-    WidthRequest="100"
-    CornerRadius="12"
-    Source="facebook_icon.png"
-    Aspect="AspectFit"
-    Style="{StaticResource AuroraNeonRoundIconButton}"
-    BackgroundColor="Transparent"
-    HorizontalOptions="Center"
-    VerticalOptions="Center" />
-
+                                Clicked="GoogleLoginButton_Clicked"
+                                HeightRequest="60"
+                                WidthRequest="160"
+                                CornerRadius="12"
+                                Source="google_sign_in.png"
+                                Aspect="AspectFill"
+                                Style="{StaticResource AuroraNeonRoundIconButton}"
+                                BackgroundColor="Transparent"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
                         </HorizontalStackLayout>
 
                         <Button
