@@ -193,7 +193,7 @@ namespace CollectIQ.Views
             }
 
             // Use the same auth flow App.xaml.cs uses (LocalAuthService + App.Database)
-            var auth = new LocalAuthService(App.Database);
+            var auth = new LocalAuthService(App.Database, new SupabaseAuthService());
             await auth.SignOutAsync();
 
             // Bounce back to the login screen, same styling as App.OnStart()

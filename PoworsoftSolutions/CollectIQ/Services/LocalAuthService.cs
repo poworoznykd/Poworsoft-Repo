@@ -1,4 +1,4 @@
-﻿//
+//
 //  FILE            : LocalAuthService.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -11,19 +11,14 @@
 //      of UserProfile and into UserCredential.
 //
 
-using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using CollectIQ.Enums;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Models.Auth;
 using CollectIQ.Services.Roles;
 using CollectIQ.Services.Session;
-using Microsoft.Maui.Authentication;
 using Microsoft.Maui.Storage;
-using SQLite;
 
 namespace CollectIQ.Services
 {
@@ -40,14 +35,26 @@ namespace CollectIQ.Services
         private const int HashByteCount = 32;
 
         private readonly IDatabase database;
+        private readonly ISocialAuthService socialAuthService;
 
         /// <summary>
         /// Initializes a new instance of the LocalAuthService class.
         /// </summary>
         /// <param name="database">The local database abstraction.</param>
         public LocalAuthService(IDatabase database)
+            : this(database, new NoOpSocialAuthService())
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the LocalAuthService class.
+        /// </summary>
+        /// <param name="database">The local database abstraction.</param>
+        /// <param name="socialAuthService">The social authentication broker.</param>
+        public LocalAuthService(IDatabase database, ISocialAuthService socialAuthService)
         {
             this.database = database;
+            this.socialAuthService = socialAuthService;
         }
 
         #region Public Authentication Methods
@@ -361,166 +368,34 @@ namespace CollectIQ.Services
         }
 
         /// <summary>
-        /// Attempts social provider sign-in using MAUI WebAuthenticator.
+        /// Signs the user in using a social authentication provider through the configured broker.
         /// </summary>
-        /// <param name="provider">The authentication provider.</param>
-        /// <returns>True when provider sign-in succeeds; otherwise false.</returns>
+        /// <param name="provider">The auth provider.</param>
+        /// <returns>True when sign-in succeeds; otherwise false.</returns>
         public async Task<bool> SignInWithProviderAsync(AuthProvider provider)
         {
             await database.InitializeAsync();
 
-            try
-            {
-                if (provider == AuthProvider.Google)
-                {
-                    return await SignInWithGoogleAsync();
-                }
+            SocialAuthUser socialUser = await socialAuthService.SignInAsync(provider);
 
-                if (provider == AuthProvider.Facebook)
-                {
-                    return await SignInWithFacebookAsync();
-                }
-
-                return false;
-            }
-            catch (TaskCanceledException)
+            if (!socialUser.IsSuccess)
             {
-                Debug.WriteLine($"[CollectIQ AUTH] {provider} sign-in was cancelled.");
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine($"[CollectIQ AUTH] {provider} sign-in was cancelled.");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CollectIQ AUTH] {provider} sign-in failed: {ex}");
-                return false;
-            }
-        }
+                string errorMessage = string.IsNullOrWhiteSpace(socialUser.ErrorMessage)
+                    ? $"{provider} sign-in failed."
+                    : socialUser.ErrorMessage;
 
-        #endregion
-
-        #region Private Helpers
-
-        /// <summary>
-        /// Signs in with Google using Authorization Code with PKCE.
-        /// </summary>
-        /// <returns>True when Google sign-in succeeds.</returns>
-        private async Task<bool> SignInWithGoogleAsync()
-        {
-            if (string.IsNullOrWhiteSpace(SocialAuthSettings.GoogleClientId))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Google client ID is not configured.");
-                return false;
+                System.Diagnostics.Debug.WriteLine($"[CollectIQ AUTH] {provider} sign-in failed: {errorMessage}");
+                throw new InvalidOperationException(errorMessage);
             }
 
-            string state = CreateBase64Url(RandomNumberGenerator.GetBytes(32));
-            string codeVerifier = CreatePkceVerifier();
-            string codeChallenge = CreatePkceChallenge(codeVerifier);
-            string authorizeUrl = SocialAuthSettings.BuildGoogleAuthorizeUrl(codeChallenge, state);
-
-            WebAuthenticatorResult result = await WebAuthenticator.Default.AuthenticateAsync(
-                new Uri(authorizeUrl),
-                new Uri(SocialAuthSettings.CallbackUrl));
-
-            string returnedState = SocialAuthSettings.TryGetState(result);
-            if (!string.Equals(returnedState, state, StringComparison.Ordinal))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Google state validation failed.");
-                return false;
-            }
-
-            string authCode = SocialAuthSettings.TryGetAuthCode(result);
-            if (string.IsNullOrWhiteSpace(authCode))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Google did not return an authorization code.");
-                return false;
-            }
-
-            string accessToken = await ExchangeGoogleCodeForAccessTokenAsync(authCode, codeVerifier);
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Google token exchange failed.");
-                return false;
-            }
-
-            SocialUserInfo? userInfo = await GetGoogleUserInfoAsync(accessToken);
-            if (userInfo == null)
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Google user info lookup failed.");
-                return false;
-            }
-
-            return await CompleteProviderSignInAsync(AuthProvider.Google, userInfo);
-        }
-
-        /// <summary>
-        /// Signs in with Facebook using MAUI WebAuthenticator.
-        /// </summary>
-        /// <returns>True when Facebook sign-in succeeds.</returns>
-        private async Task<bool> SignInWithFacebookAsync()
-        {
-            if (string.IsNullOrWhiteSpace(SocialAuthSettings.FacebookClientId))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Facebook client ID is not configured.");
-                return false;
-            }
-
-            string state = CreateBase64Url(RandomNumberGenerator.GetBytes(32));
-            string authorizeUrl = SocialAuthSettings.BuildFacebookAuthorizeUrl(state);
-
-            WebAuthenticatorResult result = await WebAuthenticator.Default.AuthenticateAsync(
-                new Uri(authorizeUrl),
-                new Uri(SocialAuthSettings.CallbackUrl));
-
-            string returnedState = SocialAuthSettings.TryGetState(result);
-            if (!string.IsNullOrWhiteSpace(returnedState) && !string.Equals(returnedState, state, StringComparison.Ordinal))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Facebook state validation failed.");
-                return false;
-            }
-
-            string accessToken = SocialAuthSettings.TryGetAccessToken(result);
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Facebook did not return an access token.");
-                return false;
-            }
-
-            SocialUserInfo? userInfo = await GetFacebookUserInfoAsync(accessToken);
-            if (userInfo == null)
-            {
-                Debug.WriteLine("[CollectIQ AUTH] Facebook user info lookup failed.");
-                return false;
-            }
-
-            return await CompleteProviderSignInAsync(AuthProvider.Facebook, userInfo);
-        }
-
-        /// <summary>
-        /// Completes provider sign-in by creating or updating the local authorized user cache.
-        /// </summary>
-        /// <param name="provider">The auth provider.</param>
-        /// <param name="userInfo">The provider user information.</param>
-        /// <returns>True when local account setup succeeds.</returns>
-        private async Task<bool> CompleteProviderSignInAsync(AuthProvider provider, SocialUserInfo userInfo)
-        {
-            if (userInfo == null || string.IsNullOrWhiteSpace(userInfo.ProviderUserId))
-            {
-                return false;
-            }
-
-            string normalizedEmail = NormalizeEmail(userInfo.Email);
+            string normalizedEmail = NormalizeEmail(socialUser.Email);
 
             if (string.IsNullOrWhiteSpace(normalizedEmail))
             {
-                normalizedEmail = $"{provider.ToString().ToLowerInvariant()}-{userInfo.ProviderUserId}@collectiq.provider.local";
+                normalizedEmail = $"{provider.ToString().ToLowerInvariant()}-{socialUser.ProviderUserId}@collectiq.local";
             }
 
             UserAccount? account = await database.GetUserAccountByEmailAsync(normalizedEmail);
-            DateTime now = DateTime.UtcNow;
 
             if (account == null)
             {
@@ -529,11 +404,11 @@ namespace CollectIQ.Services
                     Email = normalizedEmail,
                     EmailNormalized = normalizedEmail,
                     AccountStatus = AccountStatuses.Active,
-                    IsEmailVerified = !normalizedEmail.EndsWith("@collectiq.provider.local", StringComparison.OrdinalIgnoreCase),
+                    IsEmailVerified = true,
                     IsGuest = false,
-                    CreatedUtc = now,
-                    UpdatedUtc = now,
-                    LastLoginUtc = now
+                    LastLoginUtc = DateTime.UtcNow,
+                    CreatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow
                 };
             }
             else
@@ -542,37 +417,55 @@ namespace CollectIQ.Services
                 account.EmailNormalized = normalizedEmail;
                 account.AccountStatus = AccountStatuses.Active;
                 account.IsGuest = false;
-                account.LastLoginUtc = now;
-                account.UpdatedUtc = now;
+                account.LastLoginUtc = DateTime.UtcNow;
+                account.UpdatedUtc = DateTime.UtcNow;
             }
 
             await database.UpsertUserAccountAsync(account);
 
-            UserCredential credential = await GetOrCreateProviderCredentialAsync(account.Id, provider, userInfo.ProviderUserId);
-            credential.ProviderUserId = userInfo.ProviderUserId;
-            credential.PasswordHash = null;
-            credential.PasswordSalt = null;
-            credential.PasswordAlgorithm = "ExternalProvider";
-            credential.UpdatedUtc = now;
-            credential.LastChangedUtc = credential.LastChangedUtc ?? now;
+            UserCredential credential = new UserCredential
+            {
+                UserAccountId = account.Id,
+                AuthProvider = provider.ToString(),
+                ProviderUserId = socialUser.ProviderUserId,
+                PasswordHash = null,
+                PasswordAlgorithm = "ExternalOAuth",
+                LastChangedUtc = DateTime.UtcNow,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow
+            };
 
             await database.UpsertUserCredentialAsync(credential);
 
-            UserProfile profile = await EnsureProfileForAccountAsync(account, UserRoles.Regular);
-            profile.UserAccountId = account.Id;
-            profile.Email = normalizedEmail;
-            profile.ProviderUserId = userInfo.ProviderUserId;
-            profile.Role = UserRoles.Regular;
-            profile.LastLoginUtc = now;
-            profile.UpdatedUtc = now;
+            UserProfile? profile = await database.GetUserProfileByEmailAsync(normalizedEmail);
 
-            if (!string.IsNullOrWhiteSpace(userInfo.DisplayName))
+            if (profile == null)
             {
-                profile.DisplayName = userInfo.DisplayName;
+                profile = new UserProfile
+                {
+                    UserAccountId = account.Id,
+                    Email = normalizedEmail,
+                    DisplayName = string.IsNullOrWhiteSpace(socialUser.DisplayName)
+                        ? normalizedEmail
+                        : socialUser.DisplayName,
+                    ProviderUserId = socialUser.ProviderUserId,
+                    Role = UserRoles.Regular,
+                    CreatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow,
+                    LastLoginUtc = DateTime.UtcNow
+                };
             }
-            else if (string.IsNullOrWhiteSpace(profile.DisplayName))
+            else
             {
-                profile.DisplayName = normalizedEmail;
+                profile.UserAccountId = account.Id;
+                profile.Email = normalizedEmail;
+                profile.ProviderUserId = socialUser.ProviderUserId;
+                profile.DisplayName = string.IsNullOrWhiteSpace(socialUser.DisplayName)
+                    ? profile.DisplayName
+                    : socialUser.DisplayName;
+                profile.Role = UserRoles.Normalize(profile.Role);
+                profile.LastLoginUtc = DateTime.UtcNow;
+                profile.UpdatedUtc = DateTime.UtcNow;
             }
 
             await database.UpsertUserProfileAsync(profile);
@@ -586,204 +479,15 @@ namespace CollectIQ.Services
                 EmailNormalized = normalizedEmail,
                 AuthProvider = provider.ToString(),
                 WasSuccessful = true,
-                LoginUtc = now
+                LoginUtc = DateTime.UtcNow
             });
 
             return true;
         }
 
-        /// <summary>
-        /// Gets or creates a provider credential for an account.
-        /// </summary>
-        /// <param name="userAccountId">The account ID.</param>
-        /// <param name="provider">The auth provider.</param>
-        /// <param name="providerUserId">The provider user ID.</param>
-        /// <returns>The provider credential.</returns>
-        private async Task<UserCredential> GetOrCreateProviderCredentialAsync(string userAccountId, AuthProvider provider, string providerUserId)
-        {
-            SQLiteAsyncConnection connection = await database.GetConnectionAsync();
-            string providerName = provider.ToString();
+        #endregion
 
-            UserCredential? credential = await connection.Table<UserCredential>()
-                .Where(c => c.UserAccountId == userAccountId && c.AuthProvider == providerName)
-                .FirstOrDefaultAsync();
-
-            credential ??= await connection.Table<UserCredential>()
-                .Where(c => c.AuthProvider == providerName && c.ProviderUserId == providerUserId)
-                .FirstOrDefaultAsync();
-
-            return credential ?? new UserCredential
-            {
-                UserAccountId = userAccountId,
-                AuthProvider = providerName,
-                ProviderUserId = providerUserId,
-                CreatedUtc = DateTime.UtcNow,
-                UpdatedUtc = DateTime.UtcNow
-            };
-        }
-
-        /// <summary>
-        /// Exchanges a Google authorization code for an access token.
-        /// </summary>
-        /// <param name="authCode">The authorization code.</param>
-        /// <param name="codeVerifier">The PKCE code verifier.</param>
-        /// <returns>The access token, or an empty string.</returns>
-        private static async Task<string> ExchangeGoogleCodeForAccessTokenAsync(string authCode, string codeVerifier)
-        {
-            using HttpClient client = new HttpClient();
-
-            Dictionary<string, string> form = new Dictionary<string, string>
-            {
-                ["client_id"] = SocialAuthSettings.GoogleClientId,
-                ["code"] = authCode,
-                ["code_verifier"] = codeVerifier,
-                ["grant_type"] = "authorization_code",
-                ["redirect_uri"] = SocialAuthSettings.CallbackUrl
-            };
-
-            using HttpResponseMessage response = await client.PostAsync(
-                SocialAuthSettings.GoogleTokenEndpoint,
-                new FormUrlEncodedContent(form));
-
-            string json = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Debug.WriteLine($"[CollectIQ AUTH] Google token response: {(int)response.StatusCode} {json}");
-                return string.Empty;
-            }
-
-            using JsonDocument document = JsonDocument.Parse(json);
-
-            if (document.RootElement.TryGetProperty("access_token", out JsonElement tokenElement))
-            {
-                return tokenElement.GetString() ?? string.Empty;
-            }
-
-            return string.Empty;
-        }
-
-        /// <summary>
-        /// Gets Google user profile information from the OpenID userinfo endpoint.
-        /// </summary>
-        /// <param name="accessToken">The access token.</param>
-        /// <returns>The social user info, or null.</returns>
-        private static async Task<SocialUserInfo?> GetGoogleUserInfoAsync(string accessToken)
-        {
-            using HttpClient client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            string json = await client.GetStringAsync(SocialAuthSettings.GoogleUserInfoEndpoint);
-            using JsonDocument document = JsonDocument.Parse(json);
-            JsonElement root = document.RootElement;
-
-            string providerId = GetJsonString(root, "sub");
-            string email = GetJsonString(root, "email");
-            string name = GetJsonString(root, "name");
-
-            if (string.IsNullOrWhiteSpace(providerId))
-            {
-                return null;
-            }
-
-            return new SocialUserInfo
-            {
-                ProviderUserId = providerId,
-                Email = email,
-                DisplayName = name
-            };
-        }
-
-        /// <summary>
-        /// Gets Facebook user profile information from the Graph API.
-        /// </summary>
-        /// <param name="accessToken">The access token.</param>
-        /// <returns>The social user info, or null.</returns>
-        private static async Task<SocialUserInfo?> GetFacebookUserInfoAsync(string accessToken)
-        {
-            using HttpClient client = new HttpClient();
-            string url = $"{SocialAuthSettings.FacebookUserInfoEndpoint}?fields=id,name,email&access_token={Uri.EscapeDataString(accessToken)}";
-            string json = await client.GetStringAsync(url);
-
-            using JsonDocument document = JsonDocument.Parse(json);
-            JsonElement root = document.RootElement;
-
-            string providerId = GetJsonString(root, "id");
-            string email = GetJsonString(root, "email");
-            string name = GetJsonString(root, "name");
-
-            if (string.IsNullOrWhiteSpace(providerId))
-            {
-                return null;
-            }
-
-            return new SocialUserInfo
-            {
-                ProviderUserId = providerId,
-                Email = email,
-                DisplayName = name
-            };
-        }
-
-        /// <summary>
-        /// Gets a string property from a JSON element.
-        /// </summary>
-        /// <param name="root">The root JSON element.</param>
-        /// <param name="propertyName">The property name.</param>
-        /// <returns>The value, or an empty string.</returns>
-        private static string GetJsonString(JsonElement root, string propertyName)
-        {
-            if (root.TryGetProperty(propertyName, out JsonElement value) && value.ValueKind == JsonValueKind.String)
-            {
-                return value.GetString() ?? string.Empty;
-            }
-
-            return string.Empty;
-        }
-
-        /// <summary>
-        /// Creates a PKCE verifier value.
-        /// </summary>
-        /// <returns>The verifier.</returns>
-        private static string CreatePkceVerifier()
-        {
-            return CreateBase64Url(RandomNumberGenerator.GetBytes(64));
-        }
-
-        /// <summary>
-        /// Creates the PKCE code challenge for a verifier.
-        /// </summary>
-        /// <param name="verifier">The verifier.</param>
-        /// <returns>The code challenge.</returns>
-        private static string CreatePkceChallenge(string verifier)
-        {
-            byte[] bytes = Encoding.ASCII.GetBytes(verifier);
-            byte[] hash = SHA256.HashData(bytes);
-            return CreateBase64Url(hash);
-        }
-
-        /// <summary>
-        /// Converts bytes to Base64 URL format.
-        /// </summary>
-        /// <param name="bytes">The bytes.</param>
-        /// <returns>The Base64 URL value.</returns>
-        private static string CreateBase64Url(byte[] bytes)
-        {
-            return Convert.ToBase64String(bytes)
-                .TrimEnd('=')
-                .Replace('+', '-')
-                .Replace('/', '_');
-        }
-
-        /// <summary>
-        /// Contains normalized social user information returned by a provider.
-        /// </summary>
-        private sealed class SocialUserInfo
-        {
-            public string ProviderUserId { get; set; } = string.Empty;
-            public string Email { get; set; } = string.Empty;
-            public string DisplayName { get; set; } = string.Empty;
-        }
+        #region Private Helpers
 
         /// <summary>
         /// Creates an account for an older UserProfile-only record.

@@ -50,9 +50,10 @@
     <None Remove="Views\Controls\**" />
     <AndroidResource Remove="Platforms\Android\Resources\values\styles.xml" />
 
-    <!-- OCR language data -->
+    <!-- Obsolete OCR language data intentionally excluded. -->
     <None Remove="eng.traineddata" />
     <None Remove="tessdata\eng.traineddata" />
+    <Compile Remove="Services\SupabaseAuthService .cs" />
     <MauiAsset Include="Resources\Data\NBA_players.csv">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </MauiAsset>
@@ -62,14 +63,8 @@
     <MauiAsset Include="Resources\Data\NHL_players.csv">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </MauiAsset>
-    <Content Include="tessdata\eng.traineddata">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <MauiAsset Include="Resources\Data\MLB_players.csv">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </MauiAsset>
-    <MauiAsset Include="eng.traineddata">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </MauiAsset>
     <MauiAsset Include="Resources\Raw\secure.json" LogicalName="secure.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -96,8 +91,6 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
     <PackageReference Include="Supabase" Version="1.1.1" />
-
-    <!-- OCR + MLKit -->
 
     <!-- AndroidX Fixes -->
     <PackageReference Include="Xamarin.AndroidX.Tracing.Tracing" Version="1.3.0.1" />

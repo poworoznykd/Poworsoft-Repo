@@ -236,7 +236,7 @@
                             Spacing="10"
                             HorizontalOptions="Center">
                             <ImageButton
-    Command="{Binding GoogleLoginCommand}"
+    Clicked="GoogleLoginButton_Clicked"
     HeightRequest="60"
     WidthRequest="100"
     CornerRadius="12"
@@ -248,7 +248,7 @@
     VerticalOptions="Center" />
 
                             <ImageButton
-    Command="{Binding FacebookLoginCommand}"
+    Clicked="FacebookLoginButton_Clicked"
     HeightRequest="60"
     WidthRequest="100"
     CornerRadius="12"

@@ -1,204 +1,107 @@
-﻿//
+//
 //  FILE            : SocialAuthSettings.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
-//  FIRST VERSION   : 2026-03-04
-//  UPDATED         : 2026-06-08
+//  FIRST VERSION   : 2026-06-09
 //  DESCRIPTION     :
-//      Centralizes OAuth settings and URL builders for Google and Facebook
-//      sign-in. These settings support MAUI WebAuthenticator and the local
-//      CollectIQ account/profile/cache model.
-//
-//      SECURITY NOTE:
-//      These values are client identifiers only. Do not place OAuth client
-//      secrets in the mobile application. Production social login should move
-//      token exchange and account linking behind the CollectIQ API.
+//      Centralizes social authentication settings for the CollectIQ mobile app.
+//      This version uses an authentication broker approach. Google/Facebook
+//      provider secrets belong in Supabase or a future CollectIQ API, not in
+//      the mobile app.
 //
 
 using CollectIQ.Enums;
-using Microsoft.Maui.Authentication;
 
 namespace CollectIQ.Services
 {
     /// <summary>
-    /// Provides social authentication settings and helper methods.
+    /// Stores social authentication configuration for CollectIQ.
     /// </summary>
     public static class SocialAuthSettings
     {
-        #region Callback Settings
+        #region Supabase Broker Settings
 
-        /// <summary>
-        /// OAuth callback URL registered with the MAUI Android callback activity.
-        /// </summary>
+        public const string SupabaseUrl = "https://ojijtosqpgcnaflgqdye.supabase.co";
+
+        public const string SupabaseAnonKey = "sb_publishable_vuJiCGm8OGIrJafaIA9QKA_ACwbtPl8";
+
         public const string CallbackUrl = "collectiq://auth";
 
         #endregion
 
-        #region Client IDs
+        #region Supabase Endpoint Helpers
 
         /// <summary>
-        /// Google OAuth client ID used for development sign-in.
+        /// Gets the normalized Supabase base URL without trailing slashes.
         /// </summary>
-        public const string GoogleClientId = "1095978040175-jc2ma0aj0hubrtq8kukasuI2cknkr88m.apps.googleusercontent.com";
-
-        /// <summary>
-        /// Facebook app/client ID. Fill this in from Meta Developer Console when ready.
-        /// </summary>
-        public const string FacebookClientId = "";
-
-        #endregion
-
-        #region Provider Endpoints
-
-        /// <summary>
-        /// Google authorization endpoint.
-        /// </summary>
-        public const string GoogleAuthorizeEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
-
-        /// <summary>
-        /// Google token endpoint.
-        /// </summary>
-        public const string GoogleTokenEndpoint = "https://oauth2.googleapis.com/token";
-
-        /// <summary>
-        /// Google OpenID userinfo endpoint.
-        /// </summary>
-        public const string GoogleUserInfoEndpoint = "https://openidconnect.googleapis.com/v1/userinfo";
-
-        /// <summary>
-        /// Facebook OAuth authorization endpoint.
-        /// </summary>
-        public const string FacebookAuthorizeEndpoint = "https://www.facebook.com/dialog/oauth";
-
-        /// <summary>
-        /// Facebook user profile endpoint.
-        /// </summary>
-        public const string FacebookUserInfoEndpoint = "https://graph.facebook.com/me";
-
-        private const string GoogleScopes = "openid email profile";
-        private const string FacebookScopes = "email,public_profile";
-
-        #endregion
-
-        #region URL Builders
-
-        /// <summary>
-        /// Builds the Google authorization URL using authorization code plus PKCE.
-        /// </summary>
-        /// <param name="codeChallenge">The PKCE code challenge.</param>
-        /// <param name="state">The anti-forgery state value.</param>
-        /// <returns>The Google authorization URL.</returns>
-        public static string BuildGoogleAuthorizeUrl(string codeChallenge, string state)
+        /// <returns>The normalized Supabase project URL.</returns>
+        public static string GetNormalizedSupabaseUrl()
         {
-            string clientId = Uri.EscapeDataString(GoogleClientId);
-            string redirect = Uri.EscapeDataString(CallbackUrl);
-            string scope = Uri.EscapeDataString(GoogleScopes);
-            string challenge = Uri.EscapeDataString(codeChallenge);
-            string safeState = Uri.EscapeDataString(state);
-
-            return
-                $"{GoogleAuthorizeEndpoint}" +
-                $"?client_id={clientId}" +
-                $"&redirect_uri={redirect}" +
-                $"&response_type=code" +
-                $"&scope={scope}" +
-                $"&code_challenge={challenge}" +
-                $"&code_challenge_method=S256" +
-                $"&state={safeState}" +
-                $"&prompt=select_account";
+            return SupabaseUrl.Trim().TrimEnd('/');
         }
 
         /// <summary>
-        /// Builds the Facebook authorization URL.
+        /// Gets the Supabase OAuth authorize endpoint.
         /// </summary>
-        /// <param name="state">The anti-forgery state value.</param>
-        /// <returns>The Facebook authorization URL.</returns>
-        public static string BuildFacebookAuthorizeUrl(string state)
+        /// <returns>The Supabase OAuth authorize endpoint.</returns>
+        public static string GetAuthorizeEndpoint()
         {
-            string clientId = Uri.EscapeDataString(FacebookClientId);
-            string redirect = Uri.EscapeDataString(CallbackUrl);
-            string scope = Uri.EscapeDataString(FacebookScopes);
-            string safeState = Uri.EscapeDataString(state);
+            return $"{GetNormalizedSupabaseUrl()}/auth/v1/authorize";
+        }
 
-            return
-                $"{FacebookAuthorizeEndpoint}" +
-                $"?client_id={clientId}" +
-                $"&redirect_uri={redirect}" +
-                $"&response_type=token" +
-                $"&scope={scope}" +
-                $"&state={safeState}";
+        /// <summary>
+        /// Gets the Supabase token endpoint.
+        /// </summary>
+        /// <returns>The Supabase token endpoint.</returns>
+        public static string GetTokenEndpoint()
+        {
+            return $"{GetNormalizedSupabaseUrl()}/auth/v1/token";
+        }
+
+        /// <summary>
+        /// Gets the Supabase user endpoint.
+        /// </summary>
+        /// <returns>The Supabase user endpoint.</returns>
+        public static string GetUserEndpoint()
+        {
+            return $"{GetNormalizedSupabaseUrl()}/auth/v1/user";
         }
 
         #endregion
 
-        #region Result Parsers
+        #region Provider Names
 
         /// <summary>
-        /// Gets an authorization code from a WebAuthenticator result.
+        /// Gets the Supabase provider name for a CollectIQ auth provider.
         /// </summary>
-        /// <param name="result">The WebAuthenticator result.</param>
-        /// <returns>The authorization code, or an empty string.</returns>
-        public static string TryGetAuthCode(WebAuthenticatorResult result)
+        /// <param name="provider">The CollectIQ auth provider.</param>
+        /// <returns>The Supabase provider name.</returns>
+        public static string GetSupabaseProviderName(AuthProvider provider)
         {
-            return TryGetProperty(result, "code");
-        }
-
-        /// <summary>
-        /// Gets an access token from a WebAuthenticator result.
-        /// </summary>
-        /// <param name="result">The WebAuthenticator result.</param>
-        /// <returns>The access token, or an empty string.</returns>
-        public static string TryGetAccessToken(WebAuthenticatorResult result)
-        {
-            return TryGetProperty(result, "access_token");
-        }
-
-        /// <summary>
-        /// Gets the OAuth state from a WebAuthenticator result.
-        /// </summary>
-        /// <param name="result">The WebAuthenticator result.</param>
-        /// <returns>The state value, or an empty string.</returns>
-        public static string TryGetState(WebAuthenticatorResult result)
-        {
-            return TryGetProperty(result, "state");
-        }
-
-        /// <summary>
-        /// Gets a direct email value from a WebAuthenticator result if one exists.
-        /// </summary>
-        /// <param name="result">The WebAuthenticator result.</param>
-        /// <returns>The email, or an empty string.</returns>
-        public static string TryGetEmail(WebAuthenticatorResult result)
-        {
-            string email = TryGetProperty(result, "email");
-
-            if (!string.IsNullOrWhiteSpace(email))
+            return provider switch
             {
-                return email;
-            }
-
-            return TryGetProperty(result, "preferred_username");
+                AuthProvider.Google => "google",
+                AuthProvider.Facebook => "facebook",
+                _ => string.Empty
+            };
         }
 
+        #endregion
+
+        #region Validation
+
         /// <summary>
-        /// Gets a named property from a WebAuthenticator result.
+        /// Gets whether Supabase broker settings are configured enough to start social login.
         /// </summary>
-        /// <param name="result">The WebAuthenticator result.</param>
-        /// <param name="key">The property key.</param>
-        /// <returns>The property value, or an empty string.</returns>
-        private static string TryGetProperty(WebAuthenticatorResult result, string key)
+        /// <returns>True when Supabase settings are configured; otherwise false.</returns>
+        public static bool IsConfigured()
         {
-            if (result == null || string.IsNullOrWhiteSpace(key))
-            {
-                return string.Empty;
-            }
-
-            if (result.Properties.TryGetValue(key, out string? value) && !string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-
-            return string.Empty;
+            return !string.IsNullOrWhiteSpace(SupabaseUrl) &&
+                   !string.IsNullOrWhiteSpace(SupabaseAnonKey) &&
+                   !string.IsNullOrWhiteSpace(CallbackUrl) &&
+                   SupabaseUrl.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase) &&
+                   SupabaseUrl.Contains(".supabase.co", System.StringComparison.OrdinalIgnoreCase) &&
+                   !SupabaseUrl.Contains("/auth/v1/callback", System.StringComparison.OrdinalIgnoreCase);
         }
 
         #endregion

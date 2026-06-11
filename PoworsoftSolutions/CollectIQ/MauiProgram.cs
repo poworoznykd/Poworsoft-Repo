@@ -17,6 +17,7 @@ using CollectIQ.Services.Roles;
 using CollectIQ.Views;
 using CommunityToolkit.Maui;
 using Maui.FreakyControls.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
@@ -71,7 +72,13 @@ namespace CollectIQ
             builder.Services.AddSingleton<ICardRepository, CardRepository>();
 
             // Auth + Profile
-            builder.Services.AddSingleton<IAuthService, LocalAuthService>();
+            builder.Services.AddSingleton<ISocialAuthService, SupabaseAuthService>();
+            builder.Services.AddSingleton<IAuthService>(serviceProvider =>
+            {
+                IDatabase database = serviceProvider.GetRequiredService<IDatabase>();
+                ISocialAuthService socialAuthService = serviceProvider.GetRequiredService<ISocialAuthService>();
+                return new LocalAuthService(database, socialAuthService);
+            });
             builder.Services.AddSingleton<IProfileService, ProfileService>();
 
             // App utilities

@@ -1,4 +1,4 @@
-﻿// FILE: LoginViewModel.cs
+// FILE: LoginViewModel.cs
 // PROJECT: CollectIQ (Mobile Application)
 // PROGRAMMER: Darryl Poworoznyk
 // FIRST VERSION: 2025-12-05
@@ -14,6 +14,7 @@ using CollectIQ.Views;
 using Microsoft.Maui.Controls;
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -202,16 +203,19 @@ namespace CollectIQ.ViewModels.Auth
         {
             try
             {
-                Message = $"Opening {provider} sign-in...";
+                Debug.WriteLine($"[CollectIQ AUTH] ProviderLoginAsync started for {provider}.");
+                Message = $"Signing in with {provider}...";
 
                 bool ok = await authService.SignInWithProviderAsync(provider);
                 if (!ok)
                 {
-                    Message = $"{provider} sign-in did not complete. Check provider setup and try again.";
+                    Debug.WriteLine($"[CollectIQ AUTH] ProviderLoginAsync returned false for {provider}.");
+                    Message = $"{provider} sign-in could not be completed. Check Supabase URL/key, provider settings, and redirect URLs.";
                     return;
                 }
 
                 Message = $"{provider} sign-in successful.";
+
                 Application.Current.MainPage = new AppShell();
 
                 await MainThread.InvokeOnMainThreadAsync(async () =>
@@ -221,6 +225,7 @@ namespace CollectIQ.ViewModels.Auth
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[CollectIQ AUTH] ProviderLoginAsync exception: {ex}");
                 Message = ex.Message;
             }
         }
@@ -247,6 +252,7 @@ namespace CollectIQ.ViewModels.Auth
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[CollectIQ AUTH] ProviderLoginAsync exception: {ex}");
                 Message = ex.Message;
             }
         }

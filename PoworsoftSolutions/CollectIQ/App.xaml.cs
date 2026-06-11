@@ -1,79 +1,91 @@
-﻿//
+//
 //  FILE            : App.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-10-25
+//  UPDATED         : 2026-06-10
 //  DESCRIPTION     :
-//      Entry point for the CollectIQ application. Initializes
-//      the SQLite database, applies the dark neon theme,
-//      and determines whether to launch LandingPage, 
-//      AuthSheet, or AppShell based on authentication state.
+//      Entry point for the CollectIQ application. Initializes the SQLite
+//      database, applies the dark neon theme, and starts the authentication
+//      flow using the same social-auth-enabled authentication service used
+//      by dependency injection.
 //
-using CollectIQ.Views;
+
 using CollectIQ.Services;
+using CollectIQ.Views;
 using Microsoft.Maui.Controls;
-using System.Threading.Tasks;
 
 namespace CollectIQ
 {
+    /// <summary>
+    /// Main CollectIQ application class.
+    /// </summary>
     public partial class App : Application
     {
-        // ============================================================
-        //  GLOBAL DATABASE ACCESS
-        // ============================================================
+        #region Public Properties
+
+        /// <summary>
+        /// Gets the local SQLite database used by the app as the current user's authorized cache.
+        /// </summary>
         public static SqliteDatabase Database { get; } = new SqliteDatabase();
 
-        // ============================================================
-        //  PRIVATE FIELDS
-        // ============================================================
-        private readonly LocalAuthService _authService;
+        #endregion
 
-        // ============================================================
-        //  CONSTRUCTOR
-        // ============================================================
+        #region Private Fields
+
+        private readonly LocalAuthService authService;
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Initializes a new instance of the App class.
+        /// </summary>
         public App()
         {
             InitializeComponent();
-            // Do NOT wipe SecureStorage at startup; this breaks persisted login.
-            // SecureStorage.RemoveAll();
-            // Initialize authentication and database service
-            _authService = new LocalAuthService(Database);
 
-            // Display the landing screen initially
-            MainPage = new LandingPage(_authService);
+            // Do not wipe SecureStorage at startup. That would break remembered sessions.
+            // SecureStorage.RemoveAll();
+
+            // Important: this must include the real Supabase social broker. If this is created
+            // with only new LocalAuthService(Database), Google/Facebook will return
+            // "Social authentication service is not available.".
+            this.authService = new LocalAuthService(Database, new SupabaseAuthService());
+
+            // Keep the initial page simple and stable for Android startup.
+            MainPage = new LandingPage(this.authService);
         }
 
-        // ============================================================
-        //  LIFECYCLE EVENT - OnStart
-        // ============================================================
+        #endregion
+
+        #region Lifecycle Methods
+
+        /// <summary>
+        /// Initializes the database and routes the user based on sign-in state.
+        /// </summary>
         protected override async void OnStart()
         {
             base.OnStart();
 
-            // Ensure SQLite tables exist
             await Database.InitializeAsync();
 
-            // Check if the user is signed in using LocalAuthService
-            bool isSignedIn = await _authService.IsSignedInAsync();
+            bool isSignedIn = await this.authService.IsSignedInAsync();
 
             if (isSignedIn)
             {
-                // --------------------------------------------------------
-                // Authenticated user → Load main app shell (Dashboard)
-                // --------------------------------------------------------
                 MainPage = new AppShell();
+                return;
             }
-            else
+
+            MainPage = new NavigationPage(new AuthSheet(this.authService))
             {
-                // --------------------------------------------------------
-                // Unauthenticated user → Show login/auth sheet
-                // --------------------------------------------------------
-                MainPage = new NavigationPage(new AuthSheet(_authService))
-                {
-                    BarBackgroundColor = Color.FromArgb("#0B0B0D"),
-                    BarTextColor = Color.FromArgb("#00B4FF")
-                };
-            }
+                BarBackgroundColor = Color.FromArgb("#0B0B0D"),
+                BarTextColor = Color.FromArgb("#00B4FF")
+            };
         }
+
+        #endregion
     }
 }

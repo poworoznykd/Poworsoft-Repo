@@ -3,38 +3,54 @@
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
 //  FIRST VERSION   : 2025-10-21
+//  UPDATED         : 2026-06-10
 //  DESCRIPTION     :
 //      Provides the entry UI for users, offering guest mode access or
-//      navigation to authentication (sign-in/register) screens.
+//      navigation to authentication screens. The page always reuses the
+//      injected authentication service so social authentication stays enabled.
 //
+
 using CollectIQ.Interfaces;
-using CollectIQ.Services;
 using Microsoft.Maui.Controls;
 
 namespace CollectIQ.Views
 {
+    /// <summary>
+    /// Landing page for guest or account access.
+    /// </summary>
     public partial class LandingPage : ContentPage
     {
-        private readonly IAuthService _authService;
+        private readonly IAuthService authService;
 
         /// <summary>
-        /// Initializes the LandingPage with injected authentication service.
+        /// Initializes a new instance of the LandingPage class.
         /// </summary>
+        /// <param name="authService">The configured authentication service.</param>
         public LandingPage(IAuthService authService)
         {
             InitializeComponent();
-            _authService = authService;
+            this.authService = authService;
         }
 
         /// <summary>
         /// Handles the Guest access button.
-        /// Navigates directly to the main AppShell.
         /// </summary>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event arguments.</param>
         private async void OnGuest(object sender, EventArgs e)
         {
             try
             {
-                await DisplayAlert("Guest Mode",
+                bool ok = await this.authService.SignInGuestAsync();
+
+                if (!ok)
+                {
+                    await DisplayAlert("Guest Mode", "Unable to start guest mode.", "OK");
+                    return;
+                }
+
+                await DisplayAlert(
+                    "Guest Mode",
                     "You are continuing as a guest. Some features may be limited.",
                     "OK");
 
@@ -48,16 +64,14 @@ namespace CollectIQ.Views
 
         /// <summary>
         /// Handles the navigation to authentication screen.
-        /// Opens the AuthSheet for sign-in/registration.
         /// </summary>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event arguments.</param>
         private async void OnAuth(object sender, EventArgs e)
         {
             try
             {
-                var db = new SqliteDatabase();
-                var authService = new LocalAuthService(db);
-                // Navigate cleanly to AuthSheet
-                await Navigation.PushAsync(new AuthSheet(_authService));
+                await Navigation.PushAsync(new AuthSheet(this.authService));
             }
             catch (Exception ex)
             {
