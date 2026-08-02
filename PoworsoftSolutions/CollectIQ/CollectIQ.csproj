@@ -33,6 +33,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-android|AnyCPU'">
     <EmbedAssembliesIntoApk>False</EmbedAssembliesIntoApk>
 	<_MauiForceXamlCForDebug>true</_MauiForceXamlCForDebug>
+	<DebugSymbols>False</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net9.0-android|AnyCPU'">
+    <DebugSymbols>True</DebugSymbols>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
