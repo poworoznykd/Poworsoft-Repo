@@ -51,7 +51,12 @@ namespace CollectIQ.Utilities
             "Neo Genesis","Neo Discovery","Neo Revelation","Neo Destiny",
             "e-Reader","Ruby Sapphire","Diamond & Pearl","HeartGold SoulSilver",
             "Black & White","XY","Sun & Moon","Sword & Shield","Scarlet & Violet",
-            "Champion's Path","Evolving Skies","Vivid Voltage","Celebrations"
+            "Champion's Path","Evolving Skies","Vivid Voltage","Celebrations",
+            "Ascended Heroes","Destined Rivals","Journey Together","Prismatic Evolutions",
+            "Surging Sparks","Stellar Crown","Shrouded Fable","Twilight Masquerade",
+            "Temporal Forces","Paldean Fates","Paradox Rift","Obsidian Flames",
+            "Paldea Evolved","Crown Zenith","Silver Tempest","Lost Origin",
+            "Astral Radiance","Brilliant Stars","Fusion Strike","Chilling Reign"
         };
 
         private static readonly string[] teamKeywords =
@@ -335,11 +340,33 @@ namespace CollectIQ.Utilities
                 card.SerialNumber = serial.Value;
             }
 
-            // CARD NUMBER (#205, #A-PICK)
-            Match cardNum = Regex.Match(combined, @"#\s?([A-Za-z0-9\-]+)");
-            if (cardNum.Success)
+            // CARD NUMBER
+            // Pokémon titles commonly use collector numbers such as 055/227 without a '#'.
+            // Preserve the full collector number because both values help identify the exact card.
+            Match pokemonCollectorNumber = Regex.Match(
+                combined,
+                @"(?<!\d)([A-Za-z]{0,4}\d{1,4}\s*/\s*[A-Za-z]{0,4}\d{1,4})(?!\d)",
+                RegexOptions.IgnoreCase);
+
+            if (pokemonCollectorNumber.Success)
             {
-                card.Number = cardNum.Groups[1].Value;
+                card.Number = Regex.Replace(
+                    pokemonCollectorNumber.Groups[1].Value,
+                    @"\s+",
+                    string.Empty);
+            }
+            else
+            {
+                // Sports-card and insert identifiers such as #205 or #A-PICK.
+                Match cardNum = Regex.Match(
+                    combined,
+                    @"#\s*([A-Za-z0-9][A-Za-z0-9\-]*)",
+                    RegexOptions.IgnoreCase);
+
+                if (cardNum.Success)
+                {
+                    card.Number = cardNum.Groups[1].Value;
+                }
             }
 
             // SET DETECTION
@@ -354,7 +381,9 @@ namespace CollectIQ.Utilities
 
             if (string.IsNullOrWhiteSpace(card.Set))
             {
-                foreach (string set in pokemonSets)
+                // Check the longest Pokémon set names first so a broad era name such as
+                // "Scarlet & Violet" does not replace a specific expansion name.
+                foreach (string set in pokemonSets.OrderByDescending(value => value.Length))
                 {
                     if (combined.Contains(set, StringComparison.OrdinalIgnoreCase))
                     {
@@ -362,6 +391,15 @@ namespace CollectIQ.Utilities
                         break;
                     }
                 }
+            }
+
+            // eBay titles occasionally contain a newer Pokémon expansion that has not yet
+            // been added to pokemonSets. In that case infer the set from the words between
+            // the Pokémon name and collector number, for example:
+            // "Pikachu ex Ascended Heroes 055/227" -> "Ascended Heroes".
+            if (string.IsNullOrWhiteSpace(card.Set) && PokemonCardsFound(title, desc))
+            {
+                card.Set = TryInferPokemonSet(title, card.Number);
             }
 
             // TEAM (JSON-backed property: must assign back!)
@@ -415,6 +453,80 @@ namespace CollectIQ.Utilities
             }
 
             return card;
+        }
+
+
+        /*
+         * FUNCTION     : TryInferPokemonSet
+         * DESCRIPTION  :
+         *     Infers a Pokémon expansion name from an eBay title when the expansion
+         *     is not yet present in the local known-set list. The method removes the
+         *     Pokémon name, collector number, year, grading terms, rarity terms, and
+         *     common marketplace noise, leaving the most likely set name.
+         * PARAMETERS   :
+         *     title      - eBay listing title.
+         *     cardNumber - Parsed collector number such as 055/227.
+         * RETURNS      :
+         *     The inferred set name, or an empty string when confidence is low.
+         */
+        private static string TryInferPokemonSet(string title, string cardNumber)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return string.Empty;
+            }
+
+            string candidate = title;
+
+            foreach (string pokemonName in pokemonNames.OrderByDescending(value => value.Length))
+            {
+                candidate = Regex.Replace(
+                    candidate,
+                    $@"\b{Regex.Escape(pokemonName)}\b",
+                    " ",
+                    RegexOptions.IgnoreCase);
+            }
+
+            if (!string.IsNullOrWhiteSpace(cardNumber))
+            {
+                candidate = Regex.Replace(
+                    candidate,
+                    Regex.Escape(cardNumber),
+                    " ",
+                    RegexOptions.IgnoreCase);
+            }
+
+            candidate = Regex.Replace(candidate, @"\b(19|20)\d{2}\b", " ");
+            candidate = Regex.Replace(candidate, @"\b(PSA|BGS|CGC|SGC)\s*\d+(?:\.\d+)?\b", " ", RegexOptions.IgnoreCase);
+            candidate = Regex.Replace(candidate, @"#\s*[A-Za-z0-9\-/]+", " ", RegexOptions.IgnoreCase);
+
+            string[] noiseTerms =
+            {
+                "pokemon", "pokémon", "tcg", "card", "cards", "ex", "gx", "v", "vmax", "vstar",
+                "holo", "holographic", "reverse holo", "full art", "ultra rare", "secret rare",
+                "illustration rare", "special illustration rare", "sir", "ir", "near mint", "nm",
+                "mint", "raw", "graded", "english", "japanese", "new", "lot"
+            };
+
+            foreach (string noiseTerm in noiseTerms.OrderByDescending(value => value.Length))
+            {
+                candidate = Regex.Replace(
+                    candidate,
+                    $@"\b{Regex.Escape(noiseTerm)}\b",
+                    " ",
+                    RegexOptions.IgnoreCase);
+            }
+
+            candidate = Regex.Replace(candidate, @"[^A-Za-z0-9&'\- ]", " ");
+            candidate = Regex.Replace(candidate, @"\s+", " ").Trim(' ', '-', '|');
+
+            string[] words = candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length < 2 || words.Length > 6)
+            {
+                return string.Empty;
+            }
+
+            return string.Join(" ", words);
         }
 
         // -----------------------------------------------------------------

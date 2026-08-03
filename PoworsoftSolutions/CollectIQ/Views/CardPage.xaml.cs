@@ -42,6 +42,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using static CollectIQ.Enums.Enums;
 
 namespace CollectIQ.Views
 {
@@ -476,15 +477,13 @@ namespace CollectIQ.Views
                 return;
             }
 
-            if (viewModel.SelectedCard.Id != null)
-            {
-                await database.UpdateCardAsync(viewModel.SelectedCard);
-            }
-            else
+            int affectedRows = await database.UpdateCardAsync(viewModel.SelectedCard);
+            if (affectedRows == 0)
             {
                 await database.AddCardAsync(viewModel.SelectedCard);
-                isNewCard = false;
             }
+
+            isNewCard = false;
         }
 
         /*
@@ -874,8 +873,83 @@ namespace CollectIQ.Views
             }
         }
 
+        /*
+         * FUNCTION     : EnsureMissingMetadataFromTitle
+         * DESCRIPTION  :
+         *     Re-runs the shared eBay metadata parser against the stored title when
+         *     an older card record is missing Pokémon year, set, collector number,
+         *     or character name. This repairs the in-memory card before Insights
+         *     builds its query and updates the visible fields immediately.
+         * PARAMETERS   :
+         *     none
+         * RETURNS      :
+         *     void
+         */
+        private void EnsureMissingMetadataFromTitle()
+        {
+            Card selectedCard = viewModel?.SelectedCard;
+            if (selectedCard == null || string.IsNullOrWhiteSpace(selectedCard.Title))
+            {
+                return;
+            }
+
+            bool metadataMissing =
+                !selectedCard.Year.HasValue ||
+                string.IsNullOrWhiteSpace(selectedCard.Set) ||
+                string.IsNullOrWhiteSpace(selectedCard.Number) ||
+                string.IsNullOrWhiteSpace(selectedCard.Player.FullName);
+
+            if (!metadataMissing)
+            {
+                return;
+            }
+
+            Card parsedCard = CardMetadataParser.Parse(
+                new EbayListing
+                {
+                    Title = selectedCard.Title
+                });
+
+            if (!selectedCard.Year.HasValue && parsedCard.Year.HasValue)
+            {
+                selectedCard.Year = parsedCard.Year;
+                YearEntry.Text = parsedCard.Year.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedCard.Set) &&
+                !string.IsNullOrWhiteSpace(parsedCard.Set))
+            {
+                selectedCard.Set = parsedCard.Set;
+                SetEntry.Text = parsedCard.Set;
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedCard.Number) &&
+                !string.IsNullOrWhiteSpace(parsedCard.Number))
+            {
+                selectedCard.Number = parsedCard.Number;
+                NumberEntry.Text = parsedCard.Number;
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedCard.Player.FullName) &&
+                !string.IsNullOrWhiteSpace(parsedCard.Player.FullName))
+            {
+                Player player = selectedCard.Player;
+                player.FullName = parsedCard.Player.FullName;
+                selectedCard.Player = player;
+                PlayerEntry.Text = parsedCard.Player.FullName;
+            }
+
+            if (selectedCard.Sport == CollectingCardCategory.Other &&
+                parsedCard.Sport == CollectingCardCategory.Pokemon)
+            {
+                selectedCard.Sport = CollectingCardCategory.Pokemon;
+            }
+        }
+
         private string BuildDefaultEbayQueryFromForm()
         {
+            EnsureMissingMetadataFromTitle();
+
             var parts = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(PlayerEntry.Text))
@@ -902,7 +976,9 @@ namespace CollectIQ.Views
 
             if (!string.IsNullOrWhiteSpace(NumberEntry.Text))
             {
-                parts.Add("#" + NumberEntry.Text.Trim());
+                // Pokémon collector numbers such as 055/227 are searched more reliably
+                // without adding a leading '#'. Sports identifiers still work without it.
+                parts.Add(NumberEntry.Text.Trim());
             }
 
             if (!string.IsNullOrWhiteSpace(GradeCoEntry.Text) &&
