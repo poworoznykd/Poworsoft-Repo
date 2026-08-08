@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="CollectIQ.Views.InspectCornersPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CollectIQ.Controls"
+             BackgroundColor="#050814"
+             Title="Corners">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <controls:AppModeToggleBar Grid.Row="0" />
+        <VerticalStackLayout Grid.Row="1" Padding="20" Spacing="12" VerticalOptions="Center">
+            <Label Text="CORNER INSPECTION" TextColor="#C084FC" FontSize="22" FontAttributes="Bold" />
+            <Label Text="Dedicated corner inspection will live here. Keeping it separate lets us validate sharpness, rounding, fraying and wear independently from the other grading factors."
+                   TextColor="#CBD5E1" />
+            <Label Text="Next module after Surface." TextColor="#9FB3C8" FontSize="12" />
+        </VerticalStackLayout>
+        <controls:FuturisticNavBar Grid.Row="2" />
+    </Grid>
+</ContentPage>

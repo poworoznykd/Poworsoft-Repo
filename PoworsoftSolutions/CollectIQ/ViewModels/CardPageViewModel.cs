@@ -40,115 +40,12 @@ namespace CollectIQ.ViewModels
 
         public CardPageViewModel(Card card)
         {
-            this.selectedCard = card ?? new Card();
+            this.selectedCard = card;
             string team = card.Team?.Name ?? string.Empty;
             string set = card.Set ?? string.Empty;
             string year = card.Year > 0 ? card.Year.ToString() : string.Empty;
             string number = card.Number ?? string.Empty;
             cardSubTitle = $"{year} - {team} - {set} - #{number}".Trim(' ', '-');
-        }
-
-
-        // ============================================================
-        //  JSON-BACKED EDITOR PROPERTIES
-        // ============================================================
-
-        public string PlayerName
-        {
-            get => SelectedCard?.Player?.FullName ?? string.Empty;
-            set
-            {
-                if (SelectedCard == null)
-                {
-                    return;
-                }
-
-                Player player = SelectedCard.Player;
-                string normalizedValue = value ?? string.Empty;
-                if (string.Equals(player.FullName, normalizedValue, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                player.FullName = normalizedValue;
-                SelectedCard.Player = player;
-                OnPropertyChanged();
-            }
-        }
-
-        public string TeamName
-        {
-            get => SelectedCard?.Team?.Name ?? string.Empty;
-            set
-            {
-                if (SelectedCard == null)
-                {
-                    return;
-                }
-
-                Team team = SelectedCard.Team;
-                string normalizedValue = value ?? string.Empty;
-                if (string.Equals(team.Name, normalizedValue, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                team.Name = normalizedValue;
-                SelectedCard.Team = team;
-                OnPropertyChanged();
-            }
-        }
-
-        public string GradingCompany
-        {
-            get => SelectedCard?.Grading?.Company ?? string.Empty;
-            set
-            {
-                if (SelectedCard == null)
-                {
-                    return;
-                }
-
-                Grading grading = SelectedCard.Grading;
-                string normalizedValue = value ?? string.Empty;
-                if (string.Equals(grading.Company, normalizedValue, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                grading.Company = normalizedValue;
-                SelectedCard.Grading = grading;
-                OnPropertyChanged();
-            }
-        }
-
-        public string GradingGrade
-        {
-            get => SelectedCard?.Grading?.Grade?.ToString("0.0#", CultureInfo.InvariantCulture) ?? string.Empty;
-            set
-            {
-                if (SelectedCard == null)
-                {
-                    return;
-                }
-
-                Grading grading = SelectedCard.Grading;
-                double? parsedGrade = null;
-                if (!string.IsNullOrWhiteSpace(value) &&
-                    double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double grade))
-                {
-                    parsedGrade = grade;
-                }
-
-                if (grading.Grade == parsedGrade)
-                {
-                    return;
-                }
-
-                grading.Grade = parsedGrade;
-                SelectedCard.Grading = grading;
-                OnPropertyChanged();
-            }
         }
 
         // ============================================================

@@ -95,13 +95,19 @@ namespace CollectIQ.Controls
 
         private async void OnInspectClicked(object sender, EventArgs e)
         {
-            // INSPECT lane is not ready yet – show reusable under construction screen.
-            await ShowUnderConstructionAsync("Inspect lane");
+            SetMode(AppMode.Inspect);
+
+            if (Shell.Current?.CurrentPage is InspectHubPage)
+            {
+                return;
+            }
+
+            await Shell.Current.GoToAsync(nameof(InspectHubPage));
         }
 
         private async void OnTradeClicked(object sender, EventArgs e)
         {
-            // TRADE lane is not ready yet – show reusable under construction screen.
+            // TRADE lane is not ready yet ï¿½ show reusable under construction screen.
             await ShowUnderConstructionAsync("Trade lane");
         }
 
@@ -165,21 +171,21 @@ namespace CollectIQ.Controls
             switch (mode)
             {
                 case AppMode.Collect:
-                    CurrentModeLabel.Text = "Collecting lane – home, scan, search, and collection.";
+                    CurrentModeLabel.Text = "Collecting lane ï¿½ home, scan, search, and collection.";
                     CollectButton.Opacity = 1.0;
                     CollectLabel.TextColor = activeColor;
                     CollectLabel.FontAttributes = FontAttributes.Bold;
                     break;
 
                 case AppMode.Inspect:
-                    CurrentModeLabel.Text = "Inspecting lane – centering, corners, surface checks.";
+                    CurrentModeLabel.Text = "Inspecting lane ï¿½ centering, corners, surface checks.";
                     InspectButton.Opacity = 1.0;
                     InspectLabel.TextColor = activeColor;
                     InspectLabel.FontAttributes = FontAttributes.Bold;
                     break;
 
                 case AppMode.BuySellTrade:
-                    CurrentModeLabel.Text = "Trading lane – deals, offers, and trade block (coming soon).";
+                    CurrentModeLabel.Text = "Trading lane ï¿½ deals, offers, and trade block (coming soon).";
                     TradeButton.Opacity = 1.0;
                     TradeLabel.TextColor = activeColor;
                     TradeLabel.FontAttributes = FontAttributes.Bold;

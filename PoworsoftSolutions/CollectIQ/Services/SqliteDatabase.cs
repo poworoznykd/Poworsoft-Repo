@@ -691,8 +691,7 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
 
-            if (string.IsNullOrWhiteSpace(card.CollectionId) ||
-                string.Equals(card.CollectionId, "Default", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(card.CollectionId))
             {
                 CardCollection collection = await GetOrCreateDefaultCollectionAsync("local");
                 card.CollectionId = collection.Id;

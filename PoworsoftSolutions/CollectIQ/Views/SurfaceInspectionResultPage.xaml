@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="CollectIQ.Views.SurfaceInspectionResultPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             BackgroundColor="#050814"
+             Title="Surface Results">
+    <ScrollView>
+        <VerticalStackLayout Padding="16,16,16,28" Spacing="14">
+            <Label Text="SURFACE RESULTS" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
+            <Label Text="Directional surface map" TextColor="#F8FAFC" FontSize="24" FontAttributes="Bold" />
+            <Label x:Name="SummaryLabel" TextColor="#CBD5E1" FontSize="12" />
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                    <VerticalStackLayout>
+                        <Label Text="Anomaly signal" TextColor="#9FB3C8" FontSize="10" />
+                        <Label x:Name="AnomalyScoreLabel" TextColor="#F8FAFC" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                    <VerticalStackLayout>
+                        <Label Text="Capture consistency" TextColor="#9FB3C8" FontSize="10" />
+                        <Label x:Name="ConsistencyLabel" TextColor="#F8FAFC" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <Label Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
+                <Image x:Name="HeatmapImage" Aspect="AspectFit" />
+            </Border>
+
+            <Label Text="Directional relief" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                <Image x:Name="ReliefImage" Aspect="AspectFit" />
+            </Border>
+
+            <Label Text="Glare-reduced average" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                <Image x:Name="DiffuseImage" Aspect="AspectFit" />
+            </Border>
+
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                <Label Text="This is an inspection aid. Highlighted pixels can also be caused by foil patterns, printing, glare, card movement or inconsistent lighting. Confirm any suspected defect against the original card."
+                       TextColor="#9FB3C8"
+                       FontSize="11" />
+            </Border>
+
+            <Button Text="DONE"
+                    Clicked="OnDoneClicked"
+                    HeightRequest="50"
+                    BackgroundColor="#1D6A2A"
+                    TextColor="#F0FFED"
+                    CornerRadius="20" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

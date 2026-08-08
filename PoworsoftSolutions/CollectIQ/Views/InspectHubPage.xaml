@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Views.InspectHubPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:CollectIQ.Controls"
+    BackgroundColor="#050814"
+    Title="Inspect">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <controls:AppModeToggleBar Grid.Row="0" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
+                <Label Text="CARD INSPECTION"
+                       TextColor="#C084FC"
+                       FontSize="12"
+                       FontAttributes="Bold" />
+
+                <Label Text="Inspect what matters"
+                       TextColor="#F8FAFC"
+                       FontSize="26"
+                       FontAttributes="Bold" />
+
+                <Label Text="Each inspection is independent so we can make every measurement repeatable before combining them into a future condition assessment."
+                       TextColor="#9FB3C8"
+                       FontSize="12" />
+
+                <Grid ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto"
+                      ColumnSpacing="12"
+                      RowSpacing="12">
+
+                    <Border Style="{StaticResource AuroraGlassBorder}"
+                            Padding="14"
+                            Stroke="#4BE7F2">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="CENTERING" TextColor="#4BE7F2" FontAttributes="Bold" />
+                            <Label Text="Measure border symmetry on the front and back."
+                                   TextColor="#CBD5E1" FontSize="11" />
+                            <Button Text="Open"
+                                    Clicked="OnCenteringClicked"
+                                    BackgroundColor="#163B4A"
+                                    TextColor="#E6FBFF"
+                                    CornerRadius="16" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Style="{StaticResource AuroraGlassBorder}"
+                            Padding="14"
+                            Stroke="#A855F7">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="CORNERS" TextColor="#C084FC" FontAttributes="Bold" />
+                            <Label Text="Inspect sharpness, rounding, fraying and wear."
+                                   TextColor="#CBD5E1" FontSize="11" />
+                            <Button Text="Open"
+                                    Clicked="OnCornersClicked"
+                                    BackgroundColor="#3B1B5A"
+                                    TextColor="#F3E8FF"
+                                    CornerRadius="16" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="1"
+                            Style="{StaticResource AuroraGlassBorder}"
+                            Padding="14"
+                            Stroke="#F59E0B">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="EDGES" TextColor="#FBBF24" FontAttributes="Bold" />
+                            <Label Text="Look for chipping, whitening and edge damage."
+                                   TextColor="#CBD5E1" FontSize="11" />
+                            <Button Text="Open"
+                                    Clicked="OnEdgesClicked"
+                                    BackgroundColor="#4A3515"
+                                    TextColor="#FFF7D6"
+                                    CornerRadius="16" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="1"
+                            Grid.Column="1"
+                            Style="{StaticResource AuroraGlassBorder}"
+                            Padding="14"
+                            Stroke="#39FF14">
+                        <VerticalStackLayout Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="SURFACE" TextColor="#86FF70" FontAttributes="Bold" />
+                                <Label Grid.Column="1"
+                                       Text="ACTIVE"
+                                       FontSize="9"
+                                       TextColor="#39FF14" />
+                            </Grid>
+                            <Label Text="Directional-light inspection for scratches, dents and subtle surface anomalies."
+                                   TextColor="#CBD5E1" FontSize="11" />
+                            <Button Text="Inspect Surface"
+                                    Clicked="OnSurfaceClicked"
+                                    BackgroundColor="#17451D"
+                                    TextColor="#E9FFE5"
+                                    CornerRadius="16" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="5">
+                        <Label Text="Long-term goal"
+                               TextColor="#F8FAFC"
+                               FontAttributes="Bold" />
+                        <Label Text="Only after the four modules are repeatable should CollectIQ combine them into a broader condition or grading-assistance model."
+                               TextColor="#9FB3C8"
+                               FontSize="11" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <controls:FuturisticNavBar Grid.Row="2" />
+    </Grid>
+</ContentPage>

@@ -42,7 +42,11 @@ namespace CollectIQ
             // DashboardPage, ScanPage, EbaySearchPage, CollectionPage.
 
             // Inspect lane – centering inspector page
+            Routing.RegisterRoute(nameof(InspectHubPage), typeof(InspectHubPage));
             Routing.RegisterRoute(nameof(InspectCenteringPage), typeof(InspectCenteringPage));
+            Routing.RegisterRoute(nameof(InspectCornersPage), typeof(InspectCornersPage));
+            Routing.RegisterRoute(nameof(InspectEdgesPage), typeof(InspectEdgesPage));
+            Routing.RegisterRoute(nameof(InspectSurfacePage), typeof(InspectSurfacePage));
         }
     }
 }
