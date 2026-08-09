@@ -11,6 +11,7 @@ namespace CollectIQ.Interfaces
         Task<SurfaceInspectionResult> AnalyzeAsync(
             string neutralReferencePath,
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
+            InspectionCardSurfaceProfile surfaceProfile = InspectionCardSurfaceProfile.Normal,
             CancellationToken cancellationToken = default);
     }
 }

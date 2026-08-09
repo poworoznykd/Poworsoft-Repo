@@ -81,23 +81,45 @@ namespace CollectIQ.Services.Inspection.Registration
                     continue;
                 }
 
-                SimilarityMatch match = FindBestSimilarity(reference.Luminance, frame.Luminance);
-                frame.AlignmentConfidence = match.Confidence * 100.0;
-                frame.RotationDegrees = match.AngleDegrees;
-                frame.Scale = match.Scale;
-                frame.OffsetX = match.OffsetX;
-                frame.OffsetY = match.OffsetY;
+                int orientationDegrees = FindBestCardinalOrientation(reference.Luminance, frame.Luminance);
+                if (orientationDegrees != 0)
+                {
+                    frame.Luminance = RotateCardinal(
+                        frame.Luminance,
+                        CanonicalWidth,
+                        CanonicalHeight,
+                        orientationDegrees);
 
+                    // A 180-degree orientation correction is safe to show because
+                    // it does not create empty wedges or crop the canonical card.
+                    await ApplyCardinalRotationToImageAsync(
+                        frame.RegisteredImagePath,
+                        orientationDegrees,
+                        cancellationToken);
+                }
+
+                SimilarityMatch match = FindBestSimilarity(reference.Luminance, frame.Luminance);
+                SimilarityMatch acceptedMatch = AcceptOrRejectSimilarity(
+                    reference.Luminance,
+                    frame.Luminance,
+                    match);
+
+                frame.AlignmentConfidence = acceptedMatch.Confidence * 100.0;
+                frame.RotationDegrees = orientationDegrees + acceptedMatch.AngleDegrees;
+                frame.Scale = acceptedMatch.Scale;
+                frame.OffsetX = acceptedMatch.OffsetX;
+                frame.OffsetY = acceptedMatch.OffsetY;
+
+                // IMPORTANT: fine similarity alignment is used for the analysis
+                // array only. The user-facing normalized capture stays as the
+                // clean homography-warped card (plus a safe 180-degree correction
+                // when needed). This prevents the black triangular wedges that a
+                // small rotate/scale/shift can introduce at the canvas boundary.
                 frame.Luminance = ApplySimilarity(
                     frame.Luminance,
                     CanonicalWidth,
                     CanonicalHeight,
-                    match);
-
-                await ApplySimilarityToImageAsync(
-                    frame.RegisteredImagePath,
-                    match,
-                    cancellationToken);
+                    acceptedMatch);
             }
 
             foreach (RegisteredCardFrame frame in frames.Values)
@@ -249,6 +271,99 @@ namespace CollectIQ.Services.Inspection.Registration
             return output;
         }
 
+        private static int FindBestCardinalOrientation(float[] reference, float[] moving)
+        {
+            // The homography already creates a portrait card. The only remaining
+            // cardinal ambiguity is 0 vs 180 degrees. Prefer 0 unless the 180
+            // degree result is clearly better; directional glare can otherwise
+            // make an upside-down card look spuriously similar.
+            float[] referenceEdges = GradientMagnitude(reference, CanonicalWidth, CanonicalHeight);
+            float[] movingEdges = GradientMagnitude(moving, CanonicalWidth, CanonicalHeight);
+            float[] rotated = RotateCardinal(moving, CanonicalWidth, CanonicalHeight, 180);
+            float[] rotatedEdges = GradientMagnitude(rotated, CanonicalWidth, CanonicalHeight);
+
+            double score0 =
+                (CorrelateArrays(reference, moving, CanonicalWidth, CanonicalHeight, 48, 4) * 0.25) +
+                (CorrelateArrays(referenceEdges, movingEdges, CanonicalWidth, CanonicalHeight, 48, 4) * 0.75);
+
+            double score180 =
+                (CorrelateArrays(reference, rotated, CanonicalWidth, CanonicalHeight, 48, 4) * 0.25) +
+                (CorrelateArrays(referenceEdges, rotatedEdges, CanonicalWidth, CanonicalHeight, 48, 4) * 0.75);
+
+            const double RequiredFlipMargin = 0.08;
+            return score180 > score0 + RequiredFlipMargin ? 180 : 0;
+        }
+
+        private static double CorrelateArrays(
+            float[] reference,
+            float[] moving,
+            int width,
+            int height,
+            int margin,
+            int stride)
+        {
+            double sumR = 0.0;
+            double sumM = 0.0;
+            double sumRR = 0.0;
+            double sumMM = 0.0;
+            double sumRM = 0.0;
+            int count = 0;
+
+            for (int y = margin; y < height - margin; y += stride)
+            {
+                int row = y * width;
+                for (int x = margin; x < width - margin; x += stride)
+                {
+                    float r = reference[row + x];
+                    float m = moving[row + x];
+                    sumR += r;
+                    sumM += m;
+                    sumRR += r * r;
+                    sumMM += m * m;
+                    sumRM += r * m;
+                    count++;
+                }
+            }
+
+            if (count < 100)
+            {
+                return -1.0;
+            }
+
+            double numerator = sumRM - ((sumR * sumM) / count);
+            double denomR = sumRR - ((sumR * sumR) / count);
+            double denomM = sumMM - ((sumM * sumM) / count);
+            double denominator = Math.Sqrt(Math.Max(denomR * denomM, 1e-12));
+            return numerator / denominator;
+        }
+
+        private static float[] RotateCardinal(float[] source, int width, int height, int angleDegrees)
+        {
+            int normalized = ((angleDegrees % 360) + 360) % 360;
+            if (normalized == 0)
+            {
+                return source.ToArray();
+            }
+
+            if (normalized != 180)
+            {
+                throw new ArgumentOutOfRangeException(nameof(angleDegrees), "Only 0 and 180 degree rotations are supported in the canonical portrait frame.");
+            }
+
+            float[] output = new float[source.Length];
+            for (int y = 0; y < height; y++)
+            {
+                int srcRow = y * width;
+                int dstRow = (height - 1 - y) * width;
+                for (int x = 0; x < width; x++)
+                {
+                    output[dstRow + (width - 1 - x)] = source[srcRow + x];
+                }
+            }
+
+            return output;
+        }
+
         private static SimilarityMatch FindBestSimilarity(float[] reference, float[] moving)
         {
             const int factor = 6;
@@ -259,44 +374,96 @@ namespace CollectIQ.Services.Inspection.Registration
             float[] referenceEdges = GradientMagnitude(referenceSmall, width, height);
             float[] movingEdges = GradientMagnitude(movingSmall, width, height);
 
-            SimilarityMatch best = new() { Score = double.NegativeInfinity, Scale = 1.0 };
-            double[] angles = { -3, -2, -1, 0, 1, 2, 3 };
-            double[] scales = { 0.96, 0.98, 1.00, 1.02, 1.04 };
+            double identityScore = CorrelateTransformed(
+                referenceEdges,
+                movingEdges,
+                width,
+                height,
+                0.0,
+                1.0,
+                0,
+                0);
+
+            SimilarityMatch best = new()
+            {
+                Score = identityScore,
+                IdentityScore = identityScore,
+                Scale = 1.0,
+                Confidence = Math.Clamp((identityScore + 1.0) * 0.5, 0.0, 1.0)
+            };
+
+            // Homography should already solve the large geometry. Fine alignment
+            // is intentionally conservative: only residual corner jitter is legal.
+            double[] angles = { -2.0, -1.0, 0.0, 1.0, 2.0 };
+            double[] scales = { 0.98, 0.99, 1.00, 1.01, 1.02 };
 
             foreach (double angle in angles)
             {
                 foreach (double scale in scales)
                 {
-                    for (int dy = -5; dy <= 5; dy++)
+                    for (int dy = -3; dy <= 3; dy++)
                     {
-                        for (int dx = -5; dx <= 5; dx++)
+                        for (int dx = -3; dx <= 3; dx++)
                         {
-                            double score = CorrelateTransformed(referenceEdges, movingEdges, width, height, angle, scale, dx, dy);
+                            double score = CorrelateTransformed(
+                                referenceEdges,
+                                movingEdges,
+                                width,
+                                height,
+                                angle,
+                                scale,
+                                dx,
+                                dy);
+
                             if (score > best.Score)
                             {
-                                best = new SimilarityMatch { Score = score, AngleDegrees = angle, Scale = scale, OffsetX = dx * factor, OffsetY = dy * factor };
+                                best = new SimilarityMatch
+                                {
+                                    Score = score,
+                                    IdentityScore = identityScore,
+                                    AngleDegrees = angle,
+                                    Scale = scale,
+                                    OffsetX = dx * factor,
+                                    OffsetY = dy * factor
+                                };
                             }
                         }
                     }
                 }
             }
 
-            // Fine search around the coarse winner.
             SimilarityMatch refined = best;
-            for (double angle = best.AngleDegrees - 0.75; angle <= best.AngleDegrees + 0.75; angle += 0.5)
+            for (double angle = best.AngleDegrees - 0.5; angle <= best.AngleDegrees + 0.5; angle += 0.25)
             {
-                for (double scale = best.Scale - 0.012; scale <= best.Scale + 0.012; scale += 0.008)
+                for (double scale = best.Scale - 0.006; scale <= best.Scale + 0.006; scale += 0.004)
                 {
                     int coarseDx = (int)Math.Round(best.OffsetX / (double)factor);
                     int coarseDy = (int)Math.Round(best.OffsetY / (double)factor);
-                    for (int dy = coarseDy - 2; dy <= coarseDy + 2; dy++)
+                    for (int dy = coarseDy - 1; dy <= coarseDy + 1; dy++)
                     {
-                        for (int dx = coarseDx - 2; dx <= coarseDx + 2; dx++)
+                        for (int dx = coarseDx - 1; dx <= coarseDx + 1; dx++)
                         {
-                            double score = CorrelateTransformed(referenceEdges, movingEdges, width, height, angle, scale, dx, dy);
+                            double score = CorrelateTransformed(
+                                referenceEdges,
+                                movingEdges,
+                                width,
+                                height,
+                                angle,
+                                scale,
+                                dx,
+                                dy);
+
                             if (score > refined.Score)
                             {
-                                refined = new SimilarityMatch { Score = score, AngleDegrees = angle, Scale = scale, OffsetX = dx * factor, OffsetY = dy * factor };
+                                refined = new SimilarityMatch
+                                {
+                                    Score = score,
+                                    IdentityScore = identityScore,
+                                    AngleDegrees = angle,
+                                    Scale = scale,
+                                    OffsetX = dx * factor,
+                                    OffsetY = dy * factor
+                                };
                             }
                         }
                     }
@@ -305,6 +472,44 @@ namespace CollectIQ.Services.Inspection.Registration
 
             refined.Confidence = Math.Clamp((refined.Score + 1.0) * 0.5, 0.0, 1.0);
             return refined;
+        }
+
+        private static SimilarityMatch AcceptOrRejectSimilarity(
+            float[] reference,
+            float[] moving,
+            SimilarityMatch candidate)
+        {
+            bool withinSafetyLimits =
+                Math.Abs(candidate.AngleDegrees) <= 2.0 &&
+                candidate.Scale >= 0.98 &&
+                candidate.Scale <= 1.02 &&
+                Math.Abs(candidate.OffsetX) <= 18 &&
+                Math.Abs(candidate.OffsetY) <= 18;
+
+            double improvement = candidate.Score - candidate.IdentityScore;
+            bool meaningfulImprovement = improvement >= 0.012;
+            bool sufficientConfidence = candidate.Confidence >= 0.58;
+
+            if (withinSafetyLimits && meaningfulImprovement && sufficientConfidence)
+            {
+                return candidate;
+            }
+
+            double identityConfidence = Math.Clamp(
+                (candidate.IdentityScore + 1.0) * 0.5,
+                0.0,
+                1.0);
+
+            return new SimilarityMatch
+            {
+                Score = candidate.IdentityScore,
+                IdentityScore = candidate.IdentityScore,
+                Confidence = identityConfidence,
+                AngleDegrees = 0.0,
+                Scale = 1.0,
+                OffsetX = 0,
+                OffsetY = 0
+            };
         }
 
         private static double CorrelateTransformed(
@@ -399,6 +604,57 @@ namespace CollectIQ.Services.Inspection.Registration
                         float sx = (float)(((cos * ox) + (sin * oy)) / match.Scale + cx);
                         float sy = (float)(((-sin * ox) + (cos * oy)) / match.Scale + cy);
                         row[x] = SampleBilinear(pixels, CanonicalWidth, CanonicalHeight, sx, sy);
+                    }
+                }
+            });
+
+            await SaveImageAsync(output, path, cancellationToken);
+        }
+
+        private static async Task ApplyCardinalRotationToImageAsync(
+            string path,
+            int angleDegrees,
+            CancellationToken cancellationToken)
+        {
+            int normalized = ((angleDegrees % 360) + 360) % 360;
+            if (normalized == 0)
+            {
+                return;
+            }
+
+            if (normalized != 180)
+            {
+                throw new ArgumentOutOfRangeException(nameof(angleDegrees), "Only 0 and 180 degree rotations are supported in the canonical portrait frame.");
+            }
+
+            using SixLabors.ImageSharp.Image<Rgba32> source = await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
+            using SixLabors.ImageSharp.Image<Rgba32> output = new(CanonicalWidth, CanonicalHeight);
+
+            // ImageSharp's pixel accessor is ref-like and cannot be captured by
+            // a nested lambda. Copy the source pixels to a normal managed array
+            // first, then write the 180-degree rotation in a separate callback.
+            Rgba32[] sourcePixels = new Rgba32[CanonicalWidth * CanonicalHeight];
+            source.ProcessPixelRows(sourceAccessor =>
+            {
+                for (int y = 0; y < CanonicalHeight; y++)
+                {
+                    sourceAccessor.GetRowSpan(y).CopyTo(
+                        sourcePixels.AsSpan(y * CanonicalWidth, CanonicalWidth));
+                }
+            });
+
+            output.ProcessPixelRows(outputAccessor =>
+            {
+                for (int y = 0; y < CanonicalHeight; y++)
+                {
+                    Span<Rgba32> destinationRow = outputAccessor.GetRowSpan(y);
+                    int sourceY = CanonicalHeight - 1 - y;
+                    int sourceRowOffset = sourceY * CanonicalWidth;
+
+                    for (int x = 0; x < CanonicalWidth; x++)
+                    {
+                        int sourceX = CanonicalWidth - 1 - x;
+                        destinationRow[x] = sourcePixels[sourceRowOffset + sourceX];
                     }
                 }
             });
@@ -581,6 +837,7 @@ namespace CollectIQ.Services.Inspection.Registration
         private sealed class SimilarityMatch
         {
             public double Score { get; set; }
+            public double IdentityScore { get; set; }
             public double Confidence { get; set; }
             public double AngleDegrees { get; set; }
             public double Scale { get; set; } = 1.0;

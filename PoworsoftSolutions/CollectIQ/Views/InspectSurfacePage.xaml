@@ -71,6 +71,42 @@
                         </VerticalStackLayout>
                     </Border>
 
+                    <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="Card surface profile" TextColor="#F8FAFC" FontAttributes="Bold" />
+                            <Label Text="Choose Normal for standard paper/chrome-light cards. Choose Foil/Chrome when strong reflective finishes need more aggressive specular tuning."
+                                   TextColor="#9FB3C8"
+                                   FontSize="11" />
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <Border Style="{StaticResource AuroraGlassBorder}" Padding="10" Stroke="#2A334A">
+                                    <VerticalStackLayout Spacing="4">
+                                        <RadioButton x:Name="NormalSurfaceProfileRadio"
+                                                     Content="Normal card"
+                                                     GroupName="SurfaceProfile"
+                                                     IsChecked="True"
+                                                     CheckedChanged="OnSurfaceProfileChanged" />
+                                        <Label Text="Balanced tuning for regular paper cards and less reflective finishes."
+                                               TextColor="#64748B"
+                                               FontSize="10" />
+                                    </VerticalStackLayout>
+                                </Border>
+
+                                <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10" Stroke="#2A334A">
+                                    <VerticalStackLayout Spacing="4">
+                                        <RadioButton x:Name="FoilChromeSurfaceProfileRadio"
+                                                     Content="Foil / chrome"
+                                                     GroupName="SurfaceProfile"
+                                                     CheckedChanged="OnSurfaceProfileChanged" />
+                                        <Label Text="Raises specular sensitivity and suppresses more foil / glare texture noise."
+                                               TextColor="#64748B"
+                                               FontSize="10" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
                     <Button Text="START 5-IMAGE SURFACE SCAN"
                             Clicked="OnStartCaptureClicked"
                             HeightRequest="52"

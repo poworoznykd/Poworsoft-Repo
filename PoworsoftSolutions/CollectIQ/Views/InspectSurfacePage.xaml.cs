@@ -25,6 +25,7 @@ namespace CollectIQ.Views
         private SurfaceLightDirection currentDirection = SurfaceLightDirection.Top;
         private bool captureInProgress;
         private bool cameraReady;
+        private InspectionCardSurfaceProfile selectedSurfaceProfile = InspectionCardSurfaceProfile.Normal;
 
         public InspectSurfacePage()
         {
@@ -258,7 +259,7 @@ namespace CollectIQ.Views
         {
             CapturePanel.IsVisible = false;
             ProcessingPanel.IsVisible = true;
-            HeaderStatusLabel.Text = "Analyzing four directional images";
+            HeaderStatusLabel.Text = $"Analyzing four directional images • {GetSurfaceProfileLabel()} profile";
 
             try
             {
@@ -268,7 +269,8 @@ namespace CollectIQ.Views
                     await surfaceInspectionService.AnalyzeAsync(
                         neutralReferencePath
                             ?? throw new InvalidOperationException("The neutral reference capture is missing."),
-                        captures);
+                        captures,
+                        selectedSurfaceProfile);
 
                 await Navigation.PushAsync(new SurfaceInspectionResultPage(result));
             }
@@ -282,6 +284,28 @@ namespace CollectIQ.Views
                     $"The surface images could not be analyzed: {ex.Message}",
                     "OK");
             }
+        }
+
+
+        private void OnSurfaceProfileChanged(object? sender, CheckedChangedEventArgs e)
+        {
+            if (!e.Value)
+            {
+                return;
+            }
+
+            selectedSurfaceProfile = sender == FoilChromeSurfaceProfileRadio
+                ? InspectionCardSurfaceProfile.FoilChrome
+                : InspectionCardSurfaceProfile.Normal;
+
+            HeaderStatusLabel.Text = $"Surface inspection • {GetSurfaceProfileLabel()} profile";
+        }
+
+        private string GetSurfaceProfileLabel()
+        {
+            return selectedSurfaceProfile == InspectionCardSurfaceProfile.FoilChrome
+                ? "Foil/Chrome"
+                : "Normal";
         }
 
         private void UpdateCaptureStep()

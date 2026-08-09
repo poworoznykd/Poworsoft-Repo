@@ -120,6 +120,12 @@
     <Compile Update="Views\EbaySearchPage.xaml.cs">
       <DependentUpon>EbaySearchPage.xaml</DependentUpon>
     </Compile>
+    <Compile Update="Views\InspectSurfacePage.xaml.cs">
+      <DependentUpon>InspectSurfacePage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\SurfaceInspectionResultPage.xaml.cs">
+      <DependentUpon>SurfaceInspectionResultPage.xaml</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>
@@ -151,6 +157,12 @@
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\InspectCenteringPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Update="Views\InspectSurfacePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Update="Views\SurfaceInspectionResultPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Views\LandingPage.xaml">

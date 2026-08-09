@@ -50,6 +50,7 @@ namespace CollectIQ.Services.Inspection
         public async Task<SurfaceInspectionResult> AnalyzeAsync(
             string neutralReferencePath,
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
+            InspectionCardSurfaceProfile surfaceProfile = InspectionCardSurfaceProfile.Normal,
             CancellationToken cancellationToken = default)
         {
             ValidateCaptures(captures);
@@ -78,11 +79,13 @@ namespace CollectIQ.Services.Inspection
                 outputDirectory,
                 cancellationToken);
 
+            RegisteredCardFrame referenceCapture = registration.Frames["Reference"];
             RegisteredCardFrame topCapture = registration.Frames[SurfaceLightDirection.Top.ToString()];
             RegisteredCardFrame rightCapture = registration.Frames[SurfaceLightDirection.Right.ToString()];
             RegisteredCardFrame bottomCapture = registration.Frames[SurfaceLightDirection.Bottom.ToString()];
             RegisteredCardFrame leftCapture = registration.Frames[SurfaceLightDirection.Left.ToString()];
 
+            float[] reference = referenceCapture.Luminance.ToArray();
             float[] top = topCapture.Luminance;
             float[] right = rightCapture.Luminance;
             float[] bottom = bottomCapture.Luminance;
@@ -92,6 +95,7 @@ namespace CollectIQ.Services.Inspection
                 (CalculateMean(top) + CalculateMean(right) +
                  CalculateMean(bottom) + CalculateMean(left)) / 4.0f;
 
+            NormalizeBrightness(reference, targetMean);
             NormalizeBrightness(top, targetMean);
             NormalizeBrightness(right, targetMean);
             NormalizeBrightness(bottom, targetMean);
@@ -122,8 +126,29 @@ namespace CollectIQ.Services.Inspection
             }
 
             float[] localRelief = HighPassRelief(relief);
-            float threshold = CalculatePercentile(localRelief, 0.97f);
-            double anomalyScore = CalculateAnomalyScore(localRelief, threshold);
+            float[] multiScaleDeformation = BuildMultiScaleDeformationSignal(relief);
+            float[] specularDefect = BuildSpecularDefectSignal(
+                top,
+                right,
+                bottom,
+                left,
+                diffuse,
+                surfaceProfile);
+
+            float[] defectScore = BuildCombinedDefectScore(
+                reference,
+                top,
+                right,
+                bottom,
+                left,
+                localRelief,
+                multiScaleDeformation,
+                specularDefect,
+                surfaceProfile);
+
+            float anomalyPercentile = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.985f : 0.97f;
+            float threshold = CalculatePercentile(localRelief, anomalyPercentile);
+            double anomalyScore = CalculateAnomalyScore(defectScore, CalculatePercentile(defectScore, 0.985f));
 
             double registrationScore = registration.OverallQuality;
 
@@ -141,7 +166,10 @@ namespace CollectIQ.Services.Inspection
 
             string diffusePath = Path.Combine(outputDirectory, "diffuse_full_card.png");
             string reliefPath = Path.Combine(outputDirectory, "surface_relief_full_card.png");
+            string specularDefectPath = Path.Combine(outputDirectory, "specular_enhanced_defect_full_card.png");
             string heatmapPath = Path.Combine(outputDirectory, "surface_heatmap_full_card.png");
+            string defectMaskPath = Path.Combine(outputDirectory, "surface_defect_mask.png");
+            string defectOverlayPath = Path.Combine(outputDirectory, "surface_defect_overlay.png");
 
             await SaveGrayscaleAsync(diffuse, diffusePath, cancellationToken);
             await SaveGrayscaleAsync(
@@ -149,17 +177,40 @@ namespace CollectIQ.Services.Inspection
                 reliefPath,
                 cancellationToken,
                 normalize: true);
+            await SaveSpecularDefectViewAsync(
+                diffuse,
+                specularDefect,
+                surfaceProfile,
+                specularDefectPath,
+                cancellationToken);
             await SaveHeatmapAsync(
-                localRelief,
-                threshold,
+                defectScore,
+                CalculatePercentile(defectScore, 0.985f),
                 heatmapPath,
+                cancellationToken);
+
+            await SaveDefectMaskAsync(
+                defectScore,
+                surfaceProfile,
+                defectMaskPath,
+                cancellationToken);
+
+            await SaveDefectOverlayAsync(
+                referenceCapture.RegisteredImagePath,
+                defectScore,
+                surfaceProfile,
+                defectOverlayPath,
                 cancellationToken);
 
             return new SurfaceInspectionResult
             {
                 DiffuseImagePath = diffusePath,
                 ReliefImagePath = reliefPath,
+                SpecularDefectImagePath = specularDefectPath,
                 HeatmapImagePath = heatmapPath,
+                DefectMaskImagePath = defectMaskPath,
+                DefectOverlayImagePath = defectOverlayPath,
+                SurfaceProfile = surfaceProfile,
                 Diagnostics = new AlignmentDiagnostics
                 {
                     EdgeOverlayPath = registration.EdgeOverlayPath,
@@ -177,7 +228,8 @@ namespace CollectIQ.Services.Inspection
                 Summary = BuildSummary(
                     anomalyScore,
                     consistencyScore,
-                    registrationScore)
+                    registrationScore,
+                    surfaceProfile)
             };
         }
 
@@ -1220,6 +1272,195 @@ namespace CollectIQ.Services.Inspection
             }
         }
 
+        private static float[] BuildCombinedDefectScore(
+            float[] reference,
+            float[] top,
+            float[] right,
+            float[] bottom,
+            float[] left,
+            float[] localRelief,
+            float[] multiScaleDeformation,
+            float[] specularDefect,
+            InspectionCardSurfaceProfile surfaceProfile)
+        {
+            int pixelCount = ProcessingWidth * ProcessingHeight;
+            float[] baseline = new float[pixelCount];
+            float[] referenceResidual = new float[pixelCount];
+            float[] directionalResidual = new float[pixelCount];
+
+            for (int index = 0; index < pixelCount; index++)
+            {
+                baseline[index] = Median5(
+                    reference[index],
+                    top[index],
+                    right[index],
+                    bottom[index],
+                    left[index]);
+
+                referenceResidual[index] = MathF.Abs(reference[index] - baseline[index]);
+                directionalResidual[index] = MathF.Max(
+                    MathF.Max(MathF.Abs(top[index] - baseline[index]), MathF.Abs(right[index] - baseline[index])),
+                    MathF.Max(MathF.Abs(bottom[index] - baseline[index]), MathF.Abs(left[index] - baseline[index])));
+            }
+
+            float[] baselineGradient = GradientMagnitude(baseline, ProcessingWidth, ProcessingHeight);
+            float[] gradientResidual = new float[pixelCount];
+            float[][] gradients =
+            {
+                GradientMagnitude(top, ProcessingWidth, ProcessingHeight),
+                GradientMagnitude(right, ProcessingWidth, ProcessingHeight),
+                GradientMagnitude(bottom, ProcessingWidth, ProcessingHeight),
+                GradientMagnitude(left, ProcessingWidth, ProcessingHeight)
+            };
+
+            for (int index = 0; index < pixelCount; index++)
+            {
+                float maximum = 0.0f;
+                foreach (float[] gradient in gradients)
+                {
+                    maximum = MathF.Max(maximum, MathF.Abs(gradient[index] - baselineGradient[index]));
+                }
+                gradientResidual[index] = maximum;
+            }
+
+            NormalizeRobustInPlace(referenceResidual, 0.995f);
+            NormalizeRobustInPlace(directionalResidual, 0.995f);
+            NormalizeRobustInPlace(gradientResidual, 0.995f);
+
+            float[] reliefNormalized = localRelief.ToArray();
+            float[] deformationNormalized = multiScaleDeformation.ToArray();
+            float[] specularNormalized = specularDefect.ToArray();
+            NormalizeRobustInPlace(reliefNormalized, 0.992f);
+            NormalizeRobustInPlace(deformationNormalized, 0.990f);
+            NormalizeRobustInPlace(specularNormalized, 0.992f);
+
+            // Multi-scale deformation is intentionally given its own weight.
+            // The previous detector favored tiny high-frequency changes and could
+            // miss broad shallow dents or long pressure marks. The deformation
+            // channel preserves evidence at small, medium and large spatial scales.
+            float specularWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.34f : 0.24f;
+            float reliefWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.17f : 0.21f;
+            float deformationWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.27f : 0.31f;
+            float gradientWeight = 0.14f;
+            float directionalWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.05f : 0.07f;
+            float referenceWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.03f : 0.03f;
+
+            float[] score = new float[pixelCount];
+            const int borderMargin = 22;
+
+            for (int y = 0; y < ProcessingHeight; y++)
+            {
+                for (int x = 0; x < ProcessingWidth; x++)
+                {
+                    int index = (y * ProcessingWidth) + x;
+                    if (x < borderMargin || x >= ProcessingWidth - borderMargin ||
+                        y < borderMargin || y >= ProcessingHeight - borderMargin)
+                    {
+                        score[index] = 0.0f;
+                        continue;
+                    }
+
+                    score[index] = Math.Clamp(
+                        (specularNormalized[index] * specularWeight) +
+                        (reliefNormalized[index] * reliefWeight) +
+                        (deformationNormalized[index] * deformationWeight) +
+                        (gradientResidual[index] * gradientWeight) +
+                        (directionalResidual[index] * directionalWeight) +
+                        (referenceResidual[index] * referenceWeight),
+                        0.0f,
+                        1.0f);
+                }
+            }
+
+            // Slight smoothing joins adjacent pixels from the same dent/dimple
+            // without erasing small defects.
+            return BoxBlur(score, ProcessingWidth, ProcessingHeight, 1);
+        }
+
+        private static float Median5(float a, float b, float c, float d, float e)
+        {
+            Span<float> values = stackalloc float[5] { a, b, c, d, e };
+            values.Sort();
+            return values[2];
+        }
+
+        private static void NormalizeRobustInPlace(float[] values, float percentile)
+        {
+            float scale = Math.Max(CalculatePercentile(values, percentile), Epsilon);
+            for (int index = 0; index < values.Length; index++)
+            {
+                values[index] = Math.Clamp(values[index] / scale, 0.0f, 1.0f);
+            }
+        }
+
+        private static float[] BuildMultiScaleDeformationSignal(float[] relief)
+        {
+            // A dent/dimple can occupy only a few pixels or tens of pixels.
+            // Measure relief changes at several spatial scales instead of using
+            // one small high-pass radius for every defect size.
+            float[] blurSmall = BoxBlur(relief, ProcessingWidth, ProcessingHeight, 3);
+            float[] blurMedium = BoxBlur(relief, ProcessingWidth, ProcessingHeight, 13);
+            float[] blurLarge = BoxBlur(relief, ProcessingWidth, ProcessingHeight, 37);
+
+            float[] signal = new float[relief.Length];
+            for (int index = 0; index < relief.Length; index++)
+            {
+                float small = MathF.Abs(relief[index] - blurSmall[index]);
+                float medium = MathF.Abs(blurSmall[index] - blurMedium[index]);
+                float broad = MathF.Abs(blurMedium[index] - blurLarge[index]);
+
+                // Preserve a broad deformation even when its center is smooth;
+                // this creates a connected moderate-evidence region that the
+                // hysteresis mask can grow through from stronger edge seeds.
+                signal[index] = MathF.Max(
+                    small,
+                    MathF.Max(medium * 0.92f, broad * 0.84f));
+            }
+
+            return BoxBlur(signal, ProcessingWidth, ProcessingHeight, 2);
+        }
+
+        private static float[] BuildSpecularDefectSignal(
+            float[] top,
+            float[] right,
+            float[] bottom,
+            float[] left,
+            float[] diffuse,
+            InspectionCardSurfaceProfile surfaceProfile)
+        {
+            int pixelCount = ProcessingWidth * ProcessingHeight;
+            float[] specular = new float[pixelCount];
+            float diffuseSuppression = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.72f : 0.55f;
+
+            for (int index = 0; index < pixelCount; index++)
+            {
+                float topResidual = MathF.Abs(top[index] - diffuse[index]);
+                float rightResidual = MathF.Abs(right[index] - diffuse[index]);
+                float bottomResidual = MathF.Abs(bottom[index] - diffuse[index]);
+                float leftResidual = MathF.Abs(left[index] - diffuse[index]);
+
+                float strongestResidual = MathF.Max(
+                    MathF.Max(topResidual, rightResidual),
+                    MathF.Max(bottomResidual, leftResidual));
+
+                float directionalContrast = 0.5f * (
+                    MathF.Abs(right[index] - left[index]) +
+                    MathF.Abs(bottom[index] - top[index]));
+
+                specular[index] = MathF.Max(strongestResidual, directionalContrast);
+            }
+
+            float[] localSpecular = HighPassRelief(specular);
+            float[] localDiffuse = HighPassRelief(diffuse);
+
+            for (int index = 0; index < pixelCount; index++)
+            {
+                localSpecular[index] = MathF.Max(0.0f, localSpecular[index] - (localDiffuse[index] * diffuseSuppression));
+            }
+
+            return localSpecular;
+        }
+
         private static float[] HighPassRelief(float[] relief)
         {
             const int radius = 9;
@@ -1622,6 +1863,292 @@ namespace CollectIQ.Services.Inspection
             await image.SaveAsync(outputStream, new PngEncoder(), cancellationToken);
         }
 
+        private static async Task SaveSpecularDefectViewAsync(
+            float[] diffuse,
+            float[] specular,
+            InspectionCardSurfaceProfile surfaceProfile,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            float low = CalculatePercentile(specular, surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.93f : 0.88f);
+            float high = Math.Max(CalculatePercentile(specular, surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.998f : 0.995f), low + Epsilon);
+
+            using var image = new SixLabors.ImageSharp.Image<Rgba32>(
+                ProcessingWidth,
+                ProcessingHeight);
+
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int index = (y * ProcessingWidth) + x;
+                        float baseValue = Math.Clamp((diffuse[index] * 0.75f) + 0.10f, 0.0f, 1.0f);
+                        byte baseIntensity = (byte)Math.Clamp(baseValue * 255.0f, 0.0f, 255.0f);
+
+                        float normalized = Math.Clamp(
+                            (specular[index] - low) / (high - low),
+                            0.0f,
+                            1.0f);
+
+                        float boost = normalized * normalized;
+
+                        float redBoost = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 1.0f : 0.95f;
+                        float greenBoost = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.82f : 0.70f;
+                        float blueBoost = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.10f : 0.15f;
+
+                        byte red = Blend(baseIntensity, 255, boost * redBoost);
+                        byte green = Blend(baseIntensity, 214, boost * greenBoost);
+                        byte blue = Blend(baseIntensity, 60, boost * blueBoost);
+
+                        row[x] = new Rgba32(red, green, blue, 255);
+                    }
+                }
+            });
+
+            await using FileStream outputStream = new FileStream(
+                path,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
+
+            await image.SaveAsync(outputStream, new PngEncoder(), cancellationToken);
+        }
+
+        private static byte Blend(byte start, byte end, float amount)
+        {
+            return (byte)Math.Clamp(
+                MathF.Round(start + ((end - start) * amount)),
+                0.0f,
+                255.0f);
+        }
+
+        private static async Task SaveDefectMaskAsync(
+            float[] defectScore,
+            InspectionCardSurfaceProfile surfaceProfile,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            float moderateThreshold = CalculatePercentile(
+                defectScore,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.978f : 0.955f);
+            float strongThreshold = CalculatePercentile(
+                defectScore,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.994f : 0.988f);
+            bool[] candidateMask = BuildHysteresisCandidateMask(
+                defectScore,
+                moderateThreshold,
+                strongThreshold,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 18 : 12);
+
+            using var image = new SixLabors.ImageSharp.Image<Rgba32>(ProcessingWidth, ProcessingHeight);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int index = (y * ProcessingWidth) + x;
+                        byte intensity = candidateMask[index]
+                            ? defectScore[index] >= strongThreshold ? (byte)255 : (byte)150
+                            : (byte)0;
+                        row[x] = new Rgba32(intensity, intensity, intensity, 255);
+                    }
+                }
+            });
+
+            await using FileStream outputStream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(outputStream, new PngEncoder(), cancellationToken);
+        }
+
+        private static async Task SaveDefectOverlayAsync(
+            string referenceImagePath,
+            float[] defectScore,
+            InspectionCardSurfaceProfile surfaceProfile,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            using SixLabors.ImageSharp.Image<Rgba32> image =
+                await ImageSharpImage.LoadAsync<Rgba32>(referenceImagePath, cancellationToken);
+
+            if (image.Width != ProcessingWidth || image.Height != ProcessingHeight)
+            {
+                image.Mutate(context => context.Resize(ProcessingWidth, ProcessingHeight));
+            }
+
+            float moderateThreshold = CalculatePercentile(
+                defectScore,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.978f : 0.955f);
+            float strongThreshold = CalculatePercentile(
+                defectScore,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.994f : 0.988f);
+            float high = Math.Max(CalculatePercentile(defectScore, 0.9992f), strongThreshold + Epsilon);
+            bool[] candidateMask = BuildHysteresisCandidateMask(
+                defectScore,
+                moderateThreshold,
+                strongThreshold,
+                surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 18 : 12);
+
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int index = (y * ProcessingWidth) + x;
+                        if (!candidateMask[index])
+                        {
+                            continue;
+                        }
+
+                        float value = defectScore[index];
+                        Rgba32 original = row[x];
+                        bool strong = value >= strongThreshold;
+                        float normalized = Math.Clamp(
+                            (value - moderateThreshold) / Math.Max(high - moderateThreshold, Epsilon),
+                            0.0f,
+                            1.0f);
+                        float alpha = strong
+                            ? 0.50f + (normalized * 0.22f)
+                            : 0.32f + (normalized * 0.15f);
+
+                        Rgba32 overlay = strong
+                            ? new Rgba32(255, 45, 30, 255)
+                            : new Rgba32(255, 220, 40, 255);
+
+                        row[x] = BlendPixel(original, overlay, alpha);
+                    }
+                }
+            });
+
+            await using FileStream outputStream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(outputStream, new PngEncoder(), cancellationToken);
+        }
+
+        private static bool[] BuildHysteresisCandidateMask(
+            float[] defectScore,
+            float moderateThreshold,
+            float strongThreshold,
+            int minimumComponentPixels)
+        {
+            int length = defectScore.Length;
+            bool[] moderate = new bool[length];
+            bool[] strong = new bool[length];
+            bool[] visited = new bool[length];
+            bool[] kept = new bool[length];
+
+            for (int index = 0; index < length; index++)
+            {
+                float value = defectScore[index];
+                moderate[index] = value >= moderateThreshold;
+                strong[index] = value >= strongThreshold;
+            }
+
+            int[] queue = new int[length];
+            int[] component = new int[length];
+            int[] neighborX = { -1, 0, 1, -1, 1, -1, 0, 1 };
+            int[] neighborY = { -1, -1, -1, 0, 0, 1, 1, 1 };
+
+            for (int start = 0; start < length; start++)
+            {
+                if (!moderate[start] || visited[start])
+                {
+                    continue;
+                }
+
+                int head = 0;
+                int tail = 0;
+                int componentCount = 0;
+                bool containsStrongSeed = false;
+                queue[tail++] = start;
+                visited[start] = true;
+
+                while (head < tail)
+                {
+                    int current = queue[head++];
+                    component[componentCount++] = current;
+                    containsStrongSeed |= strong[current];
+
+                    int x = current % ProcessingWidth;
+                    int y = current / ProcessingWidth;
+                    for (int n = 0; n < neighborX.Length; n++)
+                    {
+                        int nx = x + neighborX[n];
+                        int ny = y + neighborY[n];
+                        if ((uint)nx >= (uint)ProcessingWidth || (uint)ny >= (uint)ProcessingHeight)
+                        {
+                            continue;
+                        }
+
+                        int next = (ny * ProcessingWidth) + nx;
+                        if (moderate[next] && !visited[next])
+                        {
+                            visited[next] = true;
+                            queue[tail++] = next;
+                        }
+                    }
+                }
+
+                // A broad low-contrast region is only accepted when connected
+                // to at least one high-confidence seed. This is the classic
+                // hysteresis idea used by Canny and prevents a lower threshold
+                // from simply highlighting all printed artwork.
+                if (!containsStrongSeed || componentCount < minimumComponentPixels)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < componentCount; i++)
+                {
+                    kept[component[i]] = true;
+                }
+            }
+
+            // Two-pixel dilation makes the resulting overlay cover the visible
+            // extent of a dent/dimple rather than only its strongest ridge.
+            bool[] dilated = kept.ToArray();
+            for (int pass = 0; pass < 2; pass++)
+            {
+                bool[] source = dilated.ToArray();
+                for (int y = 1; y < ProcessingHeight - 1; y++)
+                {
+                    for (int x = 1; x < ProcessingWidth - 1; x++)
+                    {
+                        int index = (y * ProcessingWidth) + x;
+                        if (!source[index])
+                        {
+                            continue;
+                        }
+
+                        for (int yy = -1; yy <= 1; yy++)
+                        {
+                            for (int xx = -1; xx <= 1; xx++)
+                            {
+                                dilated[((y + yy) * ProcessingWidth) + x + xx] = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return dilated;
+        }
+
+        private static Rgba32 BlendPixel(Rgba32 original, Rgba32 overlay, float alpha)
+        {
+            float inverse = 1.0f - alpha;
+            return new Rgba32(
+                (byte)Math.Clamp(MathF.Round((original.R * inverse) + (overlay.R * alpha)), 0.0f, 255.0f),
+                (byte)Math.Clamp(MathF.Round((original.G * inverse) + (overlay.G * alpha)), 0.0f, 255.0f),
+                (byte)Math.Clamp(MathF.Round((original.B * inverse) + (overlay.B * alpha)), 0.0f, 255.0f),
+                255);
+        }
+
         private static async Task SaveHeatmapAsync(
             float[] values,
             float threshold,
@@ -1682,29 +2209,34 @@ namespace CollectIQ.Services.Inspection
         private static string BuildSummary(
             double anomalyScore,
             double consistencyScore,
-            double registrationScore)
+            double registrationScore,
+            InspectionCardSurfaceProfile surfaceProfile)
         {
+            string profilePrefix = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome
+                ? "Foil/Chrome profile: "
+                : "Normal profile: ";
+
             if (registrationScore < 60.0)
             {
-                return "The card was found, but automatic alignment confidence was low. Retake the scan with all four card edges visible before trusting the surface map.";
+                return profilePrefix + "The card was found, but automatic alignment confidence was low. Retake the scan with all four card edges visible before trusting the surface map.";
             }
 
             if (consistencyScore < 65.0)
             {
-                return "Capture quality is low. Retake the scan before trusting highlighted surface areas.";
+                return profilePrefix + "Capture quality is low. Retake the scan before trusting highlighted surface areas.";
             }
 
             if (anomalyScore < 20.0)
             {
-                return "No strong directional surface anomalies were detected in this scan.";
+                return profilePrefix + "No strong directional surface anomalies were detected in this scan.";
             }
 
             if (anomalyScore < 50.0)
             {
-                return "Some localized surface anomalies were highlighted. Review the full-card heatmap at full resolution.";
+                return profilePrefix + "Some localized surface anomalies were highlighted. Review the full-card heatmap at full resolution.";
             }
 
-            return "Multiple or strong surface anomalies were highlighted. Review each area before drawing a condition conclusion.";
+            return profilePrefix + "Multiple or strong surface anomalies were highlighted. Review each area before drawing a condition conclusion.";
         }
 
         private static bool TryIntersectLines(
