@@ -19,25 +19,139 @@
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
                     <VerticalStackLayout>
-                        <Label Text="Capture consistency" TextColor="#9FB3C8" FontSize="10" />
+                        <Label Text="Registration quality" TextColor="#9FB3C8" FontSize="10" />
                         <Label x:Name="ConsistencyLabel" TextColor="#F8FAFC" FontSize="22" FontAttributes="Bold" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
 
             <Label Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label Text="Full card • automatically perspective-normalized" TextColor="#64748B" FontSize="10" />
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
-                <Image x:Name="HeatmapImage" Aspect="AspectFit" />
+                <Image x:Name="HeatmapImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
             <Label Text="Directional relief" TextColor="#F8FAFC" FontAttributes="Bold" />
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
-                <Image x:Name="ReliefImage" Aspect="AspectFit" />
+                <Image x:Name="ReliefImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
             <Label Text="Glare-reduced average" TextColor="#F8FAFC" FontAttributes="Bold" />
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
-                <Image x:Name="DiffuseImage" Aspect="AspectFit" />
+                <Image x:Name="DiffuseImage" Aspect="AspectFit" HeightRequest="500" />
+            </Border>
+
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="12">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="ALIGNMENT DIAGNOSTICS" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
+                    <Label Text="Use these views to confirm whether the four directional captures were detected, normalized and aligned correctly before trusting the anomaly heatmap."
+                           TextColor="#9FB3C8"
+                           FontSize="11" />
+
+                    <Label Text="Color edge overlay" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Label Text="Top=Red • Right=Green • Bottom=Blue • Left=Yellow/Red+Green"
+                           TextColor="#64748B"
+                           FontSize="10" />
+                    <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                        <Image x:Name="EdgeOverlayImage" Aspect="AspectFit" HeightRequest="360" />
+                    </Border>
+
+                    <Label Text="Alignment average" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Label Text="If alignment is good, this should look like one card instead of multiple ghosted cards."
+                           TextColor="#64748B"
+                           FontSize="10" />
+                    <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                        <Image x:Name="AlignmentAverageImage" Aspect="AspectFit" HeightRequest="360" />
+                    </Border>
+
+                    <Label Text="Detected card bounds" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="4">
+                            <Label Text="TOP" TextColor="#F8FAFC" FontAttributes="Bold" />
+                            <Label x:Name="TopStatsLabel" TextColor="#9FB3C8" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="TopDetectionImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="4">
+                            <Label Text="RIGHT" TextColor="#F8FAFC" FontAttributes="Bold" />
+                            <Label x:Name="RightStatsLabel" TextColor="#9FB3C8" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="RightDetectionImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="4">
+                            <Label Text="BOTTOM" TextColor="#F8FAFC" FontAttributes="Bold" />
+                            <Label x:Name="BottomStatsLabel" TextColor="#9FB3C8" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="BottomDetectionImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="4">
+                            <Label Text="LEFT" TextColor="#F8FAFC" FontAttributes="Bold" />
+                            <Label x:Name="LeftStatsLabel" TextColor="#9FB3C8" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="LeftDetectionImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Label Text="Normalized captures" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="4">
+                            <Label Text="TOP" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="TopRegisteredImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="4">
+                            <Label Text="RIGHT" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="RightRegisteredImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="4">
+                            <Label Text="BOTTOM" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="BottomRegisteredImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="4">
+                            <Label Text="LEFT" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="LeftRegisteredImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Label Text="Edge maps" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="4">
+                            <Label Text="TOP" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="TopEdgeImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="4">
+                            <Label Text="RIGHT" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="RightEdgeImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="4">
+                            <Label Text="BOTTOM" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="BottomEdgeImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="4">
+                            <Label Text="LEFT" TextColor="#F8FAFC" FontSize="10" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                                <Image x:Name="LeftEdgeImage" Aspect="AspectFit" HeightRequest="180" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
             </Border>
 
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="12">

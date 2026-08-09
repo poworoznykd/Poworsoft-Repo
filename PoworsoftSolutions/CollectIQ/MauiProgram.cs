@@ -14,6 +14,8 @@ using CollectIQ.Interfaces;
 using CollectIQ.Repositories;
 using CollectIQ.Services;
 using CollectIQ.Services.Inspection;
+using CollectIQ.Services.Inspection.Geometry;
+using CollectIQ.Services.Inspection.Registration;
 using CollectIQ.Services.Roles;
 using CollectIQ.Views;
 using CommunityToolkit.Maui;
@@ -86,6 +88,8 @@ namespace CollectIQ
             builder.Services.AddSingleton<IBrowserService, BrowserService>();
             builder.Services.AddSingleton<IAlertService, AlertService>();
             builder.Services.AddSingleton<AppModeService>();
+            builder.Services.AddSingleton<ICardGeometryService, CardGeometryService>();
+            builder.Services.AddSingleton<ICardRegistrationService, CardRegistrationService>();
             builder.Services.AddSingleton<ISurfaceInspectionService, SurfaceInspectionService>();
 
             // Role behaviors

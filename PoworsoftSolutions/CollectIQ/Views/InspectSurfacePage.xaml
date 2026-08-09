@@ -36,7 +36,7 @@
                            TextColor="#F8FAFC"
                            FontSize="24"
                            FontAttributes="Bold" />
-                    <Label Text="For the first repeatable CollectIQ surface scan, keep the phone and card completely still. Move a separate light around the card while CollectIQ captures four directional images."
+                    <Label Text="Keep the card still and make sure all four physical edges stay visible. First capture a neutral reference image; CollectIQ uses that image to establish the physical card geometry, then relocates those same four sides in each directional-light capture before perspective correction and fine alignment."
                            TextColor="#CBD5E1"
                            FontSize="12" />
 
@@ -48,7 +48,7 @@
                                        FontAttributes="Bold" />
                                 <Label Grid.Column="1" Text="MVP" TextColor="#39FF14" FontSize="10" />
                             </Grid>
-                            <Label Text="Use another phone flashlight, small LED, or movable desk light. The card and camera stay fixed while the light moves to Top, Right, Bottom and Left."
+                            <Label Text="Use another phone flashlight, small LED, or movable desk light. The first image is captured with the directional light moved away under normal room lighting. Then keep the card fixed while the light moves to Top, Right, Bottom and Left. You can hand-hold the camera and normal movement is expected."
                                    TextColor="#CBD5E1" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>
@@ -66,12 +66,12 @@
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                         <VerticalStackLayout Spacing="7">
                             <Label Text="Before you start" TextColor="#F8FAFC" FontAttributes="Bold" />
-                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat, dark background.&#10;• Brace the phone directly above the card.&#10;• Fill the guide with the card and do not move it.&#10;• Keep the external light at roughly the same distance for all four images."
+                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat MATTE BLACK or MATTE WHITE background.&#10;• Fit the entire card inside the green guide as well as you can; no physical card edge may be outside the camera image.&#10;• The card does NOT need to be perfectly parallel to the phone.&#10;• Keep the card itself fixed; normal handheld phone movement is expected.&#10;• Keep the external light at roughly the same distance for all four images."
                                    TextColor="#9FB3C8" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>
 
-                    <Button Text="START 4-LIGHT SURFACE SCAN"
+                    <Button Text="START 5-IMAGE SURFACE SCAN"
                             Clicked="OnStartCaptureClicked"
                             HeightRequest="52"
                             CornerRadius="22"
@@ -89,12 +89,12 @@
 
                 <VerticalStackLayout Grid.Row="0" Spacing="4" Margin="2,0,2,8">
                     <Label x:Name="CaptureStepLabel"
-                           Text="1 OF 4 — TOP LIGHT"
+                           Text="1 OF 5 — NEUTRAL REFERENCE"
                            TextColor="#86FF70"
                            FontAttributes="Bold"
                            FontSize="15" />
                     <Label x:Name="CaptureInstructionLabel"
-                           Text="Move the light above the card. Keep the phone and card still."
+                           Text="First capture a neutral reference with the directional light moved away. Keep the complete card inside the guide."
                            TextColor="#CBD5E1"
                            FontSize="11" />
                 </VerticalStackLayout>
@@ -154,7 +154,7 @@
                             CornerRadius="18" />
                     <Button Grid.Column="1"
                             x:Name="CaptureButton"
-                            Text="CAPTURE TOP"
+                            Text="CAPTURE REFERENCE"
                             Clicked="OnCaptureClicked"
                             BackgroundColor="#1D6A2A"
                             TextColor="#F0FFED"
@@ -162,7 +162,7 @@
                             CornerRadius="20" />
                     <Label Grid.Column="2"
                            x:Name="CapturedCountLabel"
-                           Text="0/4"
+                           Text="0/5"
                            TextColor="#9FB3C8"
                            VerticalTextAlignment="Center" />
                 </Grid>

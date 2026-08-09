@@ -20,8 +20,11 @@ namespace CollectIQ.Views
     {
         private readonly ISurfaceInspectionService surfaceInspectionService;
         private readonly Dictionary<SurfaceLightDirection, string> captures = new();
+        private string? neutralReferencePath;
+        private bool capturingReference = true;
         private SurfaceLightDirection currentDirection = SurfaceLightDirection.Top;
         private bool captureInProgress;
+        private bool cameraReady;
 
         public InspectSurfacePage()
         {
@@ -70,26 +73,66 @@ namespace CollectIQ.Views
             SetupPanel.IsVisible = false;
             CapturePanel.IsVisible = true;
             ProcessingPanel.IsVisible = false;
-            HeaderStatusLabel.Text = "Keep camera and card fixed";
+            HeaderStatusLabel.Text = "Capture neutral geometry reference first";
 
             await StartCameraAsync();
         }
 
         private async Task StartCameraAsync()
         {
+            cameraReady = false;
+            CaptureButton.IsEnabled = false;
+            CaptureButton.Text = "INITIALIZING CAMERA...";
+            HeaderStatusLabel.Text = "Starting inspection camera";
+
             try
             {
                 using var cancellationTokenSource =
-                    new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                    new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
+                // CameraView can exist before its native camera session is fully
+                // ready. Starting the preview and allowing a short stabilization
+                // period prevents an immediate capture from racing initialization.
                 await SurfaceCameraView.StartCameraPreview(cancellationTokenSource.Token);
+                await Task.Delay(650, cancellationTokenSource.Token);
+
+                cameraReady = SurfaceCameraView.IsAvailable;
+
+                if (!cameraReady)
+                {
+                    throw new InvalidOperationException(
+                        "The rear camera is not available yet.");
+                }
+
+                HeaderStatusLabel.Text = "Keep card fixed • auto-alignment enabled";
+                UpdateCaptureStep();
+            }
+            catch (OperationCanceledException)
+            {
+                cameraReady = false;
+
+                await DisplayAlert(
+                    "Camera",
+                    "The camera took too long to start. Tap Restart to try again.",
+                    "OK");
             }
             catch (Exception ex)
             {
+                cameraReady = false;
+
                 await DisplayAlert(
                     "Camera",
                     $"The inspection camera could not start: {ex.Message}",
                     "OK");
+            }
+            finally
+            {
+                CaptureButton.IsEnabled = cameraReady;
+
+                if (!cameraReady)
+                {
+                    CaptureButton.Text = "CAMERA NOT READY";
+                }
             }
         }
 
@@ -98,6 +141,16 @@ namespace CollectIQ.Views
             if (captureInProgress)
             {
                 return;
+            }
+
+            if (!cameraReady)
+            {
+                await StartCameraAsync();
+
+                if (!cameraReady)
+                {
+                    return;
+                }
             }
 
             captureInProgress = true;
@@ -117,17 +170,30 @@ namespace CollectIQ.Views
 
                 Directory.CreateDirectory(directory);
 
+                string captureName = capturingReference
+                    ? "reference"
+                    : currentDirection.ToString().ToLowerInvariant();
+
                 string path = Path.Combine(
                     directory,
-                    $"surface_{currentDirection.ToString().ToLowerInvariant()}_{Guid.NewGuid():N}.jpg");
+                    $"surface_{captureName}_{Guid.NewGuid():N}.jpg");
 
                 await using (FileStream fileStream = File.Create(path))
                 {
                     await imageStream.CopyToAsync(fileStream);
                 }
 
+                if (capturingReference)
+                {
+                    neutralReferencePath = path;
+                    capturingReference = false;
+                    CapturedCountLabel.Text = "1/5";
+                    UpdateCaptureStep();
+                    return;
+                }
+
                 captures[currentDirection] = path;
-                CapturedCountLabel.Text = $"{captures.Count}/4";
+                CapturedCountLabel.Text = $"{captures.Count + 1}/5";
 
                 if (captures.Count == 4)
                 {
@@ -137,6 +203,17 @@ namespace CollectIQ.Views
 
                 currentDirection = (SurfaceLightDirection)((int)currentDirection + 1);
                 UpdateCaptureStep();
+            }
+            catch (OperationCanceledException)
+            {
+                cameraReady = false;
+
+                await DisplayAlert(
+                    "Surface Capture",
+                    "The camera was not ready to capture. CollectIQ will restart the preview; then try the capture again.",
+                    "OK");
+
+                await StartCameraAsync();
             }
             catch (Exception ex)
             {
@@ -148,20 +225,32 @@ namespace CollectIQ.Views
             finally
             {
                 captureInProgress = false;
-                CaptureButton.IsEnabled = true;
+                CaptureButton.IsEnabled = cameraReady;
+
+                if (cameraReady)
+                {
+                    UpdateCaptureStep();
+                }
             }
         }
 
         private async void OnRestartClicked(object sender, EventArgs e)
         {
             captures.Clear();
+            neutralReferencePath = null;
+            capturingReference = true;
             currentDirection = SurfaceLightDirection.Top;
-            CapturedCountLabel.Text = "0/4";
+            CapturedCountLabel.Text = "0/5";
             UpdateCaptureStep();
+
+            if (!cameraReady)
+            {
+                await StartCameraAsync();
+            }
 
             await DisplayAlert(
                 "Surface Scan Restarted",
-                "Keep the phone and card fixed, then begin again with the top light position.",
+                "Keep the card fixed and all four edges visible. Small camera movement will be corrected automatically.",
                 "OK");
         }
 
@@ -176,7 +265,10 @@ namespace CollectIQ.Views
                 SurfaceCameraView.StopCameraPreview();
 
                 SurfaceInspectionResult result =
-                    await surfaceInspectionService.AnalyzeAsync(captures);
+                    await surfaceInspectionService.AnalyzeAsync(
+                        neutralReferencePath
+                            ?? throw new InvalidOperationException("The neutral reference capture is missing."),
+                        captures);
 
                 await Navigation.PushAsync(new SurfaceInspectionResultPage(result));
             }
@@ -194,30 +286,43 @@ namespace CollectIQ.Views
 
         private void UpdateCaptureStep()
         {
-            int step = (int)currentDirection + 1;
+            Color active = Color.FromArgb("#39FF14");
+            Color inactive = Color.FromArgb("#64748B");
 
+            if (capturingReference)
+            {
+                CaptureStepLabel.Text = "1 OF 5 — NEUTRAL REFERENCE";
+                CaptureButton.Text = "CAPTURE REFERENCE";
+                CaptureInstructionLabel.Text =
+                    "Move the directional light away. Use normal room lighting and keep the complete card inside the guide. This image establishes the physical card edges for all four lit captures.";
+                HeaderStatusLabel.Text = "Neutral geometry reference";
+                TopLightMarker.TextColor = inactive;
+                RightLightMarker.TextColor = inactive;
+                BottomLightMarker.TextColor = inactive;
+                LeftLightMarker.TextColor = inactive;
+                return;
+            }
+
+            int step = (int)currentDirection + 2;
             CaptureStepLabel.Text =
-                $"{step} OF 4 — {currentDirection.ToString().ToUpperInvariant()} LIGHT";
-
+                $"{step} OF 5 — {currentDirection.ToString().ToUpperInvariant()} LIGHT";
             CaptureButton.Text =
                 $"CAPTURE {currentDirection.ToString().ToUpperInvariant()}";
 
             CaptureInstructionLabel.Text = currentDirection switch
             {
                 SurfaceLightDirection.Top =>
-                    "Move the light above the card. Keep the phone and card completely still.",
+                    "Move the light above the card. Keep the full card inside the guide; CollectIQ will relocate the same four physical sides from the neutral reference.",
                 SurfaceLightDirection.Right =>
-                    "Move the same light to the right side at roughly the same distance and angle.",
+                    "Move the same light to the right side. Keep the card fixed; normal handheld phone movement is allowed.",
                 SurfaceLightDirection.Bottom =>
-                    "Move the same light below the card. Do not rotate or reposition the card.",
+                    "Move the same light below the card. Keep all four physical card edges visible inside the guide.",
                 SurfaceLightDirection.Left =>
-                    "Move the same light to the left side. This is the final directional image.",
+                    "Move the light to the left side. Final image — keep the card itself fixed and fully visible.",
                 _ => string.Empty
             };
 
-            Color active = Color.FromArgb("#39FF14");
-            Color inactive = Color.FromArgb("#64748B");
-
+            HeaderStatusLabel.Text = "Reference locked • local edge tracking enabled";
             TopLightMarker.TextColor = currentDirection == SurfaceLightDirection.Top ? active : inactive;
             RightLightMarker.TextColor = currentDirection == SurfaceLightDirection.Right ? active : inactive;
             BottomLightMarker.TextColor = currentDirection == SurfaceLightDirection.Bottom ? active : inactive;
