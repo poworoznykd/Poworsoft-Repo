@@ -138,6 +138,7 @@ namespace CollectIQ.Services.Inspection
 
             float[] defectScore = BuildCombinedDefectScore(
                 reference,
+                albedo,
                 top,
                 right,
                 bottom,
@@ -1311,6 +1312,7 @@ namespace CollectIQ.Services.Inspection
 
         private static float[] BuildCombinedDefectScore(
             float[] reference,
+            float[] albedo,
             float[] top,
             float[] right,
             float[] bottom,
@@ -1321,26 +1323,19 @@ namespace CollectIQ.Services.Inspection
             InspectionCardSurfaceProfile surfaceProfile)
         {
             int pixelCount = ProcessingWidth * ProcessingHeight;
-            float[] baseline = new float[pixelCount];
             float[] referenceResidual = new float[pixelCount];
             float[] directionalResidual = new float[pixelCount];
 
             for (int index = 0; index < pixelCount; index++)
             {
-                baseline[index] = Median5(
-                    reference[index],
-                    top[index],
-                    right[index],
-                    bottom[index],
-                    left[index]);
-
-                referenceResidual[index] = MathF.Abs(reference[index] - baseline[index]);
+                referenceResidual[index] = MathF.Abs(reference[index] - albedo[index]);
                 directionalResidual[index] = MathF.Max(
-                    MathF.Max(MathF.Abs(top[index] - baseline[index]), MathF.Abs(right[index] - baseline[index])),
-                    MathF.Max(MathF.Abs(bottom[index] - baseline[index]), MathF.Abs(left[index] - baseline[index])));
+                    MathF.Max(MathF.Abs(top[index] - albedo[index]), MathF.Abs(right[index] - albedo[index])),
+                    MathF.Max(MathF.Abs(bottom[index] - albedo[index]), MathF.Abs(left[index] - albedo[index])));
             }
 
-            float[] baselineGradient = GradientMagnitude(baseline, ProcessingWidth, ProcessingHeight);
+            float[] albedoGradient = GradientMagnitude(albedo, ProcessingWidth, ProcessingHeight);
+            float[] referenceGradient = GradientMagnitude(reference, ProcessingWidth, ProcessingHeight);
             float[] gradientResidual = new float[pixelCount];
             float[][] gradients =
             {
@@ -1352,17 +1347,21 @@ namespace CollectIQ.Services.Inspection
 
             for (int index = 0; index < pixelCount; index++)
             {
-                float maximum = 0.0f;
+                float maximum = MathF.Abs(referenceGradient[index] - albedoGradient[index]);
                 foreach (float[] gradient in gradients)
                 {
-                    maximum = MathF.Max(maximum, MathF.Abs(gradient[index] - baselineGradient[index]));
+                    maximum = MathF.Max(maximum, MathF.Abs(gradient[index] - albedoGradient[index]));
                 }
                 gradientResidual[index] = maximum;
             }
 
+            float[] referenceAlbedoMultiScale = BuildReferenceAlbedoResidual(reference, albedo);
+            float[] stableStructure = BuildStableStructureConfidence(reference, albedo);
+
             NormalizeRobustInPlace(referenceResidual, 0.995f);
             NormalizeRobustInPlace(directionalResidual, 0.995f);
             NormalizeRobustInPlace(gradientResidual, 0.995f);
+            NormalizeRobustInPlace(referenceAlbedoMultiScale, 0.995f);
 
             float[] reliefNormalized = localRelief.ToArray();
             float[] deformationNormalized = multiScaleDeformation.ToArray();
@@ -1371,16 +1370,13 @@ namespace CollectIQ.Services.Inspection
             NormalizeRobustInPlace(deformationNormalized, 0.990f);
             NormalizeRobustInPlace(specularNormalized, 0.992f);
 
-            // Multi-scale deformation is intentionally given its own weight.
-            // The previous detector favored tiny high-frequency changes and could
-            // miss broad shallow dents or long pressure marks. The deformation
-            // channel preserves evidence at small, medium and large spatial scales.
-            float specularWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.34f : 0.24f;
-            float reliefWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.17f : 0.21f;
-            float deformationWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.27f : 0.31f;
-            float gradientWeight = 0.14f;
-            float directionalWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.05f : 0.07f;
-            float referenceWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.03f : 0.03f;
+            float specularWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.30f : 0.20f;
+            float reliefWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.15f : 0.18f;
+            float deformationWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.23f : 0.27f;
+            float gradientWeight = 0.12f;
+            float directionalWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.06f : 0.07f;
+            float referenceWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.04f : 0.06f;
+            float albedoResidualWeight = surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.10f : 0.12f;
 
             float[] score = new float[pixelCount];
             const int borderMargin = 22;
@@ -1397,21 +1393,73 @@ namespace CollectIQ.Services.Inspection
                         continue;
                     }
 
-                    score[index] = Math.Clamp(
+                    float rawScore =
                         (specularNormalized[index] * specularWeight) +
                         (reliefNormalized[index] * reliefWeight) +
                         (deformationNormalized[index] * deformationWeight) +
                         (gradientResidual[index] * gradientWeight) +
                         (directionalResidual[index] * directionalWeight) +
-                        (referenceResidual[index] * referenceWeight),
-                        0.0f,
-                        1.0f);
+                        (referenceResidual[index] * referenceWeight) +
+                        (referenceAlbedoMultiScale[index] * albedoResidualWeight);
+
+                    // Strong structure that appears similarly in BOTH the neutral
+                    // reference and robust albedo is probably printed, embossed,
+                    // or intentionally raised card design rather than transient
+                    // damage. Do not erase it completely; only reduce its vote.
+                    float stableSuppression = 1.0f - (stableStructure[index] *
+                        (surfaceProfile == InspectionCardSurfaceProfile.FoilChrome ? 0.28f : 0.38f));
+
+                    score[index] = Math.Clamp(rawScore * stableSuppression, 0.0f, 1.0f);
                 }
             }
 
-            // Slight smoothing joins adjacent pixels from the same dent/dimple
-            // without erasing small defects.
             return BoxBlur(score, ProcessingWidth, ProcessingHeight, 1);
+        }
+
+        private static float[] BuildReferenceAlbedoResidual(float[] reference, float[] albedo)
+        {
+            float[] refBlur3 = BoxBlur(reference, ProcessingWidth, ProcessingHeight, 3);
+            float[] albBlur3 = BoxBlur(albedo, ProcessingWidth, ProcessingHeight, 3);
+            float[] refBlur11 = BoxBlur(reference, ProcessingWidth, ProcessingHeight, 11);
+            float[] albBlur11 = BoxBlur(albedo, ProcessingWidth, ProcessingHeight, 11);
+            float[] refBlur31 = BoxBlur(reference, ProcessingWidth, ProcessingHeight, 31);
+            float[] albBlur31 = BoxBlur(albedo, ProcessingWidth, ProcessingHeight, 31);
+
+            float[] residual = new float[reference.Length];
+            for (int i = 0; i < residual.Length; i++)
+            {
+                float fine = MathF.Abs((reference[i] - refBlur3[i]) - (albedo[i] - albBlur3[i]));
+                float medium = MathF.Abs((refBlur3[i] - refBlur11[i]) - (albBlur3[i] - albBlur11[i]));
+                float broad = MathF.Abs((refBlur11[i] - refBlur31[i]) - (albBlur11[i] - albBlur31[i]));
+                residual[i] = MathF.Max(fine, MathF.Max(medium, broad));
+            }
+            return residual;
+        }
+
+        private static float[] BuildStableStructureConfidence(float[] reference, float[] albedo)
+        {
+            float[] referenceGradient = GradientMagnitude(reference, ProcessingWidth, ProcessingHeight);
+            float[] albedoGradient = GradientMagnitude(albedo, ProcessingWidth, ProcessingHeight);
+            float refScale = Math.Max(CalculatePercentile(referenceGradient, 0.985f), Epsilon);
+            float albScale = Math.Max(CalculatePercentile(albedoGradient, 0.985f), Epsilon);
+
+            float[] refBlur = BoxBlur(reference, ProcessingWidth, ProcessingHeight, 7);
+            float[] albBlur = BoxBlur(albedo, ProcessingWidth, ProcessingHeight, 7);
+            float[] stable = new float[reference.Length];
+
+            for (int i = 0; i < stable.Length; i++)
+            {
+                float rg = Math.Clamp(referenceGradient[i] / refScale, 0.0f, 1.0f);
+                float ag = Math.Clamp(albedoGradient[i] / albScale, 0.0f, 1.0f);
+                float structureStrength = MathF.Min(rg, ag);
+
+                float refHp = reference[i] - refBlur[i];
+                float albHp = albedo[i] - albBlur[i];
+                float agreement = 1.0f - Math.Clamp(MathF.Abs(refHp - albHp) / 0.12f, 0.0f, 1.0f);
+                stable[i] = structureStrength * agreement;
+            }
+
+            return BoxBlur(stable, ProcessingWidth, ProcessingHeight, 1);
         }
 
         private static float Median5(float a, float b, float c, float d, float e)
