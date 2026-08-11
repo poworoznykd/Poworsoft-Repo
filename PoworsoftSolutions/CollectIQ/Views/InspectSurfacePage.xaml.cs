@@ -3,15 +3,16 @@
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
 * DESCRIPTION:
-*     Guides the user through a repeatable four-direction surface capture.
-*     The phone and card remain stationary while an external light is moved
-*     around the card. After four captures the local inspection service builds
-*     an enhanced surface map and anomaly heatmap.
+*     Guides the user through a neutral reference plus four directional
+*     surface captures. The user can use either an external light or the
+*     phone torch. In phone-torch mode the card remains stationary while the
+*     phone is moved around it and registration corrects handheld pose changes.
 */
 
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection;
+using CommunityToolkit.Maui.Core;
 using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Views
@@ -25,6 +26,14 @@ namespace CollectIQ.Views
         private SurfaceLightDirection currentDirection = SurfaceLightDirection.Top;
         private bool captureInProgress;
         private bool cameraReady;
+        private IlluminationMode illuminationMode = IlluminationMode.ExternalLight;
+
+        private enum IlluminationMode
+        {
+            ExternalLight,
+            PhoneFlash,
+            PhoneTorch
+        }
         private InspectionCardSurfaceProfile selectedSurfaceProfile = InspectionCardSurfaceProfile.Normal;
 
         public InspectSurfacePage()
@@ -56,6 +65,8 @@ namespace CollectIQ.Views
 
             try
             {
+                SetTorch(false);
+                SetFlashMode(false);
                 SurfaceCameraView?.StopCameraPreview();
             }
             catch
@@ -74,7 +85,14 @@ namespace CollectIQ.Views
             SetupPanel.IsVisible = false;
             CapturePanel.IsVisible = true;
             ProcessingPanel.IsVisible = false;
-            HeaderStatusLabel.Text = "Capture neutral geometry reference first";
+            SetTorch(false);
+            SetFlashMode(false);
+            HeaderStatusLabel.Text = illuminationMode switch
+            {
+                IlluminationMode.PhoneFlash => "Capture neutral reference first • flash OFF",
+                IlluminationMode.PhoneTorch => "Capture neutral reference first • torch OFF",
+                _ => "Capture neutral geometry reference first"
+            };
 
             await StartCameraAsync();
         }
@@ -107,6 +125,7 @@ namespace CollectIQ.Views
 
                 HeaderStatusLabel.Text = "Keep card fixed • auto-alignment enabled";
                 UpdateCaptureStep();
+                ApplyIlluminationForCurrentStep();
             }
             catch (OperationCanceledException)
             {
@@ -159,6 +178,11 @@ namespace CollectIQ.Views
 
             try
             {
+                ApplyIlluminationForCurrentStep();
+                if (illuminationMode == IlluminationMode.PhoneFlash && !capturingReference)
+                {
+                    await Task.Delay(120);
+                }
                 using var cancellationTokenSource =
                     new CancellationTokenSource(TimeSpan.FromSeconds(7));
 
@@ -190,6 +214,7 @@ namespace CollectIQ.Views
                     capturingReference = false;
                     CapturedCountLabel.Text = "1/5";
                     UpdateCaptureStep();
+                    ApplyIlluminationForCurrentStep();
                     return;
                 }
 
@@ -204,6 +229,7 @@ namespace CollectIQ.Views
 
                 currentDirection = (SurfaceLightDirection)((int)currentDirection + 1);
                 UpdateCaptureStep();
+                ApplyIlluminationForCurrentStep();
             }
             catch (OperationCanceledException)
             {
@@ -237,6 +263,8 @@ namespace CollectIQ.Views
 
         private async void OnRestartClicked(object sender, EventArgs e)
         {
+            SetTorch(false);
+            SetFlashMode(false);
             captures.Clear();
             neutralReferencePath = null;
             capturingReference = true;
@@ -263,6 +291,8 @@ namespace CollectIQ.Views
 
             try
             {
+                SetTorch(false);
+                SetFlashMode(false);
                 SurfaceCameraView.StopCameraPreview();
 
                 SurfaceInspectionResult result =
@@ -286,6 +316,68 @@ namespace CollectIQ.Views
             }
         }
 
+
+        private void OnIlluminationSourceChanged(object? sender, CheckedChangedEventArgs e)
+        {
+            if (!e.Value) return;
+
+            illuminationMode = sender == PhoneFlashModeRadio
+                ? IlluminationMode.PhoneFlash
+                : sender == PhoneTorchModeRadio
+                    ? IlluminationMode.PhoneTorch
+                    : IlluminationMode.ExternalLight;
+
+            IlluminationModeHelpLabel.Text = illuminationMode switch
+            {
+                IlluminationMode.PhoneFlash => "Phone Flash: reference uses flash OFF. Top/Right/Bottom/Left use capture flash ON. The flash fires only when the photo is taken.",
+                IlluminationMode.PhoneTorch => "Phone Torch: reference uses torch OFF. Top/Right/Bottom/Left keep the light ON continuously while positioning.",
+                _ => "External Light: phone flash and torch stay OFF. Move only the external light."
+            };
+
+            if (CapturePanel is not null && CapturePanel.IsVisible)
+            {
+                ApplyIlluminationForCurrentStep();
+                UpdateCaptureStep();
+            }
+        }
+
+        private void ApplyIlluminationForCurrentStep()
+        {
+            bool directional = !capturingReference && cameraReady;
+            if (illuminationMode == IlluminationMode.PhoneFlash)
+            {
+                SetTorch(false);
+                SetFlashMode(directional);
+            }
+            else if (illuminationMode == IlluminationMode.PhoneTorch)
+            {
+                SetFlashMode(false);
+                SetTorch(directional);
+            }
+            else
+            {
+                SetFlashMode(false);
+                SetTorch(false);
+            }
+        }
+
+        private void SetFlashMode(bool enabled)
+        {
+            try
+            {
+                SurfaceCameraView.CameraFlashMode = enabled ? CameraFlashMode.On : CameraFlashMode.Off;
+            }
+            catch { }
+        }
+
+        private void SetTorch(bool enabled)
+        {
+            try
+            {
+                SurfaceCameraView.IsTorchOn = enabled;
+            }
+            catch { }
+        }
 
         private void OnSurfaceProfileChanged(object? sender, CheckedChangedEventArgs e)
         {
@@ -317,9 +409,18 @@ namespace CollectIQ.Views
             {
                 CaptureStepLabel.Text = "1 OF 5 — NEUTRAL REFERENCE";
                 CaptureButton.Text = "CAPTURE REFERENCE";
-                CaptureInstructionLabel.Text =
-                    "Move the directional light away. Use normal room lighting and keep the complete card inside the guide. This image establishes the physical card edges for all four lit captures.";
-                HeaderStatusLabel.Text = "Neutral geometry reference";
+                CaptureInstructionLabel.Text = illuminationMode switch
+                {
+                    IlluminationMode.PhoneFlash => "FLASH OFF. Capture the neutral reference under normal room light.",
+                    IlluminationMode.PhoneTorch => "TORCH OFF. Capture the neutral reference under normal room light.",
+                    _ => "Move the external light away and capture the neutral reference under normal room light."
+                };
+                HeaderStatusLabel.Text = illuminationMode switch
+                {
+                    IlluminationMode.PhoneFlash => "Neutral reference • flash OFF",
+                    IlluminationMode.PhoneTorch => "Neutral reference • torch OFF",
+                    _ => "Neutral geometry reference"
+                };
                 TopLightMarker.TextColor = inactive;
                 RightLightMarker.TextColor = inactive;
                 BottomLightMarker.TextColor = inactive;
@@ -328,25 +429,24 @@ namespace CollectIQ.Views
             }
 
             int step = (int)currentDirection + 2;
-            CaptureStepLabel.Text =
-                $"{step} OF 5 — {currentDirection.ToString().ToUpperInvariant()} LIGHT";
-            CaptureButton.Text =
-                $"CAPTURE {currentDirection.ToString().ToUpperInvariant()}";
+            CaptureStepLabel.Text = $"{step} OF 5 — {currentDirection.ToString().ToUpperInvariant()} LIGHT";
+            CaptureButton.Text = $"CAPTURE {currentDirection.ToString().ToUpperInvariant()}";
 
-            CaptureInstructionLabel.Text = currentDirection switch
+            string side = currentDirection.ToString().ToUpperInvariant();
+            CaptureInstructionLabel.Text = illuminationMode switch
             {
-                SurfaceLightDirection.Top =>
-                    "Move the light above the card. Keep the full card inside the guide; CollectIQ will relocate the same four physical sides from the neutral reference.",
-                SurfaceLightDirection.Right =>
-                    "Move the same light to the right side. Keep the card fixed; normal handheld phone movement is allowed.",
-                SurfaceLightDirection.Bottom =>
-                    "Move the same light below the card. Keep all four physical card edges visible inside the guide.",
-                SurfaceLightDirection.Left =>
-                    "Move the light to the left side. Final image — keep the card itself fixed and fully visible.",
-                _ => string.Empty
+                IlluminationMode.PhoneFlash => $"FLASH ON AT CAPTURE. Keep the card fixed. Move/tilt the phone toward the {side} side, keep the whole card visible, then capture. The flash will fire with the photo.",
+                IlluminationMode.PhoneTorch => $"TORCH ON. Keep the card fixed. Move/tilt the phone toward the {side} side until the reflection sweeps across the card, then capture.",
+                _ => $"Move the external light to the {side} side. Keep the card fixed and fully visible."
             };
 
-            HeaderStatusLabel.Text = "Reference locked • local edge tracking enabled";
+            HeaderStatusLabel.Text = illuminationMode switch
+            {
+                IlluminationMode.PhoneFlash => "Reference locked • phone FLASH armed",
+                IlluminationMode.PhoneTorch => "Reference locked • phone TORCH ON",
+                _ => "Reference locked • external light"
+            };
+
             TopLightMarker.TextColor = currentDirection == SurfaceLightDirection.Top ? active : inactive;
             RightLightMarker.TextColor = currentDirection == SurfaceLightDirection.Right ? active : inactive;
             BottomLightMarker.TextColor = currentDirection == SurfaceLightDirection.Bottom ? active : inactive;

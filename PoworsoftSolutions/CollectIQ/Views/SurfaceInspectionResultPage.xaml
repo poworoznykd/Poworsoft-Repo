@@ -30,7 +30,7 @@
                     <Label Text="Quick inspection view" TextColor="#F8FAFC" FontAttributes="Bold" />
                     <Label x:Name="SurfaceProfileLabel" TextColor="#9FB3C8" FontSize="10" />
 
-                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
                         <Button x:Name="HeatmapToggleButton"
                                 Text="Anomalies"
                                 Clicked="OnHeatmapToggleClicked"
@@ -58,7 +58,14 @@
                                 BackgroundColor="#253047"
                                 TextColor="#E2E8F0"
                                 CornerRadius="16" />
-                        <Button Grid.Row="2" Grid.ColumnSpan="2"
+                        <Button Grid.Row="2"
+                                x:Name="AlbedoToggleButton"
+                                Text="Albedo"
+                                Clicked="OnAlbedoToggleClicked"
+                                BackgroundColor="#253047"
+                                TextColor="#E2E8F0"
+                                CornerRadius="16" />
+                        <Button Grid.Row="2" Grid.Column="1"
                                 x:Name="DefectOverlayToggleButton"
                                 Text="Detected flaws overlay"
                                 Clicked="OnDefectOverlayToggleClicked"
@@ -97,6 +104,13 @@
             <Label Text="Glare-reduced average" TextColor="#F8FAFC" FontAttributes="Bold" />
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
                 <Image x:Name="DiffuseImage" Aspect="AspectFit" HeightRequest="500" />
+            </Border>
+
+            <Label Text="Estimated albedo" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label Text="Robust trimmed estimate from the neutral and four directional captures with the brightest and darkest observation rejected per pixel."
+                   TextColor="#64748B" FontSize="10" />
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                <Image x:Name="AlbedoImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
             <Label Text="Detected flaws overlay" TextColor="#F8FAFC" FontAttributes="Bold" />

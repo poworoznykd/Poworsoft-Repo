@@ -10,6 +10,7 @@ namespace CollectIQ.Views
         private string reliefPath = string.Empty;
         private string specularPath = string.Empty;
         private string diffusePath = string.Empty;
+        private string albedoPath = string.Empty;
         private string defectOverlayPath = string.Empty;
 
         private enum PrimaryInspectionView
@@ -18,6 +19,7 @@ namespace CollectIQ.Views
             Relief,
             Specular,
             Diffuse,
+            Albedo,
             DefectOverlay
         }
 
@@ -33,6 +35,7 @@ namespace CollectIQ.Views
             reliefPath = result.ReliefImagePath;
             specularPath = result.SpecularDefectImagePath;
             diffusePath = result.DiffuseImagePath;
+            albedoPath = result.AlbedoImagePath;
             defectOverlayPath = result.DefectOverlayImagePath;
 
             HeatmapImage.Source = ImageSource.FromFile(result.HeatmapImagePath);
@@ -42,6 +45,10 @@ namespace CollectIQ.Views
                 SpecularDefectImage.Source = ImageSource.FromFile(result.SpecularDefectImagePath);
             }
             DiffuseImage.Source = ImageSource.FromFile(result.DiffuseImagePath);
+            if (!string.IsNullOrWhiteSpace(result.AlbedoImagePath) && File.Exists(result.AlbedoImagePath))
+            {
+                AlbedoImage.Source = ImageSource.FromFile(result.AlbedoImagePath);
+            }
             if (!string.IsNullOrWhiteSpace(result.DefectOverlayImagePath) && File.Exists(result.DefectOverlayImagePath))
             {
                 DefectOverlayImage.Source = ImageSource.FromFile(result.DefectOverlayImagePath);
@@ -134,6 +141,11 @@ namespace CollectIQ.Views
             SetPrimaryView(PrimaryInspectionView.Diffuse);
         }
 
+        private void OnAlbedoToggleClicked(object sender, EventArgs e)
+        {
+            SetPrimaryView(PrimaryInspectionView.Albedo);
+        }
+
         private void OnDefectOverlayToggleClicked(object sender, EventArgs e)
         {
             SetPrimaryView(PrimaryInspectionView.DefectOverlay);
@@ -164,6 +176,11 @@ namespace CollectIQ.Views
                     title = "Glare-reduced average";
                     description = "Average of the four directional captures after normalization. Useful as a calmer reference image.";
                     break;
+                case PrimaryInspectionView.Albedo:
+                    imagePath = albedoPath;
+                    title = "Estimated albedo";
+                    description = "Lighting-robust surface reflectance estimate built from all five registered views. Useful as the stable baseline for defect subtraction.";
+                    break;
                 case PrimaryInspectionView.DefectOverlay:
                     imagePath = defectOverlayPath;
                     title = "Detected flaws overlay";
@@ -188,6 +205,7 @@ namespace CollectIQ.Views
             ApplyToggleState(ReliefToggleButton, view == PrimaryInspectionView.Relief);
             ApplyToggleState(SpecularToggleButton, view == PrimaryInspectionView.Specular);
             ApplyToggleState(DiffuseToggleButton, view == PrimaryInspectionView.Diffuse);
+            ApplyToggleState(AlbedoToggleButton, view == PrimaryInspectionView.Albedo);
             ApplyToggleState(DefectOverlayToggleButton, view == PrimaryInspectionView.DefectOverlay);
         }
 

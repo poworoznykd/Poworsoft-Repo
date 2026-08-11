@@ -7,6 +7,7 @@ namespace CollectIQ.Models.Inspection
     public sealed class SurfaceInspectionResult
     {
         public string DiffuseImagePath { get; set; } = string.Empty;
+        public string AlbedoImagePath { get; set; } = string.Empty;
         public string ReliefImagePath { get; set; } = string.Empty;
         public string SpecularDefectImagePath { get; set; } = string.Empty;
         public string HeatmapImagePath { get; set; } = string.Empty;

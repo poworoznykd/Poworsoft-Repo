@@ -41,32 +41,24 @@
                            FontSize="12" />
 
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14" Stroke="#39FF14">
-                        <VerticalStackLayout Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="RECOMMENDED: EXTERNAL LIGHT"
-                                       TextColor="#86FF70"
-                                       FontAttributes="Bold" />
-                                <Label Grid.Column="1" Text="MVP" TextColor="#39FF14" FontSize="10" />
-                            </Grid>
-                            <Label Text="Use another phone flashlight, small LED, or movable desk light. The first image is captured with the directional light moved away under normal room lighting. Then keep the card fixed while the light moves to Top, Right, Bottom and Left. You can hand-hold the camera and normal movement is expected."
-                                   TextColor="#CBD5E1" FontSize="11" />
-                        </VerticalStackLayout>
-                    </Border>
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="Illumination source" TextColor="#86FF70" FontAttributes="Bold" />
+                            <Label Text="Choose an external light, the phone capture flash, or the continuous phone torch. Keep the card fixed; CollectIQ registers camera movement back to the neutral reference." TextColor="#CBD5E1" FontSize="11" />
 
-                    <Border Style="{StaticResource AuroraGlassBorder}" Padding="14" Opacity="0.65">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="PHONE ONLY: REFLECTION SWEEP (EXPERIMENTAL)"
-                                   TextColor="#C084FC"
-                                   FontAttributes="Bold" />
-                            <Label Text="A future mode will test moving the phone/flash or rotating the card and then registering the images. It stays experimental until we can prove repeatability across phones and foil finishes."
-                                   TextColor="#CBD5E1" FontSize="11" />
+                            <VerticalStackLayout Spacing="8">
+                                <RadioButton x:Name="ExternalLightModeRadio" Content="External light" GroupName="IlluminationSource" IsChecked="True" CheckedChanged="OnIlluminationSourceChanged" />
+                                <RadioButton x:Name="PhoneFlashModeRadio" Content="Phone flash" GroupName="IlluminationSource" CheckedChanged="OnIlluminationSourceChanged" />
+                                <RadioButton x:Name="PhoneTorchModeRadio" Content="Phone torch (continuous)" GroupName="IlluminationSource" CheckedChanged="OnIlluminationSourceChanged" />
+                            </VerticalStackLayout>
+
+                            <Label x:Name="IlluminationModeHelpLabel" Text="External Light: phone flash and torch stay OFF." TextColor="#9FB3C8" FontSize="10" />
                         </VerticalStackLayout>
                     </Border>
 
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                         <VerticalStackLayout Spacing="7">
                             <Label Text="Before you start" TextColor="#F8FAFC" FontAttributes="Bold" />
-                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat MATTE BLACK or MATTE WHITE background.&#10;• Fit the entire card inside the green guide as well as you can; no physical card edge may be outside the camera image.&#10;• The card does NOT need to be perfectly parallel to the phone.&#10;• Keep the card itself fixed; normal handheld phone movement is expected.&#10;• Keep the external light at roughly the same distance for all four images."
+                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat MATTE BLACK or MATTE WHITE background.&#10;• Fit the entire card inside the green guide; no physical card edge may leave the camera image.&#10;• Keep the CARD fixed for the complete scan.&#10;• The phone does not need to remain perfectly parallel; perspective is corrected automatically.&#10;• Avoid extreme phone tilt or clipping any card edge.&#10;• Keep light distance/brightness as consistent as practical between directional captures."
                                    TextColor="#9FB3C8" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>

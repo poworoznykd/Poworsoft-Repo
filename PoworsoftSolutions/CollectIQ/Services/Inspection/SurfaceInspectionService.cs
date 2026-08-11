@@ -104,6 +104,7 @@ namespace CollectIQ.Services.Inspection
             int pixelCount = ProcessingWidth * ProcessingHeight;
             float[] diffuse = new float[pixelCount];
             float[] relief = new float[pixelCount];
+            float[] albedo = BuildRobustAlbedo(reference, top, right, bottom, left);
 
             for (int index = 0; index < pixelCount; index++)
             {
@@ -165,6 +166,7 @@ namespace CollectIQ.Services.Inspection
                 100.0);
 
             string diffusePath = Path.Combine(outputDirectory, "diffuse_full_card.png");
+            string albedoPath = Path.Combine(outputDirectory, "estimated_albedo_full_card.png");
             string reliefPath = Path.Combine(outputDirectory, "surface_relief_full_card.png");
             string specularDefectPath = Path.Combine(outputDirectory, "specular_enhanced_defect_full_card.png");
             string heatmapPath = Path.Combine(outputDirectory, "surface_heatmap_full_card.png");
@@ -172,6 +174,7 @@ namespace CollectIQ.Services.Inspection
             string defectOverlayPath = Path.Combine(outputDirectory, "surface_defect_overlay.png");
 
             await SaveGrayscaleAsync(diffuse, diffusePath, cancellationToken);
+            await SaveGrayscaleAsync(albedo, albedoPath, cancellationToken);
             await SaveGrayscaleAsync(
                 localRelief,
                 reliefPath,
@@ -205,6 +208,7 @@ namespace CollectIQ.Services.Inspection
             return new SurfaceInspectionResult
             {
                 DiffuseImagePath = diffusePath,
+                AlbedoImagePath = albedoPath,
                 ReliefImagePath = reliefPath,
                 SpecularDefectImagePath = specularDefectPath,
                 HeatmapImagePath = heatmapPath,
@@ -1270,6 +1274,39 @@ namespace CollectIQ.Services.Inspection
             {
                 values[index] = Math.Clamp(values[index] * scale, 0.0f, 1.0f);
             }
+        }
+
+        private static float[] BuildRobustAlbedo(
+            float[] reference,
+            float[] top,
+            float[] right,
+            float[] bottom,
+            float[] left)
+        {
+            int pixelCount = ProcessingWidth * ProcessingHeight;
+            float[] albedo = new float[pixelCount];
+
+            for (int index = 0; index < pixelCount; index++)
+            {
+                Span<float> samples = stackalloc float[5]
+                {
+                    reference[index],
+                    top[index],
+                    right[index],
+                    bottom[index],
+                    left[index]
+                };
+
+                samples.Sort();
+
+                // A trimmed mean is more stable than an ordinary average:
+                // ignore the darkest shadow and brightest specular observation.
+                albedo[index] = (samples[1] + samples[2] + samples[3]) / 3.0f;
+            }
+
+            // Very light smoothing removes single-pixel sensor noise without
+            // erasing card print detail that is useful for later subtraction.
+            return BoxBlur(albedo, ProcessingWidth, ProcessingHeight, 1);
         }
 
         private static float[] BuildCombinedDefectScore(
