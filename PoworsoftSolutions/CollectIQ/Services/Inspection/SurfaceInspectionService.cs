@@ -54,112 +54,154 @@ namespace CollectIQ.Services.Inspection
         {
             ValidateCaptures(captures);
             if (string.IsNullOrWhiteSpace(neutralReferencePath) || !File.Exists(neutralReferencePath))
-            {
-                throw new InvalidOperationException(
-                    "A valid neutral reference image is required before directional surface inspection.");
-            }
+                throw new InvalidOperationException("A valid neutral reference image is required before directional surface inspection.");
 
             string outputDirectory = Path.Combine(
-                FileSystem.AppDataDirectory,
-                "SurfaceInspections",
-                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
-
+                FileSystem.AppDataDirectory, "SurfaceInspections", DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
             Directory.CreateDirectory(outputDirectory);
 
             Dictionary<string, string> registrationInputs = captures.ToDictionary(
-                item => item.Key.ToString(),
-                item => item.Value,
-                StringComparer.OrdinalIgnoreCase);
+                item => item.Key.ToString(), item => item.Value, StringComparer.OrdinalIgnoreCase);
             registrationInputs["Reference"] = neutralReferencePath;
 
             CardRegistrationResult registration = await cardRegistrationService.RegisterAsync(
-                registrationInputs,
-                "Reference",
-                outputDirectory,
-                cancellationToken);
+                registrationInputs, "Reference", outputDirectory, cancellationToken);
 
+            RegisteredCardFrame referenceCapture = registration.Frames["Reference"];
             RegisteredCardFrame topCapture = registration.Frames[SurfaceLightDirection.Top.ToString()];
             RegisteredCardFrame rightCapture = registration.Frames[SurfaceLightDirection.Right.ToString()];
             RegisteredCardFrame bottomCapture = registration.Frames[SurfaceLightDirection.Bottom.ToString()];
             RegisteredCardFrame leftCapture = registration.Frames[SurfaceLightDirection.Left.ToString()];
 
-            float[] top = topCapture.Luminance;
-            float[] right = rightCapture.Luminance;
-            float[] bottom = bottomCapture.Luminance;
-            float[] left = leftCapture.Luminance;
+            // Work on copies so diagnostics retain the original registered luminance.
+            float[] reference = (float[])referenceCapture.Luminance.Clone();
+            float[] top = (float[])topCapture.Luminance.Clone();
+            float[] right = (float[])rightCapture.Luminance.Clone();
+            float[] bottom = (float[])bottomCapture.Luminance.Clone();
+            float[] left = (float[])leftCapture.Luminance.Clone();
 
-            float targetMean =
-                (CalculateMean(top) + CalculateMean(right) +
-                 CalculateMean(bottom) + CalculateMean(left)) / 4.0f;
-
+            float targetMean = (CalculateMean(top) + CalculateMean(right) + CalculateMean(bottom) + CalculateMean(left)) / 4.0f;
             NormalizeBrightness(top, targetMean);
             NormalizeBrightness(right, targetMean);
             NormalizeBrightness(bottom, targetMean);
             NormalizeBrightness(left, targetMean);
+            NormalizeBrightness(reference, targetMean);
 
             int pixelCount = ProcessingWidth * ProcessingHeight;
-            float[] diffuse = new float[pixelCount];
+            float[] albedo = new float[pixelCount];
+            float[] slopeX = new float[pixelCount];
+            float[] slopeY = new float[pixelCount];
             float[] relief = new float[pixelCount];
+            float[] neutralResidual = new float[pixelCount];
+            float[] specular = new float[pixelCount];
+            float[] opposingMismatch = new float[pixelCount];
 
-            for (int index = 0; index < pixelCount; index++)
+            for (int i = 0; i < pixelCount; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                diffuse[index] =
-                    (top[index] + right[index] + bottom[index] + left[index]) / 4.0f;
+                // Robust diffuse/albedo estimate: average the middle two of the
+                // four directional samples so one glare hit or one deep shadow
+                // does not dominate the reflectance estimate.
+                float a = top[i];
+                float b = right[i];
+                float c = bottom[i];
+                float d = left[i];
+                float minimum = MathF.Min(MathF.Min(a, b), MathF.Min(c, d));
+                float maximum = MathF.Max(MathF.Max(a, b), MathF.Max(c, d));
+                albedo[i] = ((a + b + c + d) - minimum - maximum) * 0.5f;
 
-                float horizontal =
-                    (right[index] - left[index]) /
-                    (right[index] + left[index] + Epsilon);
+                float horizontalDenom = right[i] + left[i] + Epsilon;
+                float verticalDenom = bottom[i] + top[i] + Epsilon;
+                slopeX[i] = (right[i] - left[i]) / horizontalDenom;
+                slopeY[i] = (bottom[i] - top[i]) / verticalDenom;
+                relief[i] = MathF.Sqrt((slopeX[i] * slopeX[i]) + (slopeY[i] * slopeY[i]));
 
-                float vertical =
-                    (bottom[index] - top[index]) /
-                    (bottom[index] + top[index] + Epsilon);
-
-                relief[index] = MathF.Sqrt(
-                    (horizontal * horizontal) +
-                    (vertical * vertical));
+                neutralResidual[i] = MathF.Abs(reference[i] - albedo[i]);
+                specular[i] = MathF.Max(0, maximum - albedo[i]);
+                float sumRL = right[i] + left[i];
+                float sumTB = top[i] + bottom[i];
+                opposingMismatch[i] = MathF.Abs(sumRL - sumTB) / (sumRL + sumTB + Epsilon);
             }
 
-            float[] localRelief = HighPassRelief(relief);
-            float threshold = CalculatePercentile(localRelief, 0.97f);
-            double anomalyScore = CalculateAnomalyScore(localRelief, threshold);
+            // Shape evidence: divergence/curvature of the photometric slopes.
+            float[] curvature = CalculateCurvature(slopeX, slopeY, ProcessingWidth, ProcessingHeight);
+            float[] localRelief = PositiveHighPass(relief, 5);
+            float[] localNeutralResidual = PositiveHighPass(neutralResidual, 7);
+
+            // Normalize each evidence channel by a robust percentile before
+            // combining it. This keeps foil/glare in one channel from swamping
+            // the actual shape evidence.
+            float[] curvatureN = RobustNormalize(curvature, 0.985f);
+            float[] reliefN = RobustNormalize(localRelief, 0.985f);
+            float[] residualN = RobustNormalize(localNeutralResidual, 0.985f);
+            float[] mismatchN = RobustNormalize(opposingMismatch, 0.985f);
+            float[] specularN = RobustNormalize(specular, 0.99f);
+
+            float[] defectScore = new float[pixelCount];
+            int border = 18;
+            for (int y = 0; y < ProcessingHeight; y++)
+            {
+                for (int x = 0; x < ProcessingWidth; x++)
+                {
+                    int i = (y * ProcessingWidth) + x;
+                    if (x < border || y < border || x >= ProcessingWidth - border || y >= ProcessingHeight - border)
+                    {
+                        defectScore[i] = 0;
+                        continue;
+                    }
+
+                    // Shape is intentionally weighted highest. Neutral/albedo
+                    // subtraction and opposing-light mismatch add evidence,
+                    // while a strong isolated specular spike is discounted.
+                    float score =
+                        (curvatureN[i] * 0.38f) +
+                        (reliefN[i] * 0.28f) +
+                        (residualN[i] * 0.22f) +
+                        (mismatchN[i] * 0.12f);
+                    score *= (1.0f - (0.35f * Math.Clamp(specularN[i], 0, 1)));
+                    defectScore[i] = Math.Clamp(score, 0, 1);
+                }
+            }
+
+            // Smooth only the final evidence map; the individual diagnostic
+            // channels stay high resolution.
+            defectScore = BoxBlur(defectScore, ProcessingWidth, ProcessingHeight, 1);
+            float defectThreshold = Math.Max(0.42f, CalculatePercentile(defectScore, 0.992f));
+            double anomalyScore = CalculateAnomalyScore(defectScore, defectThreshold);
 
             double registrationScore = registration.OverallQuality;
+            double exposureConsistency = CalculateExposureConsistency(top, right, bottom, left);
+            double consistencyScore = Math.Clamp((registrationScore * 0.80) + (exposureConsistency * 0.20), 0.0, 100.0);
 
-            double exposureConsistency = CalculateExposureConsistency(
-                top,
-                right,
-                bottom,
-                left);
+            string albedoPath = Path.Combine(outputDirectory, "estimated_albedo.png");
+            string reliefPath = Path.Combine(outputDirectory, "photometric_relief.png");
+            string normalPath = Path.Combine(outputDirectory, "photometric_normals.png");
+            string curvaturePath = Path.Combine(outputDirectory, "photometric_curvature.png");
+            string residualPath = Path.Combine(outputDirectory, "neutral_albedo_residual.png");
+            string heatmapPath = Path.Combine(outputDirectory, "defect_heatmap.png");
+            string overlayPath = Path.Combine(outputDirectory, "defect_overlay.png");
 
-            double consistencyScore = Math.Clamp(
-                (registrationScore * 0.80) +
-                (exposureConsistency * 0.20),
-                0.0,
-                100.0);
-
-            string diffusePath = Path.Combine(outputDirectory, "diffuse_full_card.png");
-            string reliefPath = Path.Combine(outputDirectory, "surface_relief_full_card.png");
-            string heatmapPath = Path.Combine(outputDirectory, "surface_heatmap_full_card.png");
-
-            await SaveGrayscaleAsync(diffuse, diffusePath, cancellationToken);
-            await SaveGrayscaleAsync(
-                localRelief,
-                reliefPath,
-                cancellationToken,
-                normalize: true);
-            await SaveHeatmapAsync(
-                localRelief,
-                threshold,
-                heatmapPath,
-                cancellationToken);
+            await SaveGrayscaleAsync(albedo, albedoPath, cancellationToken);
+            await SaveGrayscaleAsync(localRelief, reliefPath, cancellationToken, normalize: true);
+            await SaveNormalMapAsync(slopeX, slopeY, normalPath, cancellationToken);
+            await SaveGrayscaleAsync(curvature, curvaturePath, cancellationToken, normalize: true);
+            await SaveGrayscaleAsync(localNeutralResidual, residualPath, cancellationToken, normalize: true);
+            await SaveHeatmapAsync(defectScore, defectThreshold, heatmapPath, cancellationToken);
+            await SaveDefectOverlayAsync(albedo, defectScore, defectThreshold, overlayPath, cancellationToken);
 
             return new SurfaceInspectionResult
             {
-                DiffuseImagePath = diffusePath,
+                Mode = SurfaceInspectionMode.ExternalLight,
+                ModeName = "External Light — 5 Image Photometric",
+                DiffuseImagePath = albedoPath,
+                AlbedoImagePath = albedoPath,
                 ReliefImagePath = reliefPath,
+                NormalMapImagePath = normalPath,
+                CurvatureImagePath = curvaturePath,
+                ReferenceResidualImagePath = residualPath,
                 HeatmapImagePath = heatmapPath,
+                DefectOverlayImagePath = overlayPath,
                 Diagnostics = new AlignmentDiagnostics
                 {
                     EdgeOverlayPath = registration.EdgeOverlayPath,
@@ -174,11 +216,314 @@ namespace CollectIQ.Services.Inspection
                 },
                 AnomalyScore = anomalyScore,
                 CaptureConsistencyScore = consistencyScore,
-                Summary = BuildSummary(
-                    anomalyScore,
-                    consistencyScore,
-                    registrationScore)
+                Summary = BuildSummary(anomalyScore, consistencyScore, registrationScore)
             };
+        }
+
+
+        /// <summary>
+        /// Conventional single-photo surface pre-screen. Public card-grading apps
+        /// generally advertise a front/back photo workflow and return separate
+        /// surface/corner/edge assessments, but do not publish their proprietary
+        /// defect models. This local implementation mirrors that capture experience
+        /// with deterministic multi-scale texture/residual analysis.
+        /// </summary>
+        public async Task<SurfaceInspectionResult> AnalyzeSinglePhotoAsync(
+            string imagePath,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+            {
+                throw new InvalidOperationException("A valid card image is required.");
+            }
+
+            string outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "SurfaceInspections",
+                "single_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+            Directory.CreateDirectory(outputDirectory);
+
+            Dictionary<string, string> input = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Reference"] = imagePath
+            };
+            CardRegistrationResult registration = await cardRegistrationService.RegisterAsync(
+                input, "Reference", outputDirectory, cancellationToken);
+            RegisteredCardFrame frame = registration.Frames["Reference"];
+            float[] gray = frame.Luminance;
+
+            float[] small = AbsoluteDifference(gray, BoxBlur(gray, ProcessingWidth, ProcessingHeight, 2));
+            float[] medium = AbsoluteDifference(gray, BoxBlur(gray, ProcessingWidth, ProcessingHeight, 6));
+            float[] large = AbsoluteDifference(gray, BoxBlur(gray, ProcessingWidth, ProcessingHeight, 14));
+            float[] gradient = GradientMagnitudeLocal(gray, ProcessingWidth, ProcessingHeight);
+
+            float[] smallN = RobustNormalize(small, 0.99f);
+            float[] mediumN = RobustNormalize(medium, 0.99f);
+            float[] largeN = RobustNormalize(large, 0.99f);
+            float[] gradientN = RobustNormalize(gradient, 0.995f);
+
+            int count = gray.Length;
+            float[] score = new float[count];
+            int border = 20;
+            for (int y = 0; y < ProcessingHeight; y++)
+            {
+                for (int x = 0; x < ProcessingWidth; x++)
+                {
+                    int i = y * ProcessingWidth + x;
+                    if (x < border || y < border || x >= ProcessingWidth - border || y >= ProcessingHeight - border)
+                    {
+                        score[i] = 0;
+                        continue;
+                    }
+
+                    // Fine scratches respond at the small scale; stains/creases and
+                    // surface disturbances survive into medium/large residuals.
+                    score[i] = Math.Clamp(
+                        (smallN[i] * 0.38f) +
+                        (mediumN[i] * 0.30f) +
+                        (largeN[i] * 0.20f) +
+                        (gradientN[i] * 0.12f), 0, 1);
+                }
+            }
+            score = BoxBlur(score, ProcessingWidth, ProcessingHeight, 1);
+            float threshold = Math.Max(0.48f, CalculatePercentile(score, 0.994f));
+            double anomaly = CalculateAnomalyScore(score, threshold);
+
+            string detailPath = Path.Combine(outputDirectory, "single_photo_multiscale_detail.png");
+            string heatmapPath = Path.Combine(outputDirectory, "single_photo_surface_heatmap.png");
+            string overlayPath = Path.Combine(outputDirectory, "single_photo_defect_overlay.png");
+            await SaveGrayscaleAsync(medium, detailPath, cancellationToken, normalize: true);
+            await SaveHeatmapAsync(score, threshold, heatmapPath, cancellationToken);
+            await SaveDefectOverlayAsync(gray, score, threshold, overlayPath, cancellationToken);
+
+            return new SurfaceInspectionResult
+            {
+                Mode = SurfaceInspectionMode.SinglePhoto,
+                ModeName = "Single Photo Surface Pre-Screen",
+                DiffuseImagePath = frame.RegisteredImagePath,
+                ReliefImagePath = detailPath,
+                HeatmapImagePath = heatmapPath,
+                DefectOverlayImagePath = overlayPath,
+                SecondaryEvidenceImagePath = detailPath,
+                Diagnostics = new AlignmentDiagnostics
+                {
+                    EdgeOverlayPath = registration.EdgeOverlayPath,
+                    AlignmentAveragePath = registration.AlignmentAveragePath,
+                    Frames = new List<InspectionDebugFrame>()
+                },
+                AnomalyScore = anomaly,
+                CaptureConsistencyScore = registration.OverallQuality,
+                Summary = $"Single-photo pre-screen found a surface anomaly signal of {anomaly:0}/100. " +
+                          "Use External Light or Tilt Sweep to confirm physical surface defects because printed artwork can also create texture responses."
+            };
+        }
+
+        /// <summary>
+        /// Fixed-phone/fixed-light tilt sweep. The user changes only the card pose.
+        /// Every frame is re-detected and homography-normalized to the same card matrix.
+        /// A planar printed feature remains stationary after rectification; physical
+        /// surface relief produces view-dependent intensity/specular changes.
+        /// </summary>
+        public async Task<SurfaceInspectionResult> AnalyzeTiltSweepAsync(
+            IReadOnlyList<string> captures,
+            CancellationToken cancellationToken = default)
+        {
+            if (captures is null || captures.Count < 8)
+            {
+                throw new InvalidOperationException("Tilt Sweep needs at least 8 captures; 20 is recommended.");
+            }
+
+            foreach (string path in captures)
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    throw new InvalidOperationException("One or more Tilt Sweep captures are missing.");
+            }
+
+            string outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "SurfaceInspections",
+                "tilt_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+            Directory.CreateDirectory(outputDirectory);
+
+            // Tilt Sweep is intentionally different from External Light:
+            // the card moves between captures, so there is no privileged
+            // first-frame "Reference" geometry.  Rectify each view independently
+            // to the same canonical 750x1050 card plane and tolerate occasional
+            // frames where the four outer corners cannot be recovered.
+            List<float[]> stack = new();
+            List<double> geometryQualities = new();
+            List<string> registeredPaths = new();
+            int rejectedFrames = 0;
+
+            for (int captureIndex = 0; captureIndex < captures.Count; captureIndex++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                string frameDirectory = Path.Combine(outputDirectory, $"frame_{captureIndex + 1:00}");
+                Directory.CreateDirectory(frameDirectory);
+
+                try
+                {
+                    Dictionary<string, string> singleFrame = new(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Reference"] = captures[captureIndex]
+                    };
+
+                    CardRegistrationResult frameRegistration = await cardRegistrationService.RegisterAsync(
+                        singleFrame,
+                        "Reference",
+                        frameDirectory,
+                        cancellationToken);
+
+                    RegisteredCardFrame frame = frameRegistration.Frames["Reference"];
+                    stack.Add((float[])frame.Luminance.Clone());
+                    geometryQualities.Add(frame.Geometry.Confidence * 100.0);
+                    registeredPaths.Add(frame.RegisteredImagePath);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    rejectedFrames++;
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[TiltSweep] Capture {captureIndex + 1:00} rejected: {ex.Message}");
+                }
+            }
+
+            if (stack.Count < 8)
+            {
+                throw new InvalidOperationException(
+                    $"Tilt Sweep could only locate the complete card in {stack.Count} of {captures.Count} captures. " +
+                    "At least 8 usable views are required. Keep all four card edges visible while tilting; " +
+                    "your hand may support the card from behind, but do not cover a card corner.");
+            }
+
+            float globalMean = stack.Average(CalculateMean);
+            foreach (float[] frame in stack)
+                NormalizeBrightness(frame, globalMean);
+
+            int pixels = ProcessingWidth * ProcessingHeight;
+            float[] robust = new float[pixels];
+            float[] range = new float[pixels];
+            float[] variance = new float[pixels];
+            float[] scratchLike = new float[pixels];
+            float[] values = new float[stack.Count];
+
+            for (int i = 0; i < pixels; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                float sum = 0;
+                for (int f = 0; f < stack.Count; f++)
+                {
+                    values[f] = stack[f][i];
+                    sum += values[f];
+                }
+
+                Array.Sort(values);
+                int n = values.Length;
+                float median = n % 2 == 0
+                    ? (values[n / 2 - 1] + values[n / 2]) * 0.5f
+                    : values[n / 2];
+                float p10 = values[Math.Clamp((int)Math.Floor((n - 1) * 0.10), 0, n - 1)];
+                float p90 = values[Math.Clamp((int)Math.Ceiling((n - 1) * 0.90), 0, n - 1)];
+                robust[i] = median;
+                range[i] = p90 - p10;
+
+                float mean = sum / n;
+                float var = 0;
+                for (int f = 0; f < n; f++)
+                {
+                    float d = values[f] - mean;
+                    var += d * d;
+                }
+                variance[i] = MathF.Sqrt(var / n);
+            }
+
+            float[] localRange = PositiveHighPass(range, 5);
+            float[] localVariance = PositiveHighPass(variance, 5);
+            float[] rangeN = RobustNormalize(localRange, 0.99f);
+            float[] varN = RobustNormalize(localVariance, 0.99f);
+            float[] medianDetail = AbsoluteDifference(
+                robust,
+                BoxBlur(robust, ProcessingWidth, ProcessingHeight, 4));
+            float[] detailN = RobustNormalize(medianDetail, 0.995f);
+
+            int border = 20;
+            for (int y = 0; y < ProcessingHeight; y++)
+            {
+                for (int x = 0; x < ProcessingWidth; x++)
+                {
+                    int i = y * ProcessingWidth + x;
+                    if (x < border || y < border ||
+                        x >= ProcessingWidth - border || y >= ProcessingHeight - border)
+                    {
+                        scratchLike[i] = 0;
+                        continue;
+                    }
+
+                    scratchLike[i] = Math.Clamp(
+                        (rangeN[i] * 0.52f) +
+                        (varN[i] * 0.38f) +
+                        (detailN[i] * 0.10f), 0, 1);
+                }
+            }
+
+            scratchLike = BoxBlur(scratchLike, ProcessingWidth, ProcessingHeight, 1);
+            float threshold = Math.Max(0.46f, CalculatePercentile(scratchLike, 0.993f));
+            double anomaly = CalculateAnomalyScore(scratchLike, threshold);
+
+            string albedoPath = Path.Combine(outputDirectory, "tilt_robust_albedo.png");
+            string responsePath = Path.Combine(outputDirectory, "tilt_view_dependent_response.png");
+            string heatmapPath = Path.Combine(outputDirectory, "tilt_defect_heatmap.png");
+            string overlayPath = Path.Combine(outputDirectory, "tilt_defect_overlay.png");
+            await SaveGrayscaleAsync(robust, albedoPath, cancellationToken);
+            await SaveGrayscaleAsync(localRange, responsePath, cancellationToken, normalize: true);
+            await SaveHeatmapAsync(scratchLike, threshold, heatmapPath, cancellationToken);
+            await SaveDefectOverlayAsync(robust, scratchLike, threshold, overlayPath, cancellationToken);
+
+            double geometryQuality = geometryQualities.Count == 0 ? 0 : geometryQualities.Average();
+            double usablePercent = (stack.Count / (double)captures.Count) * 100.0;
+            double consistency = Math.Clamp((geometryQuality * 0.70) + (usablePercent * 0.30), 0, 100);
+
+            return new SurfaceInspectionResult
+            {
+                Mode = SurfaceInspectionMode.TiltSweep,
+                ModeName = $"Tilt Sweep — {stack.Count}/{captures.Count} Usable Views",
+                DiffuseImagePath = albedoPath,
+                AlbedoImagePath = albedoPath,
+                ReliefImagePath = responsePath,
+                HeatmapImagePath = heatmapPath,
+                DefectOverlayImagePath = overlayPath,
+                SecondaryEvidenceImagePath = responsePath,
+                Diagnostics = new AlignmentDiagnostics(),
+                AnomalyScore = anomaly,
+                CaptureConsistencyScore = consistency,
+                Summary = $"Tilt Sweep used {stack.Count} of {captures.Count} captures and rejected {rejectedFrames}. " +
+                          $"View-dependent surface anomaly signal: {anomaly:0}/100. " +
+                          "The result combines changes that recur as the card is tilted under a fixed light."
+            };
+        }
+
+        private static float[] AbsoluteDifference(float[] a, float[] b)
+        {
+            float[] result = new float[a.Length];
+            for (int i = 0; i < result.Length; i++)
+                result[i] = MathF.Abs(a[i] - b[i]);
+            return result;
+        }
+
+        private static float[] GradientMagnitudeLocal(float[] source, int width, int height)
+        {
+            float[] result = new float[source.Length];
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    int i = y * width + x;
+                    float gx = source[i + 1] - source[i - 1];
+                    float gy = source[i + width] - source[i - width];
+                    result[i] = MathF.Sqrt(gx * gx + gy * gy);
+                }
+            }
+            return result;
         }
 
         private static void ValidateCaptures(
@@ -1312,6 +1657,105 @@ namespace CollectIQ.Services.Inspection
                 ordered.Length - 1);
 
             return ordered[index];
+        }
+
+        private static float[] CalculateCurvature(float[] gx, float[] gy, int width, int height)
+        {
+            float[] result = new float[gx.Length];
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    int i = (y * width) + x;
+                    float dgxDx = (gx[i + 1] - gx[i - 1]) * 0.5f;
+                    float dgyDy = (gy[i + width] - gy[i - width]) * 0.5f;
+                    float crossX = (gx[i + width] - gx[i - width]) * 0.25f;
+                    float crossY = (gy[i + 1] - gy[i - 1]) * 0.25f;
+                    result[i] = MathF.Abs(dgxDx + dgyDy) + MathF.Abs(crossX + crossY);
+                }
+            }
+            return result;
+        }
+
+        private static float[] PositiveHighPass(float[] values, int radius)
+        {
+            float[] background = BoxBlur(values, ProcessingWidth, ProcessingHeight, radius);
+            float[] result = new float[values.Length];
+            for (int i = 0; i < values.Length; i++)
+                result[i] = MathF.Max(0, values[i] - background[i]);
+            return result;
+        }
+
+        private static float[] RobustNormalize(float[] values, float percentile)
+        {
+            float scale = Math.Max(CalculatePercentile(values, percentile), Epsilon);
+            float[] result = new float[values.Length];
+            for (int i = 0; i < values.Length; i++)
+                result[i] = Math.Clamp(values[i] / scale, 0, 1);
+            return result;
+        }
+
+        private static async Task SaveNormalMapAsync(
+            float[] gx, float[] gy, string path, CancellationToken cancellationToken)
+        {
+            using SixLabors.ImageSharp.Image<Rgba32> image = new(ProcessingWidth, ProcessingHeight);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int i = (y * ProcessingWidth) + x;
+                        float nx = -gx[i];
+                        float ny = -gy[i];
+                        float nz = 1.0f;
+                        float len = MathF.Sqrt((nx * nx) + (ny * ny) + (nz * nz));
+                        nx /= len; ny /= len; nz /= len;
+                        row[x] = new Rgba32(
+                            (byte)Math.Clamp(MathF.Round((nx * 0.5f + 0.5f) * 255), 0, 255),
+                            (byte)Math.Clamp(MathF.Round((ny * 0.5f + 0.5f) * 255), 0, 255),
+                            (byte)Math.Clamp(MathF.Round((nz * 0.5f + 0.5f) * 255), 0, 255),
+                            255);
+                    }
+                }
+            });
+
+            await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(stream, new PngEncoder(), cancellationToken);
+        }
+
+        private static async Task SaveDefectOverlayAsync(
+            float[] albedo, float[] score, float threshold, string path, CancellationToken cancellationToken)
+        {
+            using SixLabors.ImageSharp.Image<Rgba32> image = new(ProcessingWidth, ProcessingHeight);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int i = (y * ProcessingWidth) + x;
+                        byte gray = (byte)Math.Clamp(MathF.Round(Math.Clamp(albedo[i], 0, 1) * 255), 0, 255);
+                        if (score[i] >= threshold)
+                        {
+                            float strength = Math.Clamp((score[i] - threshold) / Math.Max(1.0f - threshold, 0.01f), 0, 1);
+                            byte r = 255;
+                            byte g = (byte)(gray * (0.45f - 0.25f * strength));
+                            byte b = (byte)(gray * 0.35f);
+                            row[x] = new Rgba32(r, g, b, 255);
+                        }
+                        else
+                        {
+                            row[x] = new Rgba32(gray, gray, gray, 255);
+                        }
+                    }
+                }
+            });
+
+            await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(stream, new PngEncoder(), cancellationToken);
         }
 
         private static double CalculateAnomalyScore(float[] values, float threshold)

@@ -82,6 +82,35 @@ namespace CollectIQ.Services.Inspection.Geometry
                     }));
 
                 using Mat bgr = CreateBgrMat(detectionImage);
+
+                // First choice for CollectIQ inspection captures: find the strongest
+                // card-shaped closed rectangle directly from edges. The user is told
+                // to place the card on a solid matte background, so the physical
+                // perimeter should be the dominant large quadrilateral.
+                if (TryDetectCardFromEdges(
+                    bgr,
+                    detectionWidth,
+                    detectionHeight,
+                    normalizedPriorCorners,
+                    out CardPoint[] edgeCorners,
+                    out double edgeConfidence))
+                {
+                    CardPoint[] edgeFullResolution = edgeCorners
+                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
+                        .ToArray();
+
+                    return new CardGeometryResult
+                    {
+                        Success = true,
+                        Corners = edgeFullResolution,
+                        Confidence = edgeConfidence,
+                        SourceWidth = source.Width,
+                        SourceHeight = source.Height
+                    };
+                }
+
+                // Fallback: retain the existing GrabCut implementation for difficult
+                // backgrounds or cards whose physical perimeter is unusually weak.
                 using Mat grabMask = CreateGrabCutSeed(
                     detectionWidth,
                     detectionHeight,
@@ -178,6 +207,161 @@ namespace CollectIQ.Services.Inspection.Geometry
             {
                 return Failed(source);
             }
+        }
+
+
+        /// <summary>
+        /// Detects the physical outside card perimeter from an edge image.
+        /// This deliberately prefers a large, convex, trading-card-shaped
+        /// quadrilateral and ignores internal printed borders/artwork.
+        /// </summary>
+        private static bool TryDetectCardFromEdges(
+            Mat bgr,
+            int width,
+            int height,
+            IReadOnlyList<CardPoint>? normalizedPriorCorners,
+            out CardPoint[] ordered,
+            out double confidence)
+        {
+            ordered = Array.Empty<CardPoint>();
+            confidence = 0.0;
+
+            using Mat gray = new();
+            using Mat blurred = new();
+            using Mat edges = new();
+            using Mat closed = new();
+
+            Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
+            Cv2.GaussianBlur(gray, blurred, new CvSize(5, 5), 1.2);
+            Cv2.Canny(blurred, edges, 45, 135, 3, true);
+
+            using Mat kernel = Cv2.GetStructuringElement(
+                MorphShapes.Rect,
+                new CvSize(7, 7));
+            Cv2.MorphologyEx(edges, closed, MorphTypes.Close, kernel, iterations: 2);
+
+            Cv2.FindContours(
+                closed,
+                out CvPoint[][] contours,
+                out HierarchyIndex[] _,
+                RetrievalModes.List,
+                ContourApproximationModes.ApproxSimple);
+
+            double imageArea = Math.Max(width * (double)height, 1.0);
+            double bestScore = double.NegativeInfinity;
+            CardPoint[]? best = null;
+
+            foreach (CvPoint[] contour in contours)
+            {
+                double area = Math.Abs(Cv2.ContourArea(contour));
+                double areaFraction = area / imageArea;
+
+                // The card should be a substantial object, but never almost the
+                // entire camera frame. This removes most artwork and frame-rim candidates.
+                if (areaFraction < 0.045 || areaFraction > 0.72)
+                {
+                    continue;
+                }
+
+                double perimeter = Cv2.ArcLength(contour, true);
+                if (perimeter < 40)
+                {
+                    continue;
+                }
+
+                CvPoint[]? quad = null;
+                for (double epsilon = 0.012; epsilon <= 0.055; epsilon += 0.006)
+                {
+                    CvPoint[] candidate = Cv2.ApproxPolyDP(
+                        contour,
+                        perimeter * epsilon,
+                        true);
+
+                    if (candidate.Length == 4 && Cv2.IsContourConvex(candidate))
+                    {
+                        quad = candidate;
+                        break;
+                    }
+                }
+
+                if (quad is null)
+                {
+                    RotatedRect box = Cv2.MinAreaRect(contour);
+                    Point2f[] pts = box.Points();
+                    quad = pts.Select(p => new CvPoint((int)Math.Round(p.X), (int)Math.Round(p.Y))).ToArray();
+                }
+
+                CardPoint[] raw = quad.Select(p => new CardPoint(p.X, p.Y)).ToArray();
+                if (!TryOrderCardCornersForPortrait(raw, out CardPoint[] candidateOrdered) ||
+                    !ValidateQuadrilateral(candidateOrdered, width, height))
+                {
+                    continue;
+                }
+
+                double top = Distance(candidateOrdered[0], candidateOrdered[1]);
+                double bottom = Distance(candidateOrdered[3], candidateOrdered[2]);
+                double left = Distance(candidateOrdered[0], candidateOrdered[3]);
+                double right = Distance(candidateOrdered[1], candidateOrdered[2]);
+                double shortSide = (top + bottom) * 0.5;
+                double longSide = (left + right) * 0.5;
+
+                if (shortSide <= 1 || longSide <= 1)
+                {
+                    continue;
+                }
+
+                double ratio = Math.Min(shortSide, longSide) / Math.Max(shortSide, longSide);
+                double ratioError = Math.Abs(ratio - ExpectedCardRatio);
+                if (ratioError > 0.22)
+                {
+                    continue;
+                }
+
+                double rectangularity = area / Math.Max(shortSide * longSide, 1.0);
+                rectangularity = Math.Clamp(rectangularity, 0.0, 1.0);
+
+                double centerX = candidateOrdered.Average(p => p.X) / Math.Max(width - 1.0, 1.0);
+                double centerY = candidateOrdered.Average(p => p.Y) / Math.Max(height - 1.0, 1.0);
+                double centerPenalty = Math.Sqrt(
+                    Math.Pow(centerX - 0.5, 2) +
+                    Math.Pow(centerY - 0.5, 2));
+
+                double priorBonus = 0.0;
+                if (normalizedPriorCorners is not null && normalizedPriorCorners.Count == 4)
+                {
+                    double priorCenterX = normalizedPriorCorners.Average(p => p.X);
+                    double priorCenterY = normalizedPriorCorners.Average(p => p.Y);
+                    double priorDistance = Math.Sqrt(
+                        Math.Pow(centerX - priorCenterX, 2) +
+                        Math.Pow(centerY - priorCenterY, 2));
+                    priorBonus = Math.Max(0.0, 1.0 - (priorDistance / 0.20)) * 0.40;
+                }
+
+                // Large physical perimeter + correct ratio + rectangularity wins.
+                // The area term intentionally dominates so an inner printed border
+                // does not beat the actual card edge.
+                double score =
+                    (areaFraction * 3.2) +
+                    ((1.0 - Math.Min(ratioError / 0.22, 1.0)) * 1.6) +
+                    (rectangularity * 1.1) -
+                    (centerPenalty * 0.55) +
+                    priorBonus;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = candidateOrdered;
+                }
+            }
+
+            if (best is null)
+            {
+                return false;
+            }
+
+            ordered = best;
+            confidence = Math.Clamp(0.55 + (bestScore / 8.0), 0.55, 1.0);
+            return true;
         }
 
         /// <summary>

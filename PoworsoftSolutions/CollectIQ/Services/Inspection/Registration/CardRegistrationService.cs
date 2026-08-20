@@ -66,20 +66,37 @@ namespace CollectIQ.Services.Inspection.Registration
                     continue;
                 }
 
-                // EXTERNAL-LIGHT RULE:
-                // The phone and card stay fixed; only the lamp moves. Therefore the
-                // neutral/reference image owns the card geometry. Do NOT let every
-                // directional image independently redefine its four corners or its
-                // orientation. Project the reference quadrilateral into each capture,
-                // warp with exactly that geometry, then allow only a small residual
-                // similarity correction against the canonical reference image.
-                frames[capture.Key] = await RectifyUsingReferenceGeometryAsync(
+                frames[capture.Key] = await RectifyNearReferenceAsync(
                     capture.Key,
                     capture.Value,
                     normalizedReferenceCorners,
-                    reference.Geometry.Confidence,
-                    reference.Luminance,
                     outputDirectory,
+                    cancellationToken);
+            }
+
+            foreach (RegisteredCardFrame frame in frames.Values)
+            {
+                if (ReferenceEquals(frame, reference))
+                {
+                    continue;
+                }
+
+                SimilarityMatch match = FindBestTranslation(reference.Luminance, frame.Luminance);
+                frame.AlignmentConfidence = match.Confidence * 100.0;
+                frame.RotationDegrees = match.AngleDegrees;
+                frame.Scale = match.Scale;
+                frame.OffsetX = match.OffsetX;
+                frame.OffsetY = match.OffsetY;
+
+                frame.Luminance = ApplySimilarity(
+                    frame.Luminance,
+                    CanonicalWidth,
+                    CanonicalHeight,
+                    match);
+
+                await ApplySimilarityToImageAsync(
+                    frame.RegisteredImagePath,
+                    match,
                     cancellationToken);
             }
 
@@ -98,7 +115,9 @@ namespace CollectIQ.Services.Inspection.Registration
                 .ToList();
 
             await SaveColorOverlayAsync(directionalFrames, edgeOverlayPath, cancellationToken);
-            await SaveAverageAsync(frames.Values.Select(frame => frame.Luminance).ToList(), averagePath, cancellationToken);
+            List<float[]> averageFrames = new() { reference.Luminance };
+            averageFrames.AddRange(directionalFrames.Select(frame => frame.Luminance));
+            await SaveAverageAsync(averageFrames, averagePath, cancellationToken);
 
             double geometryQuality = directionalFrames.Count == 0
                 ? reference.Geometry.Confidence * 100.0
@@ -152,12 +171,15 @@ namespace CollectIQ.Services.Inspection.Registration
             };
         }
 
-        private async Task<RegisteredCardFrame> RectifyUsingReferenceGeometryAsync(
+        /// <summary>
+        /// Finds the physical rectangle again in every capture, but uses the neutral
+        /// reference as a strong prior. Each image is independently perspective-warped
+        /// from its own four physical corners into the exact same canonical matrix.
+        /// </summary>
+        private async Task<RegisteredCardFrame> RectifyNearReferenceAsync(
             string key,
             string path,
             IReadOnlyList<CardPoint> normalizedReferenceCorners,
-            double referenceGeometryConfidence,
-            float[] referenceLuminance,
             string outputDirectory,
             CancellationToken cancellationToken)
         {
@@ -165,68 +187,25 @@ namespace CollectIQ.Services.Inspection.Registration
                 await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
             source.Mutate(context => context.AutoOrient());
 
-            // Recreate the SAME physical quadrilateral from the neutral/reference
-            // image in this capture's pixel coordinates. This is intentionally not
-            // a fresh card detection. In External Light mode the card and phone must
-            // remain fixed between captures, so fresh detections only inject glare-
-            // dependent corner error and can even flip the card by 180 degrees.
-            CardPoint[] lockedCorners = normalizedReferenceCorners
-                .Select(point => new CardPoint(
-                    point.X * Math.Max(source.Width - 1, 1),
-                    point.Y * Math.Max(source.Height - 1, 1)))
-                .ToArray();
+            CardGeometryResult geometry =
+                geometryService.DetectCardNearPrior(source, normalizedReferenceCorners);
+
+            if (!geometry.Success || geometry.Corners.Length != 4)
+            {
+                throw new InvalidOperationException(
+                    $"CollectIQ could not find the physical card rectangle in the {key} capture. " +
+                    "Keep all four card edges visible against the solid background and retake it.");
+            }
 
             string safeKey = SafeKey(key);
             string detectionPath = Path.Combine(outputDirectory, $"detected_{safeKey}.png");
             string rectifiedPath = Path.Combine(outputDirectory, $"registered_{safeKey}.png");
 
-            // The overlay now shows the actual reference-locked quadrilateral used
-            // for the warp, not an independently guessed rectangle.
-            await SaveDetectionOverlayAsync(
-                source,
-                lockedCorners,
-                detectionPath,
-                cancellationToken);
+            await SaveDetectionOverlayAsync(source, geometry.Corners, detectionPath, cancellationToken);
 
             using SixLabors.ImageSharp.Image<Rgba32> rectified =
-                WarpToCanonical(source, lockedCorners);
+                WarpToCanonical(source, geometry.Corners);
             await SaveImageAsync(rectified, rectifiedPath, cancellationToken);
-
-            float[] initialLuminance = ExtractLuminance(rectified);
-
-            // Only a residual correction is allowed after the reference homography.
-            // There is deliberately NO 180-degree candidate here. Every directional
-            // frame inherits the exact same corner ordering from the neutral frame.
-            SimilarityMatch match = FindBestSimilarity(referenceLuminance, initialLuminance);
-            float[] alignedLuminance = ApplySimilarity(
-                initialLuminance,
-                CanonicalWidth,
-                CanonicalHeight,
-                match);
-            double verification = EvaluatePostTransformAlignment(
-                referenceLuminance,
-                alignedLuminance);
-
-            System.Diagnostics.Debug.WriteLine(
-                $"[ExternalLightRegistration] {key}: reference-locked, " +
-                $"verification={verification * 100.0:0.0}%, " +
-                $"rotation={match.AngleDegrees:0.00}, scale={match.Scale:0.0000}, " +
-                $"offset=({match.OffsetX},{match.OffsetY})");
-
-            await ApplyRegistrationToImageAsync(
-                rectifiedPath,
-                match,
-                rotate180: false,
-                cancellationToken);
-
-            CardGeometryResult lockedGeometry = new()
-            {
-                Success = true,
-                Corners = lockedCorners,
-                Confidence = Math.Clamp(referenceGeometryConfidence, 0.0, 1.0),
-                SourceWidth = source.Width,
-                SourceHeight = source.Height
-            };
 
             return new RegisteredCardFrame
             {
@@ -234,13 +213,8 @@ namespace CollectIQ.Services.Inspection.Registration
                 SourcePath = path,
                 DetectionOverlayPath = detectionPath,
                 RegisteredImagePath = rectifiedPath,
-                Geometry = lockedGeometry,
-                Luminance = alignedLuminance,
-                AlignmentConfidence = verification * 100.0,
-                RotationDegrees = match.AngleDegrees,
-                Scale = match.Scale,
-                OffsetX = match.OffsetX,
-                OffsetY = match.OffsetY
+                Geometry = geometry,
+                Luminance = ExtractLuminance(rectified)
             };
         }
 
@@ -248,6 +222,8 @@ namespace CollectIQ.Services.Inspection.Registration
             SixLabors.ImageSharp.Image<Rgba32> source,
             IReadOnlyList<CardPoint> sourceCorners)
         {
+            // CardGeometryService returns corners in upright image order:
+            // top-left, top-right, bottom-right, bottom-left.
             CardPoint[] destination =
             {
                 new(0.0f, 0.0f),
@@ -277,146 +253,69 @@ namespace CollectIQ.Services.Inspection.Registration
             return output;
         }
 
-        private static RegistrationCandidate BuildRegistrationCandidate(
-            float[] reference,
-            float[] moving,
-            bool rotate180)
-        {
-            SimilarityMatch match = FindBestSimilarity(reference, moving);
-            float[] aligned = ApplySimilarity(moving, CanonicalWidth, CanonicalHeight, match);
-            double verification = EvaluatePostTransformAlignment(reference, aligned);
-
-            return new RegistrationCandidate
-            {
-                Match = match,
-                Rotate180 = rotate180,
-                AlignedLuminance = aligned,
-                VerificationScore = verification
-            };
-        }
-
         /// <summary>
-        /// Verifies the ACTUAL post-transform pixels rather than trusting that a homography or
-        /// similarity solver returned a numeric result. Printed/card structural edges are
-        /// compared in nine independent zones. A wrong table contour or a mis-oriented card may
-        /// correlate in one region, but it should not agree across the complete reference card.
+        /// External-light capture requires the card and phone to remain fixed. After
+        /// the reference homography has been reused, residual registration should be
+        /// limited to small X/Y framing jitter only. Allowing rotation and scale here
+        /// caused glare to pull otherwise correct frames by 4-5% and 30-42 pixels.
         /// </summary>
-        private static double EvaluatePostTransformAlignment(float[] reference, float[] moving)
+        private static SimilarityMatch FindBestTranslation(float[] reference, float[] moving)
         {
             const int factor = 3;
+            const int maximumFullResolutionShift = 10;
             int width = CanonicalWidth / factor;
             int height = CanonicalHeight / factor;
+
             float[] referenceSmall = Downsample(reference, CanonicalWidth, CanonicalHeight, factor);
             float[] movingSmall = Downsample(moving, CanonicalWidth, CanonicalHeight, factor);
             float[] referenceEdges = GradientMagnitude(referenceSmall, width, height);
             float[] movingEdges = GradientMagnitude(movingSmall, width, height);
 
-            int marginX = Math.Max(6, width / 18);
-            int marginY = Math.Max(8, height / 18);
-            int usableWidth = width - (marginX * 2);
-            int usableHeight = height - (marginY * 2);
-            int cellWidth = Math.Max(10, usableWidth / 3);
-            int cellHeight = Math.Max(10, usableHeight / 3);
-
-            List<double> scores = new(9);
-            for (int row = 0; row < 3; row++)
+            int maxShift = Math.Max(1, maximumFullResolutionShift / factor);
+            SimilarityMatch best = new()
             {
-                for (int column = 0; column < 3; column++)
-                {
-                    int left = marginX + (column * cellWidth);
-                    int top = marginY + (row * cellHeight);
-                    int right = column == 2 ? width - marginX : left + cellWidth;
-                    int bottom = row == 2 ? height - marginY : top + cellHeight;
+                Score = double.NegativeInfinity,
+                Scale = 1.0,
+                AngleDegrees = 0.0
+            };
 
-                    double correlation = CorrelateRegion(
+            for (int dy = -maxShift; dy <= maxShift; dy++)
+            {
+                for (int dx = -maxShift; dx <= maxShift; dx++)
+                {
+                    double score = CorrelateTransformed(
                         referenceEdges,
                         movingEdges,
                         width,
-                        left,
-                        top,
-                        right,
-                        bottom);
+                        height,
+                        0.0,
+                        1.0,
+                        dx,
+                        dy);
 
-                    if (double.IsFinite(correlation))
+                    // Prefer the smallest correction when scores are effectively tied.
+                    double penalty = (Math.Abs(dx) + Math.Abs(dy)) * 0.0005;
+                    double penalizedScore = score - penalty;
+                    if (penalizedScore > best.Score)
                     {
-                        scores.Add(Math.Clamp((correlation - 0.03) / 0.42, 0.0, 1.0));
+                        best = new SimilarityMatch
+                        {
+                            Score = penalizedScore,
+                            AngleDegrees = 0.0,
+                            Scale = 1.0,
+                            OffsetX = dx * factor,
+                            OffsetY = dy * factor
+                        };
                     }
                 }
             }
 
-            if (scores.Count < 5)
-            {
-                return 0.0;
-            }
-
-            scores.Sort();
-            double median = scores[scores.Count / 2];
-            double lowerQuartile = scores[Math.Max(0, scores.Count / 4)];
-
-            // Median tolerates one area being overwhelmed by glare. The lower quartile prevents
-            // one highly correlated logo/player region from hiding poor alignment elsewhere.
-            return Math.Clamp((median * 0.76) + (lowerQuartile * 0.24), 0.0, 1.0);
+            best.Confidence = Math.Clamp((best.Score + 1.0) * 0.5, 0.0, 1.0);
+            return best;
         }
 
-        private static double CorrelateRegion(
-            float[] reference,
-            float[] moving,
-            int width,
-            int left,
-            int top,
-            int right,
-            int bottom)
-        {
-            double sumR = 0.0;
-            double sumM = 0.0;
-            double sumRR = 0.0;
-            double sumMM = 0.0;
-            double sumRM = 0.0;
-            int count = 0;
-
-            for (int y = top; y < bottom; y += 2)
-            {
-                int row = y * width;
-                for (int x = left; x < right; x += 2)
-                {
-                    double r = Math.Log(1.0 + (reference[row + x] * 8.0f));
-                    double m = Math.Log(1.0 + (moving[row + x] * 8.0f));
-                    sumR += r;
-                    sumM += m;
-                    sumRR += r * r;
-                    sumMM += m * m;
-                    sumRM += r * m;
-                    count++;
-                }
-            }
-
-            if (count < 80)
-            {
-                return double.NaN;
-            }
-
-            double numerator = sumRM - ((sumR * sumM) / count);
-            double denomR = sumRR - ((sumR * sumR) / count);
-            double denomM = sumMM - ((sumM * sumM) / count);
-            if (denomR < 1e-7 || denomM < 1e-7)
-            {
-                return double.NaN;
-            }
-
-            return numerator / Math.Sqrt(denomR * denomM);
-        }
-
-        private static float[] Rotate180(float[] source, int width, int height)
-        {
-            float[] output = new float[source.Length];
-            int last = source.Length - 1;
-            for (int i = 0; i < source.Length; i++)
-            {
-                output[i] = source[last - i];
-            }
-            return output;
-        }
-
+        // Retained for reference/debugging, but External Light no longer calls this
+        // unconstrained rotate/scale search.
         private static SimilarityMatch FindBestSimilarity(float[] reference, float[] moving)
         {
             const int factor = 6;
@@ -485,44 +384,68 @@ namespace CollectIQ.Services.Inspection.Registration
             int dx,
             int dy)
         {
+            // Moving directional illumination changes the global brightness pattern
+            // dramatically.  A single whole-card correlation can therefore align to
+            // glare instead of geometry.  Score nine independent interior regions and
+            // average the best-consistent seven.  Printed/card-border edges must agree
+            // across the card for a transform to score well.
+            List<double> regionScores = new(9);
             double angle = angleDegrees * Math.PI / 180.0;
             double cos = Math.Cos(angle);
             double sin = Math.Sin(angle);
             double cx = (width - 1) * 0.5;
             double cy = (height - 1) * 0.5;
-            int margin = Math.Max(7, width / 12);
-            double sumR = 0, sumM = 0, sumRR = 0, sumMM = 0, sumRM = 0;
-            int count = 0;
+            int marginX = Math.Max(5, width / 18);
+            int marginY = Math.Max(5, height / 18);
+            int usableW = width - (marginX * 2);
+            int usableH = height - (marginY * 2);
 
-            for (int y = margin; y < height - margin; y += 2)
+            for (int ry = 0; ry < 3; ry++)
             {
-                for (int x = margin; x < width - margin; x += 2)
+                for (int rx = 0; rx < 3; rx++)
                 {
-                    double outputX = x - dx - cx;
-                    double outputY = y - dy - cy;
-                    double mx = ((cos * outputX) + (sin * outputY)) / scale + cx;
-                    double my = ((-sin * outputX) + (cos * outputY)) / scale + cy;
-                    if (mx < 1 || my < 1 || mx >= width - 2 || my >= height - 2)
+                    int x0 = marginX + (usableW * rx / 3);
+                    int x1 = marginX + (usableW * (rx + 1) / 3);
+                    int y0 = marginY + (usableH * ry / 3);
+                    int y1 = marginY + (usableH * (ry + 1) / 3);
+
+                    double sumR = 0, sumM = 0, sumRR = 0, sumMM = 0, sumRM = 0;
+                    int count = 0;
+                    for (int y = y0; y < y1; y += 2)
                     {
+                        for (int x = x0; x < x1; x += 2)
+                        {
+                            double outputX = x - dx - cx;
+                            double outputY = y - dy - cy;
+                            double mx = ((cos * outputX) + (sin * outputY)) / scale + cx;
+                            double my = ((-sin * outputX) + (cos * outputY)) / scale + cy;
+                            if (mx < 1 || my < 1 || mx >= width - 2 || my >= height - 2)
+                                continue;
+
+                            double r = reference[(y * width) + x];
+                            double m = SampleBilinear(moving, width, height, (float)mx, (float)my);
+                            sumR += r; sumM += m; sumRR += r * r; sumMM += m * m; sumRM += r * m; count++;
+                        }
+                    }
+
+                    if (count < 20)
+                    {
+                        regionScores.Add(-1.0);
                         continue;
                     }
 
-                    double r = reference[(y * width) + x];
-                    double m = SampleBilinear(moving, width, height, (float)mx, (float)my);
-                    sumR += r; sumM += m; sumRR += r * r; sumMM += m * m; sumRM += r * m; count++;
+                    double numerator = sumRM - ((sumR * sumM) / count);
+                    double denomR = sumRR - ((sumR * sumR) / count);
+                    double denomM = sumMM - ((sumM * sumM) / count);
+                    double denominator = Math.Sqrt(Math.Max(denomR * denomM, 1e-12));
+                    regionScores.Add(numerator / denominator);
                 }
             }
 
-            if (count < 100)
-            {
-                return -1.0;
-            }
-
-            double numerator = sumRM - ((sumR * sumM) / count);
-            double denomR = sumRR - ((sumR * sumR) / count);
-            double denomM = sumMM - ((sumM * sumM) / count);
-            double denominator = Math.Sqrt(Math.Max(denomR * denomM, 1e-12));
-            return numerator / denominator;
+            regionScores.Sort();
+            // Ignore the two worst regions because a moving specular highlight can
+            // legitimately destroy edge contrast in a localized area.
+            return regionScores.Skip(2).Average();
         }
 
         private static float[] ApplySimilarity(float[] source, int width, int height, SimilarityMatch match)
@@ -546,25 +469,14 @@ namespace CollectIQ.Services.Inspection.Registration
             return output;
         }
 
-        private static async Task ApplyRegistrationToImageAsync(
-            string path,
-            SimilarityMatch match,
-            bool rotate180,
-            CancellationToken cancellationToken)
+        private static async Task ApplySimilarityToImageAsync(string path, SimilarityMatch match, CancellationToken cancellationToken)
         {
             using SixLabors.ImageSharp.Image<Rgba32> source = await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
             Rgba32[] pixels = CopyPixels(source);
-            if (rotate180)
-            {
-                Array.Reverse(pixels);
-            }
-
             using SixLabors.ImageSharp.Image<Rgba32> output = new(CanonicalWidth, CanonicalHeight);
             double angle = match.AngleDegrees * Math.PI / 180.0;
-            double cos = Math.Cos(angle);
-            double sin = Math.Sin(angle);
-            double cx = (CanonicalWidth - 1) * 0.5;
-            double cy = (CanonicalHeight - 1) * 0.5;
+            double cos = Math.Cos(angle); double sin = Math.Sin(angle);
+            double cx = (CanonicalWidth - 1) * 0.5; double cy = (CanonicalHeight - 1) * 0.5;
 
             output.ProcessPixelRows(accessor =>
             {
@@ -756,14 +668,6 @@ namespace CollectIQ.Services.Inspection.Registration
         }
 
         private static string SafeKey(string value) => new(value.Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '_').ToArray());
-
-        private sealed class RegistrationCandidate
-        {
-            public SimilarityMatch Match { get; set; } = new();
-            public bool Rotate180 { get; set; }
-            public float[] AlignedLuminance { get; set; } = Array.Empty<float>();
-            public double VerificationScore { get; set; }
-        }
 
         private sealed class SimilarityMatch
         {

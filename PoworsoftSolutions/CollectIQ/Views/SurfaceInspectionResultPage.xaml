@@ -7,7 +7,7 @@
     <ScrollView>
         <VerticalStackLayout Padding="16,16,16,28" Spacing="14">
             <Label Text="SURFACE RESULTS" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
-            <Label Text="Directional surface map" TextColor="#F8FAFC" FontSize="24" FontAttributes="Bold" />
+            <Label x:Name="ModeNameLabel" Text="Surface inspection" TextColor="#F8FAFC" FontSize="24" FontAttributes="Bold" />
             <Label x:Name="SummaryLabel" TextColor="#CBD5E1" FontSize="12" />
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
@@ -19,29 +19,61 @@
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="12">
                     <VerticalStackLayout>
-                        <Label Text="Registration quality" TextColor="#9FB3C8" FontSize="10" />
+                        <Label x:Name="ConsistencyTitleLabel" Text="Registration quality" TextColor="#9FB3C8" FontSize="10" />
                         <Label x:Name="ConsistencyLabel" TextColor="#F8FAFC" FontSize="22" FontAttributes="Bold" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
 
-            <Label Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Label Text="Full card • automatically perspective-normalized" TextColor="#64748B" FontSize="10" />
+            <Label Text="Detected defects" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label Text="Red pixels are regions supported by multiple photometric defect signals." TextColor="#64748B" FontSize="10" />
             <Border Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
+                <Image x:Name="DefectOverlayImage" Aspect="AspectFit" HeightRequest="500" />
+            </Border>
+
+            <Label Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label Text="Combined curvature, relief, neutral/albedo residual and opposing-light evidence" TextColor="#64748B" FontSize="10" />
+            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
                 <Image x:Name="HeatmapImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
-            <Label Text="Directional relief" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
-                <Image x:Name="ReliefImage" Aspect="AspectFit" HeightRequest="500" />
-            </Border>
+            <VerticalStackLayout x:Name="ReliefSection" Spacing="6">
+                <Label x:Name="ReliefTitleLabel" Text="Directional relief" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                    <Image x:Name="ReliefImage" Aspect="AspectFit" HeightRequest="500" />
+                </Border>
+            </VerticalStackLayout>
 
-            <Label Text="Glare-reduced average" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
-                <Image x:Name="DiffuseImage" Aspect="AspectFit" HeightRequest="500" />
-            </Border>
+            <VerticalStackLayout x:Name="DiffuseSection" Spacing="6">
+                <Label x:Name="DiffuseTitleLabel" Text="Robust estimated albedo" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label x:Name="DiffuseDescriptionLabel" Text="Middle-two directional estimate suppresses one-frame glare and shadow." TextColor="#64748B" FontSize="10" />
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                    <Image x:Name="DiffuseImage" Aspect="AspectFit" HeightRequest="500" />
+                </Border>
+            </VerticalStackLayout>
 
-            <Border Style="{StaticResource AuroraGlassBorder}" Padding="12">
+            <VerticalStackLayout x:Name="NormalMapSection" Spacing="6">
+                <Label Text="Photometric normal map" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                    <Image x:Name="NormalMapImage" Aspect="AspectFit" HeightRequest="500" />
+                </Border>
+            </VerticalStackLayout>
+
+            <VerticalStackLayout x:Name="CurvatureSection" Spacing="6">
+                <Label Text="Surface curvature / dent response" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                    <Image x:Name="CurvatureImage" Aspect="AspectFit" HeightRequest="500" />
+                </Border>
+            </VerticalStackLayout>
+
+            <VerticalStackLayout x:Name="ReferenceResidualSection" Spacing="6">
+                <Label Text="Neutral reference vs albedo subtraction" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+                    <Image x:Name="ReferenceResidualImage" Aspect="AspectFit" HeightRequest="500" />
+                </Border>
+            </VerticalStackLayout>
+
+            <Border x:Name="AlignmentDiagnosticsSection" Style="{StaticResource AuroraGlassBorder}" Padding="12">
                 <VerticalStackLayout Spacing="10">
                     <Label Text="ALIGNMENT DIAGNOSTICS" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
                     <Label Text="Use these views to confirm whether the four directional captures were detected, normalized and aligned correctly before trusting the anomaly heatmap."

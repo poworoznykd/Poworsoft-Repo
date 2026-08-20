@@ -40,6 +40,37 @@
                            TextColor="#CBD5E1"
                            FontSize="12" />
 
+                    <Label Text="Choose inspection method" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <Button x:Name="ExternalModeButton"
+                                Grid.Column="0"
+                                Text="EXTERNAL
+LIGHT"
+                                Clicked="OnExternalModeClicked"
+                                BackgroundColor="#1D6A2A"
+                                TextColor="#F0FFED"
+                                CornerRadius="16"
+                                FontSize="10" />
+                        <Button x:Name="SingleModeButton"
+                                Grid.Column="1"
+                                Text="SINGLE
+PHOTO"
+                                Clicked="OnSinglePhotoModeClicked"
+                                BackgroundColor="#253047"
+                                TextColor="#E2E8F0"
+                                CornerRadius="16"
+                                FontSize="10" />
+                        <Button x:Name="TiltModeButton"
+                                Grid.Column="2"
+                                Text="20-VIEW
+TILT"
+                                Clicked="OnTiltSweepModeClicked"
+                                BackgroundColor="#253047"
+                                TextColor="#E2E8F0"
+                                CornerRadius="16"
+                                FontSize="10" />
+                    </Grid>
+
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14" Stroke="#39FF14">
                         <VerticalStackLayout Spacing="8">
                             <Grid ColumnDefinitions="*,Auto">
@@ -55,10 +86,10 @@
 
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14" Opacity="0.65">
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="PHONE ONLY: REFLECTION SWEEP (EXPERIMENTAL)"
+                            <Label Text="ALTERNATE METHODS"
                                    TextColor="#C084FC"
                                    FontAttributes="Bold" />
-                            <Label Text="A future mode will test moving the phone/flash or rotating the card and then registering the images. It stays experimental until we can prove repeatability across phones and foil finishes."
+                            <Label Text="Single Photo gives a fast conventional surface pre-screen from one normalized image. 20-View Tilt Sweep keeps the phone and light fixed while you tilt the card through many small angles; CollectIQ registers every view and looks for view-dependent surface responses that behave like scratches, dents or creases."
                                    TextColor="#CBD5E1" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>
@@ -71,7 +102,8 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <Button Text="START 5-IMAGE SURFACE SCAN"
+                    <Button x:Name="StartSurfaceButton"
+                            Text="START 5-IMAGE EXTERNAL LIGHT SCAN"
                             Clicked="OnStartCaptureClicked"
                             HeightRequest="52"
                             CornerRadius="22"
