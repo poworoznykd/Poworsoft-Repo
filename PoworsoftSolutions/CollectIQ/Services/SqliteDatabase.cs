@@ -23,8 +23,10 @@ namespace CollectIQ.Services
     /// </summary>
     public sealed class SqliteDatabase : IDatabase
     {
-        private const int CurrentDatabaseVersion = 1;
+        private const int CurrentDatabaseVersion = 2;
         private const string InitialMigrationName = "20260608_InitialCollectIQFoundation";
+        private const string DatabaseSafetyMigrationName = "20260823_NonDestructiveDatabaseUpgradeSafety";
+        private const int MaximumAutomaticBackups = 12;
         private SQLiteAsyncConnection? connection;
         private bool isInitialized;
         private readonly SemaphoreSlim initializeLock = new SemaphoreSlim(1, 1);
@@ -43,6 +45,9 @@ namespace CollectIQ.Services
 
             await initializeLock.WaitAsync();
 
+            string? safetyBackupDirectory = null;
+            string dbPath = GetDatabasePath();
+
             try
             {
                 if (isInitialized)
@@ -50,18 +55,96 @@ namespace CollectIQ.Services
                     return;
                 }
 
-                string dbPath = GetDatabasePath();
-
                 Debug.WriteLine($"[CollectIQ DB] Path: {dbPath}");
 
-                connection = new SQLiteAsyncConnection(dbPath);
+                // CRITICAL DATA-SAFETY RULE:
+                // If a database already exists, take a byte-for-byte safety snapshot
+                // BEFORE any schema creation/migration code is allowed to touch it.
+                // We also preserve WAL/SHM sidecars when present so recently committed
+                // rows cannot disappear simply because SQLite had not checkpointed yet.
+                if (File.Exists(dbPath) && new FileInfo(dbPath).Length > 0)
+                {
+                    safetyBackupDirectory = await CreateSafetyBackupAsync(
+                        dbPath,
+                        $"before_schema_v{CurrentDatabaseVersion}");
+                }
 
+                connection = new SQLiteAsyncConnection(dbPath);
+                await connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
+
+                await EnsureDatabaseHealthyAsync("before migration");
+
+                // Migration history must exist before we evaluate versions.
+                await connection.CreateTableAsync<SchemaMigrationHistory>();
+
+                int existingVersion = await GetAppliedDatabaseVersionAsync();
+                Debug.WriteLine($"[CollectIQ DB] Existing schema version: {existingVersion}");
+
+                // sqlite-net's CreateTableAsync is non-destructive for existing tables:
+                // it creates missing tables/columns rather than dropping user tables.
+                // Because a full safety backup now exists first, even a failed library
+                // migration cannot cost the user their collection.
                 await CreateTablesAsync();
-                await EnsureCardSchemaAsync();
+
+                await ApplyMigrationsAsync(existingVersion);
                 await SeedRolesAndPlansAsync();
-                await RecordInitialMigrationAsync();
+                await EnsureDatabaseHealthyAsync("after migration");
+
+                await connection.ExecuteAsync($"PRAGMA user_version = {CurrentDatabaseVersion};");
+                await PruneOldSafetyBackupsAsync();
 
                 isInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] Initialization/migration FAILED: " + ex);
+
+                // Never continue with a half-migrated database. Close SQLite first,
+                // then restore the exact files captured before the update.
+                if (connection != null)
+                {
+                    try
+                    {
+                        await connection.CloseAsync();
+                    }
+                    catch (Exception closeEx)
+                    {
+                        Debug.WriteLine("[CollectIQ DB] Close before restore failed: " + closeEx.Message);
+                    }
+                }
+
+                connection = null;
+                isInitialized = false;
+
+                if (!string.IsNullOrWhiteSpace(safetyBackupDirectory) && Directory.Exists(safetyBackupDirectory))
+                {
+                    try
+                    {
+                        RestoreSafetyBackup(dbPath, safetyBackupDirectory);
+                        Debug.WriteLine($"[CollectIQ DB] Restored pre-update database from: {safetyBackupDirectory}");
+                    }
+                    catch (Exception restoreEx)
+                    {
+                        Debug.WriteLine("[CollectIQ DB] DATABASE RESTORE FAILED: " + restoreEx);
+                        throw new InvalidOperationException(
+                            "CollectIQ could not upgrade the local database and the automatic rollback also failed. " +
+                            $"The untouched safety backup is still stored at '{safetyBackupDirectory}'. " +
+                            "Do not uninstall the app or clear its data.",
+                            new AggregateException(ex, restoreEx));
+                    }
+                }
+                else if (File.Exists(dbPath))
+                {
+                    // This was a brand-new database, so there was no user data to restore.
+                    // Remove the incomplete file so the next launch can create it cleanly.
+                    TryDeleteFile(dbPath);
+                    TryDeleteFile(dbPath + "-wal");
+                    TryDeleteFile(dbPath + "-shm");
+                }
+
+                throw new InvalidOperationException(
+                    "CollectIQ could not apply the local database update. Your pre-update database was preserved/restored, so the app stopped instead of risking your collection data.",
+                    ex);
             }
             finally
             {
@@ -134,19 +217,12 @@ namespace CollectIQ.Services
         /// </summary>
         private async Task EnsureCardSchemaAsync()
         {
-            try
-            {
-                List<TableInfoRow> columns = await connection!
-                    .QueryAsync<TableInfoRow>("PRAGMA table_info('Card');");
+            List<TableInfoRow> columns = await connection!
+                .QueryAsync<TableInfoRow>("PRAGMA table_info('Card');");
 
-                await AddColumnIfMissingAsync(columns, "SportValue", "ALTER TABLE Card ADD COLUMN SportValue INTEGER NOT NULL DEFAULT 0;");
-                await AddColumnIfMissingAsync(columns, "CollectionId", "ALTER TABLE Card ADD COLUMN CollectionId TEXT NOT NULL DEFAULT ''; ");
-                await AddColumnIfMissingAsync(columns, "FrontThumbnailPath", "ALTER TABLE Card ADD COLUMN FrontThumbnailPath TEXT;");
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("[CollectIQ DB] EnsureCardSchemaAsync failed: " + ex.Message);
-            }
+            await AddColumnIfMissingAsync(columns, "SportValue", "ALTER TABLE Card ADD COLUMN SportValue INTEGER NOT NULL DEFAULT 0;");
+            await AddColumnIfMissingAsync(columns, "CollectionId", "ALTER TABLE Card ADD COLUMN CollectionId TEXT NOT NULL DEFAULT ''; ");
+            await AddColumnIfMissingAsync(columns, "FrontThumbnailPath", "ALTER TABLE Card ADD COLUMN FrontThumbnailPath TEXT;");
         }
 
         /// <summary>
@@ -220,12 +296,81 @@ namespace CollectIQ.Services
         }
 
         /// <summary>
-        /// Records the initial migration once the foundation tables exist.
+        /// Applies every schema migration newer than the installed database.
+        /// Future schema changes belong here. Never drop/recreate a user table
+        /// to make a model change "work". Add a numbered migration instead.
         /// </summary>
-        private async Task RecordInitialMigrationAsync()
+        private async Task ApplyMigrationsAsync(int existingVersion)
+        {
+            if (existingVersion < 1)
+            {
+                await RecordMigrationAsync(
+                    1,
+                    InitialMigrationName,
+                    "Existing CollectIQ tables adopted as migration baseline.");
+                existingVersion = 1;
+            }
+
+            if (existingVersion < 2)
+            {
+                await RunMigrationTransactionAsync(
+                    2,
+                    DatabaseSafetyMigrationName,
+                    async () =>
+                    {
+                        await EnsureCardSchemaAsync();
+                    });
+            }
+        }
+
+        /// <summary>
+        /// Runs one migration atomically and records it only after it succeeds.
+        /// </summary>
+        private async Task RunMigrationTransactionAsync(
+            int version,
+            string migrationName,
+            Func<Task> migrationAction)
+        {
+            SchemaMigrationHistory? alreadyApplied = await connection!.Table<SchemaMigrationHistory>()
+                .Where(m => m.MigrationName == migrationName)
+                .FirstOrDefaultAsync();
+
+            if (alreadyApplied != null)
+            {
+                return;
+            }
+
+            Debug.WriteLine($"[CollectIQ DB] Applying migration {version}: {migrationName}");
+            await connection.ExecuteAsync("BEGIN IMMEDIATE;");
+
+            try
+            {
+                await migrationAction();
+                await RecordMigrationAsync(version, migrationName, "Applied successfully.");
+                await connection.ExecuteAsync("COMMIT;");
+            }
+            catch
+            {
+                try
+                {
+                    await connection.ExecuteAsync("ROLLBACK;");
+                }
+                catch
+                {
+                    // Outer InitializeAsync rollback restores the safety snapshot.
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Records a successfully applied schema version.
+        /// </summary>
+        private async Task RecordMigrationAsync(int version, string migrationName, string appVersion)
         {
             SchemaMigrationHistory? existing = await connection!.Table<SchemaMigrationHistory>()
-                .Where(m => m.MigrationName == InitialMigrationName)
+                .Where(m => m.MigrationName == migrationName)
                 .FirstOrDefaultAsync();
 
             if (existing != null)
@@ -235,11 +380,145 @@ namespace CollectIQ.Services
 
             await connection.InsertAsync(new SchemaMigrationHistory
             {
-                MigrationName = InitialMigrationName,
-                DatabaseVersion = CurrentDatabaseVersion,
-                AppVersion = "LocalFoundation",
+                MigrationName = migrationName,
+                DatabaseVersion = version,
+                AppVersion = appVersion,
                 AppliedUtc = DateTime.UtcNow
             });
+        }
+
+        /// <summary>
+        /// Gets the highest successfully recorded local database version.
+        /// </summary>
+        private async Task<int> GetAppliedDatabaseVersionAsync()
+        {
+            List<SchemaMigrationHistory> migrations = await connection!.Table<SchemaMigrationHistory>().ToListAsync();
+            if (migrations.Count == 0)
+            {
+                return 0;
+            }
+
+            return migrations.Max(m => m.DatabaseVersion);
+        }
+
+        /// <summary>
+        /// Fails closed when SQLite reports corruption. The caller will restore
+        /// the pre-migration safety copy instead of attempting destructive repair.
+        /// </summary>
+        private async Task EnsureDatabaseHealthyAsync(string stage)
+        {
+            string result = await connection!.ExecuteScalarAsync<string>("PRAGMA quick_check;");
+            if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"SQLite integrity check failed {stage}. Result: {result}");
+            }
+        }
+
+        /// <summary>
+        /// Creates a versioned safety snapshot before schema work. The main DB,
+        /// WAL and SHM files are copied together when present.
+        /// </summary>
+        private static Task<string> CreateSafetyBackupAsync(string databasePath, string reason)
+        {
+            string backupRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DatabaseBackups");
+            Directory.CreateDirectory(backupRoot);
+
+            string safeReason = new string(reason
+                .Where(character => char.IsLetterOrDigit(character) || character == '_' || character == '-')
+                .ToArray());
+            string backupDirectory = Path.Combine(
+                backupRoot,
+                $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_{safeReason}");
+            Directory.CreateDirectory(backupDirectory);
+
+            CopyIfExists(databasePath, Path.Combine(backupDirectory, Path.GetFileName(databasePath)));
+            CopyIfExists(databasePath + "-wal", Path.Combine(backupDirectory, Path.GetFileName(databasePath) + "-wal"));
+            CopyIfExists(databasePath + "-shm", Path.Combine(backupDirectory, Path.GetFileName(databasePath) + "-shm"));
+
+            Debug.WriteLine($"[CollectIQ DB] Safety backup created: {backupDirectory}");
+            return Task.FromResult(backupDirectory);
+        }
+
+        /// <summary>
+        /// Restores all SQLite files captured in a safety snapshot.
+        /// </summary>
+        private static void RestoreSafetyBackup(string databasePath, string backupDirectory)
+        {
+            string dbFileName = Path.GetFileName(databasePath);
+            string backupDatabase = Path.Combine(backupDirectory, dbFileName);
+            if (!File.Exists(backupDatabase))
+            {
+                throw new FileNotFoundException("The database safety snapshot is missing its main database file.", backupDatabase);
+            }
+
+            TryDeleteFile(databasePath);
+            TryDeleteFile(databasePath + "-wal");
+            TryDeleteFile(databasePath + "-shm");
+
+            File.Copy(backupDatabase, databasePath, overwrite: true);
+            CopyIfExists(Path.Combine(backupDirectory, dbFileName + "-wal"), databasePath + "-wal");
+            CopyIfExists(Path.Combine(backupDirectory, dbFileName + "-shm"), databasePath + "-shm");
+        }
+
+        private static void CopyIfExists(string source, string destination)
+        {
+            if (File.Exists(source))
+            {
+                File.Copy(source, destination, overwrite: true);
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CollectIQ DB] Could not delete '{path}': {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Keeps several historical schema-upgrade snapshots without allowing
+        /// the backup folder to grow forever.
+        /// </summary>
+        private static Task PruneOldSafetyBackupsAsync()
+        {
+            string backupRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DatabaseBackups");
+
+            if (!Directory.Exists(backupRoot))
+            {
+                return Task.CompletedTask;
+            }
+
+            DirectoryInfo[] backups = new DirectoryInfo(backupRoot)
+                .GetDirectories()
+                .OrderByDescending(directory => directory.CreationTimeUtc)
+                .ToArray();
+
+            foreach (DirectoryInfo oldBackup in backups.Skip(MaximumAutomaticBackups))
+            {
+                try
+                {
+                    oldBackup.Delete(recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[CollectIQ DB] Could not prune old backup '{oldBackup.FullName}': {ex.Message}");
+                }
+            }
+
+            return Task.CompletedTask;
         }
 
         #endregion
