@@ -73,7 +73,6 @@ namespace CollectIQ.Services.Inspection
             RegisteredCardFrame bottomCapture = registration.Frames[SurfaceLightDirection.Bottom.ToString()];
             RegisteredCardFrame leftCapture = registration.Frames[SurfaceLightDirection.Left.ToString()];
 
-            // Work on copies so diagnostics retain the original registered luminance.
             float[] reference = (float[])referenceCapture.Luminance.Clone();
             float[] top = (float[])topCapture.Luminance.Clone();
             float[] right = (float[])rightCapture.Luminance.Clone();
@@ -99,24 +98,15 @@ namespace CollectIQ.Services.Inspection
             for (int i = 0; i < pixelCount; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                // Robust diffuse/albedo estimate: average the middle two of the
-                // four directional samples so one glare hit or one deep shadow
-                // does not dominate the reflectance estimate.
-                float a = top[i];
-                float b = right[i];
-                float c = bottom[i];
-                float d = left[i];
+                float a = top[i], b = right[i], c = bottom[i], d = left[i];
                 float minimum = MathF.Min(MathF.Min(a, b), MathF.Min(c, d));
                 float maximum = MathF.Max(MathF.Max(a, b), MathF.Max(c, d));
                 albedo[i] = ((a + b + c + d) - minimum - maximum) * 0.5f;
-
                 float horizontalDenom = right[i] + left[i] + Epsilon;
                 float verticalDenom = bottom[i] + top[i] + Epsilon;
                 slopeX[i] = (right[i] - left[i]) / horizontalDenom;
                 slopeY[i] = (bottom[i] - top[i]) / verticalDenom;
                 relief[i] = MathF.Sqrt((slopeX[i] * slopeX[i]) + (slopeY[i] * slopeY[i]));
-
                 neutralResidual[i] = MathF.Abs(reference[i] - albedo[i]);
                 specular[i] = MathF.Max(0, maximum - albedo[i]);
                 float sumRL = right[i] + left[i];
@@ -124,19 +114,27 @@ namespace CollectIQ.Services.Inspection
                 opposingMismatch[i] = MathF.Abs(sumRL - sumTB) / (sumRL + sumTB + Epsilon);
             }
 
-            // Shape evidence: divergence/curvature of the photometric slopes.
+            float[] residualTop = PositiveHighPass(AbsoluteDifference(top, albedo), 3);
+            float[] residualRight = PositiveHighPass(AbsoluteDifference(right, albedo), 3);
+            float[] residualBottom = PositiveHighPass(AbsoluteDifference(bottom, albedo), 3);
+            float[] residualLeft = PositiveHighPass(AbsoluteDifference(left, albedo), 3);
+
+            float[] residualTopN = RobustNormalize(residualTop, 0.99f);
+            float[] residualRightN = RobustNormalize(residualRight, 0.99f);
+            float[] residualBottomN = RobustNormalize(residualBottom, 0.99f);
+            float[] residualLeftN = RobustNormalize(residualLeft, 0.99f);
+
             float[] curvature = CalculateCurvature(slopeX, slopeY, ProcessingWidth, ProcessingHeight);
             float[] localRelief = PositiveHighPass(relief, 5);
             float[] localNeutralResidual = PositiveHighPass(neutralResidual, 7);
+            float[] albedoEdge = GradientMagnitudeLocal(albedo, ProcessingWidth, ProcessingHeight);
 
-            // Normalize each evidence channel by a robust percentile before
-            // combining it. This keeps foil/glare in one channel from swamping
-            // the actual shape evidence.
             float[] curvatureN = RobustNormalize(curvature, 0.985f);
             float[] reliefN = RobustNormalize(localRelief, 0.985f);
             float[] residualN = RobustNormalize(localNeutralResidual, 0.985f);
             float[] mismatchN = RobustNormalize(opposingMismatch, 0.985f);
             float[] specularN = RobustNormalize(specular, 0.99f);
+            float[] albedoEdgeN = RobustNormalize(albedoEdge, 0.99f);
 
             float[] defectScore = new float[pixelCount];
             int border = 18;
@@ -151,23 +149,51 @@ namespace CollectIQ.Services.Inspection
                         continue;
                     }
 
-                    // Shape is intentionally weighted highest. Neutral/albedo
-                    // subtraction and opposing-light mismatch add evidence,
-                    // while a strong isolated specular spike is discounted.
+                    float r1 = residualTopN[i], r2 = residualRightN[i], r3 = residualBottomN[i], r4 = residualLeftN[i];
+                    int supportCount = 0;
+                    if (r1 >= 0.30f) supportCount++;
+                    if (r2 >= 0.30f) supportCount++;
+                    if (r3 >= 0.30f) supportCount++;
+                    if (r4 >= 0.30f) supportCount++;
+
+                    float max1 = r1, max2 = 0;
+                    if (r2 > max1) { max2 = max1; max1 = r2; } else { max2 = r2; }
+                    if (r3 > max1) { max2 = max1; max1 = r3; } else if (r3 > max2) { max2 = r3; }
+                    if (r4 > max1) { max2 = max1; max1 = r4; } else if (r4 > max2) { max2 = r4; }
+                    float viewEvidence = Math.Clamp((max1 * 0.65f) + (max2 * 0.35f), 0, 1);
+                    float supportBoost = supportCount switch
+                    {
+                        >= 3 => 1.0f,
+                        2 => 0.88f,
+                        1 => 0.55f,
+                        _ => 0.0f
+                    };
+
                     float score =
-                        (curvatureN[i] * 0.38f) +
-                        (reliefN[i] * 0.28f) +
-                        (residualN[i] * 0.22f) +
-                        (mismatchN[i] * 0.12f);
-                    score *= (1.0f - (0.35f * Math.Clamp(specularN[i], 0, 1)));
+                        (viewEvidence * 0.34f) +
+                        (curvatureN[i] * 0.24f) +
+                        (reliefN[i] * 0.18f) +
+                        (residualN[i] * 0.16f) +
+                        (mismatchN[i] * 0.08f);
+
+                    float artworkPenalty = albedoEdgeN[i] * (supportCount >= 2 ? 0.18f : 0.42f);
+                    float specularPenalty = 0.25f * Math.Clamp(specularN[i], 0, 1);
+                    score *= (0.55f + (0.45f * supportBoost));
+                    score *= (1.0f - artworkPenalty);
+                    score *= (1.0f - specularPenalty);
                     defectScore[i] = Math.Clamp(score, 0, 1);
                 }
             }
 
-            // Smooth only the final evidence map; the individual diagnostic
-            // channels stay high resolution.
             defectScore = BoxBlur(defectScore, ProcessingWidth, ProcessingHeight, 1);
-            float defectThreshold = Math.Max(0.42f, CalculatePercentile(defectScore, 0.992f));
+            float defectThreshold = Math.Max(0.27f, CalculatePercentile(defectScore, 0.983f));
+            List<DefectRegion> defectRegions = FindDefectRegions(
+                defectScore,
+                ProcessingWidth,
+                ProcessingHeight,
+                defectThreshold,
+                border,
+                maximumRegions: 12);
             double anomalyScore = CalculateAnomalyScore(defectScore, defectThreshold);
 
             double registrationScore = registration.OverallQuality;
@@ -188,7 +214,7 @@ namespace CollectIQ.Services.Inspection
             await SaveGrayscaleAsync(curvature, curvaturePath, cancellationToken, normalize: true);
             await SaveGrayscaleAsync(localNeutralResidual, residualPath, cancellationToken, normalize: true);
             await SaveHeatmapAsync(defectScore, defectThreshold, heatmapPath, cancellationToken);
-            await SaveDefectOverlayAsync(albedo, defectScore, defectThreshold, overlayPath, cancellationToken);
+            await SaveDefectOverlayWithRegionsAsync(albedo, defectScore, defectThreshold, defectRegions, overlayPath, cancellationToken);
 
             return new SurfaceInspectionResult
             {
@@ -202,6 +228,7 @@ namespace CollectIQ.Services.Inspection
                 ReferenceResidualImagePath = residualPath,
                 HeatmapImagePath = heatmapPath,
                 DefectOverlayImagePath = overlayPath,
+                DefectRegionCount = defectRegions.Count,
                 Diagnostics = new AlignmentDiagnostics
                 {
                     EdgeOverlayPath = registration.EdgeOverlayPath,
@@ -216,8 +243,11 @@ namespace CollectIQ.Services.Inspection
                 },
                 AnomalyScore = anomalyScore,
                 CaptureConsistencyScore = consistencyScore,
-                Summary = BuildSummary(anomalyScore, consistencyScore, registrationScore)
+                Summary = defectRegions.Count > 0
+                    ? $"CollectIQ marked {defectRegions.Count} candidate surface region{(defectRegions.Count == 1 ? string.Empty : "s")} for review. " + BuildSummary(anomalyScore, consistencyScore, registrationScore)
+                    : "No spatially supported defect regions were strong enough to box in this scan. " + BuildSummary(anomalyScore, consistencyScore, registrationScore)
             };
+
         }
 
 
@@ -329,9 +359,7 @@ namespace CollectIQ.Services.Inspection
             CancellationToken cancellationToken = default)
         {
             if (captures is null || captures.Count < 8)
-            {
                 throw new InvalidOperationException("Tilt Sweep needs at least 8 captures; 20 is recommended.");
-            }
 
             foreach (string path in captures)
             {
@@ -342,24 +370,20 @@ namespace CollectIQ.Services.Inspection
             string outputDirectory = Path.Combine(
                 FileSystem.AppDataDirectory,
                 "SurfaceInspections",
-                "tilt_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+                "tilt_align_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
             Directory.CreateDirectory(outputDirectory);
 
-            // Tilt Sweep is intentionally different from External Light:
-            // the card moves between captures, so there is no privileged
-            // first-frame "Reference" geometry.  Rectify each view independently
-            // to the same canonical 750x1050 card plane and tolerate occasional
-            // frames where the four outer corners cannot be recovered.
-            List<float[]> stack = new();
+            List<TiltViewDiagnostic> diagnostics = new();
             List<double> geometryQualities = new();
-            List<string> registeredPaths = new();
-            int rejectedFrames = 0;
+            List<float[]> acceptedFrames = new();
+            float[]? canonicalReference = null;
+            int accepted = 0;
 
             for (int captureIndex = 0; captureIndex < captures.Count; captureIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                string frameDirectory = Path.Combine(outputDirectory, $"frame_{captureIndex + 1:00}");
+                int captureNumber = captureIndex + 1;
+                string frameDirectory = Path.Combine(outputDirectory, $"frame_{captureNumber:00}");
                 Directory.CreateDirectory(frameDirectory);
 
                 try
@@ -376,130 +400,385 @@ namespace CollectIQ.Services.Inspection
                         cancellationToken);
 
                     RegisteredCardFrame frame = frameRegistration.Frames["Reference"];
-                    stack.Add((float[])frame.Luminance.Clone());
+                    float[] aligned = (float[])frame.Luminance.Clone();
+                    bool rotated180 = false;
+                    double alignmentConfidence = 100.0;
+
+                    if (canonicalReference is null)
+                    {
+                        canonicalReference = (float[])aligned.Clone();
+                    }
+                    else
+                    {
+                        float[] rotated = Rotate180Copy(aligned);
+                        float normalScore = CalculateTiltOrientationScore(canonicalReference, aligned);
+                        float rotatedScore = CalculateTiltOrientationScore(canonicalReference, rotated);
+                        if (rotatedScore > normalScore + 0.03f)
+                        {
+                            aligned = rotated;
+                            rotated180 = true;
+                            alignmentConfidence = Math.Clamp((rotatedScore + 1.0f) * 50.0f, 0.0f, 100.0f);
+                        }
+                        else
+                        {
+                            alignmentConfidence = Math.Clamp((normalScore + 1.0f) * 50.0f, 0.0f, 100.0f);
+                        }
+                    }
+
+                    string alignedPath = Path.Combine(outputDirectory, $"tilt_aligned_{captureNumber:00}.png");
+                    await SaveTiltAlignmentDiagnosticAsync(aligned, alignedPath, captureNumber, cancellationToken);
+
+                    accepted++;
+                    acceptedFrames.Add(aligned);
                     geometryQualities.Add(frame.Geometry.Confidence * 100.0);
-                    registeredPaths.Add(frame.RegisteredImagePath);
+                    diagnostics.Add(new TiltViewDiagnostic
+                    {
+                        CaptureNumber = captureNumber,
+                        Accepted = true,
+                        GeometryConfidence = frame.Geometry.Confidence * 100.0,
+                        AlignmentConfidence = alignmentConfidence,
+                        Rotated180 = rotated180,
+                        AlignedImagePath = alignedPath,
+                        Status = $"Mapped to canonical 750x1050 card • align {alignmentConfidence:0}%" + (rotated180 ? " • corrected 180° ambiguity" : string.Empty)
+                    });
                 }
                 catch (InvalidOperationException ex)
                 {
-                    rejectedFrames++;
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[TiltSweep] Capture {captureIndex + 1:00} rejected: {ex.Message}");
-                }
-            }
-
-            if (stack.Count < 8)
-            {
-                throw new InvalidOperationException(
-                    $"Tilt Sweep could only locate the complete card in {stack.Count} of {captures.Count} captures. " +
-                    "At least 8 usable views are required. Keep all four card edges visible while tilting; " +
-                    "your hand may support the card from behind, but do not cover a card corner.");
-            }
-
-            float globalMean = stack.Average(CalculateMean);
-            foreach (float[] frame in stack)
-                NormalizeBrightness(frame, globalMean);
-
-            int pixels = ProcessingWidth * ProcessingHeight;
-            float[] robust = new float[pixels];
-            float[] range = new float[pixels];
-            float[] variance = new float[pixels];
-            float[] scratchLike = new float[pixels];
-            float[] values = new float[stack.Count];
-
-            for (int i = 0; i < pixels; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                float sum = 0;
-                for (int f = 0; f < stack.Count; f++)
-                {
-                    values[f] = stack[f][i];
-                    sum += values[f];
-                }
-
-                Array.Sort(values);
-                int n = values.Length;
-                float median = n % 2 == 0
-                    ? (values[n / 2 - 1] + values[n / 2]) * 0.5f
-                    : values[n / 2];
-                float p10 = values[Math.Clamp((int)Math.Floor((n - 1) * 0.10), 0, n - 1)];
-                float p90 = values[Math.Clamp((int)Math.Ceiling((n - 1) * 0.90), 0, n - 1)];
-                robust[i] = median;
-                range[i] = p90 - p10;
-
-                float mean = sum / n;
-                float var = 0;
-                for (int f = 0; f < n; f++)
-                {
-                    float d = values[f] - mean;
-                    var += d * d;
-                }
-                variance[i] = MathF.Sqrt(var / n);
-            }
-
-            float[] localRange = PositiveHighPass(range, 5);
-            float[] localVariance = PositiveHighPass(variance, 5);
-            float[] rangeN = RobustNormalize(localRange, 0.99f);
-            float[] varN = RobustNormalize(localVariance, 0.99f);
-            float[] medianDetail = AbsoluteDifference(
-                robust,
-                BoxBlur(robust, ProcessingWidth, ProcessingHeight, 4));
-            float[] detailN = RobustNormalize(medianDetail, 0.995f);
-
-            int border = 20;
-            for (int y = 0; y < ProcessingHeight; y++)
-            {
-                for (int x = 0; x < ProcessingWidth; x++)
-                {
-                    int i = y * ProcessingWidth + x;
-                    if (x < border || y < border ||
-                        x >= ProcessingWidth - border || y >= ProcessingHeight - border)
+                    diagnostics.Add(new TiltViewDiagnostic
                     {
-                        scratchLike[i] = 0;
-                        continue;
-                    }
-
-                    scratchLike[i] = Math.Clamp(
-                        (rangeN[i] * 0.52f) +
-                        (varN[i] * 0.38f) +
-                        (detailN[i] * 0.10f), 0, 1);
+                        CaptureNumber = captureNumber,
+                        Accepted = false,
+                        Status = ex.Message
+                    });
+                    System.Diagnostics.Debug.WriteLine($"[TiltSweep] Capture {captureNumber:00} rejected: {ex.Message}");
                 }
             }
-
-            scratchLike = BoxBlur(scratchLike, ProcessingWidth, ProcessingHeight, 1);
-            float threshold = Math.Max(0.46f, CalculatePercentile(scratchLike, 0.993f));
-            double anomaly = CalculateAnomalyScore(scratchLike, threshold);
-
-            string albedoPath = Path.Combine(outputDirectory, "tilt_robust_albedo.png");
-            string responsePath = Path.Combine(outputDirectory, "tilt_view_dependent_response.png");
-            string heatmapPath = Path.Combine(outputDirectory, "tilt_defect_heatmap.png");
-            string overlayPath = Path.Combine(outputDirectory, "tilt_defect_overlay.png");
-            await SaveGrayscaleAsync(robust, albedoPath, cancellationToken);
-            await SaveGrayscaleAsync(localRange, responsePath, cancellationToken, normalize: true);
-            await SaveHeatmapAsync(scratchLike, threshold, heatmapPath, cancellationToken);
-            await SaveDefectOverlayAsync(robust, scratchLike, threshold, overlayPath, cancellationToken);
 
             double geometryQuality = geometryQualities.Count == 0 ? 0 : geometryQualities.Average();
-            double usablePercent = (stack.Count / (double)captures.Count) * 100.0;
-            double consistency = Math.Clamp((geometryQuality * 0.70) + (usablePercent * 0.30), 0, 100);
+            double usablePercent = (accepted / (double)captures.Count) * 100.0;
+            double alignmentQuality = diagnostics.Where(item => item.Accepted).Select(item => item.AlignmentConfidence).DefaultIfEmpty(0.0).Average();
+            double consistency = Math.Clamp((geometryQuality * 0.35) + (usablePercent * 0.25) + (alignmentQuality * 0.40), 0, 100);
+
+            string averagePath = string.Empty;
+            string heatmapPath = string.Empty;
+            string overlayPath = string.Empty;
+            int defectRegionCount = 0;
+            double anomaly = 0;
+
+            if (acceptedFrames.Count >= 4)
+            {
+                float targetMean = acceptedFrames.Select(CalculateMean).Average();
+                foreach (float[] frame in acceptedFrames)
+                    NormalizeBrightness(frame, targetMean);
+
+                float[] average = ComputeMeanImage(acceptedFrames);
+                float[] variance = ComputeVarianceMap(acceptedFrames, average);
+                float[] range = PositiveHighPass(ComputeRangeMap(acceptedFrames), 5);
+                float[] varianceHigh = PositiveHighPass(variance, 5);
+                float[] varianceN = RobustNormalize(varianceHigh, 0.985f);
+                float[] rangeN = RobustNormalize(range, 0.985f);
+                float[] artworkEdges = RobustNormalize(GradientMagnitudeLocal(average, ProcessingWidth, ProcessingHeight), 0.99f);
+
+                float[] tiltScore = new float[average.Length];
+                int border = 18;
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int i = (y * ProcessingWidth) + x;
+                        if (x < border || y < border || x >= ProcessingWidth - border || y >= ProcessingHeight - border)
+                        {
+                            tiltScore[i] = 0;
+                            continue;
+                        }
+                        float score = (varianceN[i] * 0.65f) + (rangeN[i] * 0.35f);
+                        score *= (1.0f - (artworkEdges[i] * 0.35f));
+                        tiltScore[i] = Math.Clamp(score, 0, 1);
+                    }
+                }
+
+                tiltScore = BoxBlur(tiltScore, ProcessingWidth, ProcessingHeight, 1);
+                float threshold = Math.Max(0.25f, CalculatePercentile(tiltScore, 0.985f));
+                List<DefectRegion> regions = FindDefectRegions(tiltScore, ProcessingWidth, ProcessingHeight, threshold, border, maximumRegions: 12);
+                defectRegionCount = regions.Count;
+                anomaly = CalculateAnomalyScore(tiltScore, threshold);
+
+                averagePath = Path.Combine(outputDirectory, "tilt_average.png");
+                heatmapPath = Path.Combine(outputDirectory, "tilt_variability_heatmap.png");
+                overlayPath = Path.Combine(outputDirectory, "tilt_defect_overlay.png");
+                await SaveGrayscaleAsync(average, averagePath, cancellationToken);
+                await SaveHeatmapAsync(tiltScore, threshold, heatmapPath, cancellationToken);
+                await SaveDefectOverlayWithRegionsAsync(average, tiltScore, threshold, regions, overlayPath, cancellationToken);
+            }
 
             return new SurfaceInspectionResult
             {
                 Mode = SurfaceInspectionMode.TiltSweep,
-                ModeName = $"Tilt Sweep — {stack.Count}/{captures.Count} Usable Views",
-                DiffuseImagePath = albedoPath,
-                AlbedoImagePath = albedoPath,
-                ReliefImagePath = responsePath,
+                ModeName = $"20-View Tilt Sweep — {accepted}/{captures.Count} Aligned",
+                TiltViews = diagnostics,
+                Diagnostics = new AlignmentDiagnostics(),
+                DiffuseImagePath = averagePath,
                 HeatmapImagePath = heatmapPath,
                 DefectOverlayImagePath = overlayPath,
-                SecondaryEvidenceImagePath = responsePath,
-                Diagnostics = new AlignmentDiagnostics(),
+                DefectRegionCount = defectRegionCount,
                 AnomalyScore = anomaly,
                 CaptureConsistencyScore = consistency,
-                Summary = $"Tilt Sweep used {stack.Count} of {captures.Count} captures and rejected {rejectedFrames}. " +
-                          $"View-dependent surface anomaly signal: {anomaly:0}/100. " +
-                          "The result combines changes that recur as the card is tilted under a fixed light."
+                Summary = defectRegionCount > 0
+                    ? $"{accepted} of {captures.Count} tilt captures were aligned to the same flat card geometry, and CollectIQ boxed {defectRegionCount} view-dependent candidate region{(defectRegionCount == 1 ? string.Empty : "s")}."
+                    : $"{accepted} of {captures.Count} tilt captures were aligned to the same flat card geometry. Inspect the 20 aligned views and variability heatmap below; no automatic tilt-sweep regions were strong enough to box in this run."
             };
+
+        }
+
+
+        private static float[] Rotate180Copy(float[] source)
+        {
+            float[] result = new float[source.Length];
+            int last = source.Length - 1;
+            for (int i = 0; i < source.Length; i++)
+                result[i] = source[last - i];
+            return result;
+        }
+
+        private static float CalculateTiltOrientationScore(float[] reference, float[] moving)
+        {
+            const int downsampleFactor = 5;
+            int width = ProcessingWidth / downsampleFactor;
+            int height = ProcessingHeight / downsampleFactor;
+            float[] a = GradientMagnitude(
+                Downsample(reference, ProcessingWidth, ProcessingHeight, downsampleFactor),
+                width,
+                height);
+            float[] b = GradientMagnitude(
+                Downsample(moving, ProcessingWidth, ProcessingHeight, downsampleFactor),
+                width,
+                height);
+            return CalculateNormalizedCorrelation(a, b, width, height, 0, 0);
+        }
+
+        private static async Task SaveTiltAlignmentDiagnosticAsync(
+            float[] luminance,
+            string path,
+            int captureNumber,
+            CancellationToken cancellationToken)
+        {
+            using SixLabors.ImageSharp.Image<Rgba32> image = new(ProcessingWidth, ProcessingHeight);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int i = (y * ProcessingWidth) + x;
+                        byte gray = (byte)Math.Clamp(
+                            MathF.Round(Math.Clamp(luminance[i], 0, 1) * 255.0f),
+                            0,
+                            255);
+                        row[x] = new Rgba32(gray, gray, gray, 255);
+                    }
+                }
+            });
+
+            // Four preset canonical points.  Every accepted tilt view must map
+            // its physical card corners to these exact locations.
+            const int inset = 10;
+            DrawRectangle(image, inset, inset, ProcessingWidth - inset - 1, ProcessingHeight - inset - 1,
+                new Rgba32(57, 255, 20, 255), 3);
+            DrawCornerMarker(image, inset, inset, +1, +1);
+            DrawCornerMarker(image, ProcessingWidth - inset - 1, inset, -1, +1);
+            DrawCornerMarker(image, ProcessingWidth - inset - 1, ProcessingHeight - inset - 1, -1, -1);
+            DrawCornerMarker(image, inset, ProcessingHeight - inset - 1, +1, -1);
+
+            await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(stream, new PngEncoder(), cancellationToken);
+        }
+
+        private static void DrawCornerMarker(
+            SixLabors.ImageSharp.Image<Rgba32> image,
+            int x,
+            int y,
+            int directionX,
+            int directionY)
+        {
+            Rgba32 green = new(57, 255, 20, 255);
+            const int length = 42;
+            const int thickness = 4;
+            for (int t = 0; t < thickness; t++)
+            {
+                DrawLine(image, x, y + (t * directionY), x + (length * directionX), y + (t * directionY), green);
+                DrawLine(image, x + (t * directionX), y, x + (t * directionX), y + (length * directionY), green);
+            }
+        }
+
+        private static void DrawRectangle(
+            SixLabors.ImageSharp.Image<Rgba32> image,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            Rgba32 color,
+            int thickness)
+        {
+            for (int t = 0; t < thickness; t++)
+            {
+                DrawLine(image, left + t, top + t, right - t, top + t, color);
+                DrawLine(image, left + t, bottom - t, right - t, bottom - t, color);
+                DrawLine(image, left + t, top + t, left + t, bottom - t, color);
+                DrawLine(image, right - t, top + t, right - t, bottom - t, color);
+            }
+        }
+
+        private static void DrawLine(
+            SixLabors.ImageSharp.Image<Rgba32> image,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            Rgba32 color)
+        {
+            int dx = Math.Abs(x1 - x0);
+            int sx = x0 < x1 ? 1 : -1;
+            int dy = -Math.Abs(y1 - y0);
+            int sy = y0 < y1 ? 1 : -1;
+            int error = dx + dy;
+
+            while (true)
+            {
+                if (x0 >= 0 && y0 >= 0 && x0 < image.Width && y0 < image.Height)
+                    image[x0, y0] = color;
+                if (x0 == x1 && y0 == y1)
+                    break;
+                int e2 = 2 * error;
+                if (e2 >= dy) { error += dy; x0 += sx; }
+                if (e2 <= dx) { error += dx; y0 += sy; }
+            }
+        }
+
+        private sealed class DefectRegion
+        {
+            public int Left { get; init; }
+            public int Top { get; init; }
+            public int Right { get; init; }
+            public int Bottom { get; init; }
+            public int Area { get; init; }
+            public float Peak { get; init; }
+            public float Mean { get; init; }
+        }
+
+        private static List<DefectRegion> FindDefectRegions(
+            float[] score,
+            int width,
+            int height,
+            float threshold,
+            int border,
+            int maximumRegions)
+        {
+            bool[] visited = new bool[score.Length];
+            List<DefectRegion> regions = new();
+            int[] queue = new int[score.Length];
+
+            for (int y = border; y < height - border; y++)
+            {
+                for (int x = border; x < width - border; x++)
+                {
+                    int start = (y * width) + x;
+                    if (visited[start] || score[start] < threshold)
+                        continue;
+
+                    int head = 0;
+                    int tail = 0;
+                    queue[tail++] = start;
+                    visited[start] = true;
+                    int minX = x, maxX = x, minY = y, maxY = y, area = 0;
+                    float peak = 0, sum = 0;
+
+                    while (head < tail)
+                    {
+                        int index = queue[head++];
+                        int cy = index / width;
+                        int cx = index - (cy * width);
+                        float value = score[index];
+                        area++;
+                        sum += value;
+                        peak = MathF.Max(peak, value);
+                        minX = Math.Min(minX, cx); maxX = Math.Max(maxX, cx);
+                        minY = Math.Min(minY, cy); maxY = Math.Max(maxY, cy);
+
+                        for (int oy = -1; oy <= 1; oy++)
+                        {
+                            for (int ox = -1; ox <= 1; ox++)
+                            {
+                                if (ox == 0 && oy == 0) continue;
+                                int nx = cx + ox, ny = cy + oy;
+                                if (nx < border || ny < border || nx >= width - border || ny >= height - border)
+                                    continue;
+                                int ni = (ny * width) + nx;
+                                if (!visited[ni] && score[ni] >= threshold)
+                                {
+                                    visited[ni] = true;
+                                    queue[tail++] = ni;
+                                }
+                            }
+                        }
+                    }
+
+                    int boxWidth = maxX - minX + 1;
+                    int boxHeight = maxY - minY + 1;
+                    if (area < 10 || area > 15000 || boxWidth > width * 0.55 || boxHeight > height * 0.55)
+                        continue;
+
+                    regions.Add(new DefectRegion
+                    {
+                        Left = Math.Max(border, minX - 6),
+                        Top = Math.Max(border, minY - 6),
+                        Right = Math.Min(width - border - 1, maxX + 6),
+                        Bottom = Math.Min(height - border - 1, maxY + 6),
+                        Area = area,
+                        Peak = peak,
+                        Mean = sum / Math.Max(area, 1)
+                    });
+                }
+            }
+
+            return regions
+                .OrderByDescending(region => (region.Peak * 0.7f) + (region.Mean * 0.3f) + MathF.Min(0.15f, region.Area / 2000f))
+                .Take(maximumRegions)
+                .ToList();
+        }
+
+        private static async Task SaveDefectOverlayWithRegionsAsync(
+            float[] albedo,
+            float[] score,
+            float threshold,
+            IReadOnlyList<DefectRegion> regions,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            using SixLabors.ImageSharp.Image<Rgba32> image = new(ProcessingWidth, ProcessingHeight);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < ProcessingHeight; y++)
+                {
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < ProcessingWidth; x++)
+                    {
+                        int i = (y * ProcessingWidth) + x;
+                        byte gray = (byte)Math.Clamp(MathF.Round(Math.Clamp(albedo[i], 0, 1) * 255), 0, 255);
+                        if (score[i] >= threshold)
+                            row[x] = new Rgba32(255, (byte)(gray * 0.30f), (byte)(gray * 0.20f), 255);
+                        else
+                            row[x] = new Rgba32(gray, gray, gray, 255);
+                    }
+                }
+            });
+
+            Rgba32 boxColor = new(255, 230, 30, 255);
+            foreach (DefectRegion region in regions)
+                DrawRectangle(image, region.Left, region.Top, region.Right, region.Bottom, boxColor, 3);
+
+            await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await image.SaveAsync(stream, new PngEncoder(), cancellationToken);
         }
 
         private static float[] AbsoluteDifference(float[] a, float[] b)
@@ -2251,6 +2530,51 @@ namespace CollectIQ.Services.Inspection
         private static float RadiansToDegrees(float radians)
         {
             return radians * (180.0f / MathF.PI);
+        }
+
+        private static float[] ComputeMeanImage(IReadOnlyList<float[]> images)
+        {
+            float[] mean = new float[ProcessingWidth * ProcessingHeight];
+            if (images.Count == 0) return mean;
+            foreach (float[] image in images)
+                for (int i = 0; i < mean.Length; i++) mean[i] += image[i];
+            float scale = 1.0f / images.Count;
+            for (int i = 0; i < mean.Length; i++) mean[i] *= scale;
+            return mean;
+        }
+
+        private static float[] ComputeVarianceMap(IReadOnlyList<float[]> images, float[] mean)
+        {
+            float[] variance = new float[mean.Length];
+            if (images.Count == 0) return variance;
+            foreach (float[] image in images)
+            {
+                for (int i = 0; i < variance.Length; i++)
+                {
+                    float diff = image[i] - mean[i];
+                    variance[i] += diff * diff;
+                }
+            }
+            float scale = 1.0f / images.Count;
+            for (int i = 0; i < variance.Length; i++) variance[i] = MathF.Sqrt(variance[i] * scale);
+            return variance;
+        }
+
+        private static float[] ComputeRangeMap(IReadOnlyList<float[]> images)
+        {
+            float[] minimum = Enumerable.Repeat(float.MaxValue, ProcessingWidth * ProcessingHeight).ToArray();
+            float[] maximum = Enumerable.Repeat(float.MinValue, ProcessingWidth * ProcessingHeight).ToArray();
+            foreach (float[] image in images)
+            {
+                for (int i = 0; i < image.Length; i++)
+                {
+                    if (image[i] < minimum[i]) minimum[i] = image[i];
+                    if (image[i] > maximum[i]) maximum[i] = image[i];
+                }
+            }
+            float[] range = new float[minimum.Length];
+            for (int i = 0; i < range.Length; i++) range[i] = maximum[i] - minimum[i];
+            return range;
         }
 
         private sealed class RegisteredCapture

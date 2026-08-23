@@ -25,15 +25,22 @@
                 </Border>
             </Grid>
 
-            <Label Text="Detected defects" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Label Text="Red pixels are regions supported by multiple photometric defect signals." TextColor="#64748B" FontSize="10" />
-            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
+            <VerticalStackLayout x:Name="TiltAlignmentSection" IsVisible="False" Spacing="10">
+                <Label Text="20 ALIGNED TILT CAPTURES" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
+                <Label Text="Every accepted image below has been perspective-mapped to the same four preset card points. The green frame/corner markers are fixed at identical pixel coordinates in every view. Do not trust Tilt Sweep surface math until the card artwork also occupies the same geometry in all views."
+                       TextColor="#9FB3C8" FontSize="11" />
+                <VerticalStackLayout x:Name="TiltViewsContainer" Spacing="12" />
+            </VerticalStackLayout>
+
+            <Label x:Name="DefectTitleLabel" Text="Detected defects" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="DefectDescriptionLabel" Text="Red pixels are regions supported by multiple photometric defect signals. Yellow boxes explicitly mark the strongest spatially supported candidate regions." TextColor="#64748B" FontSize="10" />
+            <Border x:Name="DefectOverlayBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
                 <Image x:Name="DefectOverlayImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
-            <Label Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Label Text="Combined curvature, relief, neutral/albedo residual and opposing-light evidence" TextColor="#64748B" FontSize="10" />
-            <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
+            <Label x:Name="HeatmapTitleLabel" Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="HeatmapDescriptionLabel" Text="Combined curvature, relief, neutral/albedo residual and opposing-light evidence" TextColor="#64748B" FontSize="10" />
+            <Border x:Name="HeatmapBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8">
                 <Image x:Name="HeatmapImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
