@@ -183,6 +183,21 @@
                                 </SwipeView>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
+
+                        <CollectionView.Footer>
+                            <VerticalStackLayout Padding="8,14,8,18" Spacing="8">
+                                <Label Text="{Binding ResultsSummary}"
+                                       IsVisible="{Binding HasMoreResults}"
+                                       TextColor="#8CDCF4"
+                                       FontSize="11"
+                                       HorizontalTextAlignment="Center" />
+                                <Button Text="{Binding LoadMoreButtonText}"
+                                        IsVisible="{Binding HasMoreResults}"
+                                        Command="{Binding LoadMoreResultsCommand}"
+                                        Style="{StaticResource AuroraNeonButton}"
+                                        HeightRequest="44" />
+                            </VerticalStackLayout>
+                        </CollectionView.Footer>
                     </CollectionView>
 
 
@@ -196,7 +211,7 @@
                         Style="{StaticResource AuroraGlassBorder}"
                         Margin="14,0,14,0">
 
-                    <Grid RowDefinitions="Auto,Auto,Auto"
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                           RowSpacing="6">
                         <!-- Status ribbon (FULL WIDTH so your long status text never destroys layout) -->
                         <Border Grid.Row="0"
@@ -234,8 +249,61 @@
                                LineBreakMode="TailTruncation"
                                MaxLines="1" />
 
+                        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="Grade" TextColor="#A8EFFF" FontSize="11" VerticalOptions="Center" />
+                            <Border Grid.Column="1"
+                                    Stroke="#00E5FF"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="#120A1A2A"
+                                    Padding="12,7">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Spacing="0">
+                                        <Label Text="{Binding SelectedGradeLabel}"
+                                               TextColor="White"
+                                               FontSize="13"
+                                               FontAttributes="Bold" />
+                                        <Label Text="Choose SportsCardsPro price grade"
+                                               TextColor="#6CD4FF"
+                                               FontSize="9" />
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="1"
+                                           Text="⌄"
+                                           TextColor="#00E5FF"
+                                           FontSize="22"
+                                           VerticalTextAlignment="Center" />
+                                </Grid>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnSearchGradeSelectorTapped" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </Grid>
+
+                        <!-- Result page size. The search fetches a deeper candidate pool,
+                             while this controls how many cards are rendered at a time. -->
+                        <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="Results"
+                                   TextColor="#A8EFFF"
+                                   FontSize="11"
+                                   VerticalOptions="Center" />
+                            <Border Grid.Column="1"
+                                    Stroke="#00E5FF"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="#120A1A2A"
+                                    Padding="8,2">
+                                <Picker Title="Results per page"
+                                        ItemsSource="{Binding ResultCountOptions}"
+                                        SelectedItem="{Binding ResultsPerPage, Mode=TwoWay}"
+                                        TextColor="White"
+                                        TitleColor="#6CD4FF"
+                                        BackgroundColor="Transparent"
+                                        HorizontalOptions="Fill" />
+                            </Border>
+                        </Grid>
+
                         <!-- Entry + buttons (tight) -->
-                        <Grid Grid.Row="2"
+                        <Grid Grid.Row="4"
                               RowDefinitions="Auto,Auto"
                               RowSpacing="6">
 

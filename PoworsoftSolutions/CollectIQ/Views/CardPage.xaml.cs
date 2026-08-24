@@ -1,4 +1,4 @@
-﻿//
+//
 //  FILE            : CardPage.xaml.cs
 //  PROJECT         : CollectIQ (Mobile Application)
 //  PROGRAMMER      : Darryl Poworoznyk
@@ -28,6 +28,7 @@
 
 using CollectIQ.Controls;
 using CollectIQ.Models;
+using CollectIQ.Models.SportsCardsPro;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
@@ -457,6 +458,51 @@ namespace CollectIQ.Views
             {
                 isBusy = false;
             }
+        }
+
+        // ---------------------------------------------------------------------
+        // LIVE CARD HEADER / GRADE SELECTION
+        // ---------------------------------------------------------------------
+
+        private void OnCardDetailChanged(object sender, TextChangedEventArgs e)
+        {
+            // Nested card fields such as Player.FullName and Team.Name do not
+            // automatically notify this page's view model. Rebuild the visual
+            // header whenever the editable metadata changes so the top of the
+            // page reflects what the user is actually saving.
+            viewModel.RefreshHeader();
+        }
+
+        private void OnTitleChanged(object sender, TextChangedEventArgs e)
+        {
+            // A manually edited title should immediately replace the stale
+            // marketplace/source title in the large header.
+            if (!string.IsNullOrWhiteSpace(viewModel.SelectedCard?.Title))
+            {
+                CardTitleLabel.Text = viewModel.SelectedCard.Title;
+            }
+            else
+            {
+                viewModel.RefreshHeader();
+            }
+        }
+
+        private async void OnGradeSelectorTapped(object sender, TappedEventArgs e)
+        {
+            string[] labels = viewModel.GradeOptions.Select(option => option.Label).ToArray();
+            string? selection = await DisplayActionSheet(
+                "Grade / Condition",
+                "Cancel",
+                null,
+                labels);
+
+            if (string.IsNullOrWhiteSpace(selection) || selection == "Cancel")
+                return;
+
+            SportsCardsProGradeOption? option = viewModel.GradeOptions
+                .FirstOrDefault(item => string.Equals(item.Label, selection, StringComparison.Ordinal));
+            if (option != null)
+                viewModel.SelectedGradeOption = option;
         }
 
         // ---------------------------------------------------------------------
@@ -905,10 +951,11 @@ namespace CollectIQ.Views
                 parts.Add("#" + NumberEntry.Text.Trim());
             }
 
-            if (!string.IsNullOrWhiteSpace(GradeCoEntry.Text) &&
-                !string.IsNullOrWhiteSpace(GradeEntry.Text))
+            string gradeSearchText = viewModel.SelectedGradeOption?.SearchSuffix ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(gradeSearchText) &&
+                !string.Equals(viewModel.SelectedGradeOption?.Label, "Ungraded", StringComparison.OrdinalIgnoreCase))
             {
-                parts.Add($"{GradeCoEntry.Text.Trim()} {GradeEntry.Text.Trim()}");
+                parts.Add(gradeSearchText);
             }
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));

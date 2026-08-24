@@ -12,6 +12,7 @@
 //
 
 using CollectIQ.Models;
+using CollectIQ.Models.SportsCardsPro;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
@@ -19,6 +20,7 @@ using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace CollectIQ.Views
@@ -32,6 +34,7 @@ namespace CollectIQ.Views
         #region Private Members
 
         private readonly EbaySearchViewModel viewModel;
+        private readonly SportsCardsProService sportsCardsProService;
         private EbayListing? selectedListing;
         private string frontImagePathInternal;
 
@@ -60,6 +63,7 @@ namespace CollectIQ.Views
             InitializeComponent();
 
             viewModel = new EbaySearchViewModel(new EbayService(new HttpClient()));
+            sportsCardsProService = new SportsCardsProService(new HttpClient());
             BindingContext = viewModel;
 
             selectedListing = null;
@@ -97,6 +101,24 @@ namespace CollectIQ.Views
 
         #region Manual Search and Navigation
 
+        private async void OnSearchGradeSelectorTapped(object sender, TappedEventArgs e)
+        {
+            string[] labels = viewModel.GradeOptions.Select(option => option.Label).ToArray();
+            string? selection = await DisplayActionSheet(
+                "Search Grade / Condition",
+                "Cancel",
+                null,
+                labels);
+
+            if (string.IsNullOrWhiteSpace(selection) || selection == "Cancel")
+                return;
+
+            SportsCardsProGradeOption? option = viewModel.GradeOptions
+                .FirstOrDefault(item => string.Equals(item.Label, selection, StringComparison.Ordinal));
+            if (option != null)
+                viewModel.SelectedGrade = option;
+        }
+
         /// <summary>
         /// Handles the manual eBay search button click.
         /// </summary>
@@ -123,7 +145,9 @@ namespace CollectIQ.Views
         /// </summary>
         private async void Add_Manual_Button_Clicked(object sender, EventArgs e)
         {
-            await Navigation.PushAsync(new CardPage(new Card()));
+            Card card = new Card();
+            (viewModel.SelectedGrade ?? SportsCardsProGradeCatalog.Ungraded).ApplyToCard(card);
+            await Navigation.PushAsync(new CardPage(card));
         }
 
         #endregion
@@ -183,15 +207,37 @@ namespace CollectIQ.Views
                 SelectListing(listing);
 
                 Card card = CardMetadataParser.Parse(listing);
-                card.Insights.SuggestedPrice = listing.EstimatedValue ?? 0.00m;
-                card.EstimatedValue = listing.EstimatedValue;
+                SportsCardsProGradeOption selectedGrade = viewModel.SelectedGrade ?? SportsCardsProGradeCatalog.Ungraded;
+                selectedGrade.ApplyToCard(card);
                 card.FrontImagePath = FrontImagePath;
+
+                // Prefer the SportsCardsPro value for the exact grade the user selected.
+                // If that grade has no published price, keep the eBay estimate instead.
+                decimal? sportsCardsProPrice = null;
+                try
+                {
+                    sportsCardsProPrice = await sportsCardsProService.GetBestMatchPriceForGradeAsync(
+                        listing.Title ?? string.Empty,
+                        selectedGrade);
+                }
+                catch (Exception priceEx)
+                {
+                    Console.WriteLine($"[EbaySearchPage] SportsCardsPro grade price lookup failed: {priceEx.Message}");
+                }
+
+                decimal resolvedValue = sportsCardsProPrice ?? listing.EstimatedValue ?? listing.Price ?? 0.00m;
+                card.Insights.SuggestedPrice = resolvedValue;
+                card.EstimatedValue = resolvedValue;
 
                 await App.Database.AddCardAsync(card);
 
+                string priceText = sportsCardsProPrice.HasValue
+                    ? $" SportsCardsPro {selectedGrade.Label} value: {sportsCardsProPrice.Value:C2} USD."
+                    : string.Empty;
+
                 await DisplayAlert(
                     "Added",
-                    $"{listing.Title} added to your collection.",
+                    $"{listing.Title} added to your collection as {selectedGrade.Label}.{priceText}",
                     "OK");
             }
             catch (Exception ex)

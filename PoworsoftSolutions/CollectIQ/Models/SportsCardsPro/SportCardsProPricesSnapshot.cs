@@ -77,11 +77,43 @@ namespace CollectIQ.Models.SportsCardsPro
         [JsonPropertyName("bgs-10-price")]
         public long? Bgs10Price { get; set; }
 
+
+        [JsonPropertyName("condition-9-price")]
+        public long? Condition9Price { get; set; }
+
+        [JsonPropertyName("condition-10-price")]
+        public long? Condition10Price { get; set; }
+
+        [JsonPropertyName("condition-13-price")]
+        public long? Condition13Price { get; set; }
+
+        [JsonPropertyName("condition-14-price")]
+        public long? Condition14Price { get; set; }
+
+        [JsonPropertyName("condition-15-price")]
+        public long? Condition15Price { get; set; }
+
+        [JsonPropertyName("condition-16-price")]
+        public long? Condition16Price { get; set; }
+
         [JsonPropertyName("condition-17-price")]
         public long? Condition17Price { get; set; }
 
         [JsonPropertyName("condition-18-price")]
         public long? Condition18Price { get; set; }
+
+
+        [JsonPropertyName("condition-19-price")]
+        public long? Condition19Price { get; set; }
+
+        [JsonPropertyName("condition-20-price")]
+        public long? Condition20Price { get; set; }
+
+        [JsonPropertyName("condition-21-price")]
+        public long? Condition21Price { get; set; }
+
+        [JsonPropertyName("condition-22-price")]
+        public long? Condition22Price { get; set; }
 
         [JsonIgnore]
         public bool IsSuccess => string.Equals(Status, "success", System.StringComparison.OrdinalIgnoreCase);

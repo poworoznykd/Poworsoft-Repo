@@ -30,7 +30,7 @@
                             <Label
                                 x:Name="CardTitleLabel"
                                 Grid.Row="0"
-                                Text="{Binding SelectedCard.Name}"
+                                Text="{Binding HeaderTitle}"
                                 FontSize="20"
                                 FontAttributes="Bold"
                                 TextColor="#F2F6FF"
@@ -222,7 +222,7 @@
 
                             <Grid
                                 ColumnDefinitions="Auto,*"
-                                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                 ColumnSpacing="10"
                                 RowSpacing="6">
 
@@ -236,6 +236,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="PlayerEntry"
+                                    TextChanged="OnCardDetailChanged"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Player.FullName}"
                                     Grid.Row="0"
@@ -254,6 +255,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="YearEntry"
+                                    TextChanged="OnCardDetailChanged"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Year}"
                                     Grid.Row="1"
@@ -273,6 +275,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="SetEntry"
+                                    TextChanged="OnCardDetailChanged"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Set}"
                                     Grid.Row="2"
@@ -291,6 +294,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="NumberEntry"
+                                    TextChanged="OnCardDetailChanged"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Number}"
                                     Grid.Row="3"
@@ -309,6 +313,7 @@
                                     FontSize="12" />
                                 <Entry
                                     x:Name="TeamEntry"
+                                    TextChanged="OnCardDetailChanged"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.Team.Name}"
                                     Grid.Row="4"
@@ -317,47 +322,108 @@
                                     TextColor="#E2E8F0"
                                     Placeholder="Team" />
 
-                                <!-- Grade company -->
+                                <!-- SportsCardsPro grade / condition -->
                                 <Label
                                      Style="{StaticResource AuroraLabel_Blue}"
                                     Grid.Row="5"
-                                    Grid.Column="0"
-                                    Text="Grader"
-                                    TextColor="#A0AEC0"
-                                    FontSize="12" />
-                                <Entry
-                                    x:Name="GradeCoEntry"
-                                    Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.Grading.Company}"   
-                                    Grid.Row="5"
-                                    Grid.Column="1"
-                                    FontSize="13"
-                                    TextColor="#E2E8F0"
-                                    Placeholder="PSA, BGS, SGC…" />
-
-                                <!-- Grade -->
-                                <Label
-                                     Style="{StaticResource AuroraLabel_Blue}"
-                                    Grid.Row="6"
                                     Grid.Column="0"
                                     Text="Grade"
                                     TextColor="#A0AEC0"
                                     FontSize="12" />
-                                <Entry
-                                    x:Name="GradeEntry"
-                                    Style="{StaticResource AuroraEntry_Blue}"
-                                    Text="{Binding SelectedCard.Grading.Grade}"
+                                <Border
+                                    Grid.Row="5"
+                                    Grid.Column="1"
+                                    Stroke="#00D9FF"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="#120A1A2A"
+                                    Padding="12,8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <VerticalStackLayout Spacing="1">
+                                            <Label Text="{Binding SelectedGradeDisplay}"
+                                                   TextColor="#F8FAFC"
+                                                   FontSize="13"
+                                                   FontAttributes="Bold" />
+                                            <Label Text="Tap to choose grade / condition"
+                                                   TextColor="#6CD4FF"
+                                                   FontSize="9" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1"
+                                               Text="⌄"
+                                               TextColor="#00E5FF"
+                                               FontSize="22"
+                                               VerticalTextAlignment="Center" />
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnGradeSelectorTapped" />
+                                    </Border.GestureRecognizers>
+                                </Border>
+
+                                <Label
+                                     Style="{StaticResource AuroraLabel_Blue}"
+                                    Grid.Row="6"
+                                    Grid.Column="0"
+                                    Text="Stored As"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Label
                                     Grid.Row="6"
                                     Grid.Column="1"
+                                    Text="{Binding SelectedGradeDisplay}"
                                     FontSize="13"
-                                    Keyboard="Numeric"
                                     TextColor="#E2E8F0"
-                                    Placeholder="e.g. 9.5" />
+                                    VerticalTextAlignment="Center" />
+
+                                <!-- Editable display/source title -->
+                                <Label
+                                    Style="{StaticResource AuroraLabel_Blue}"
+                                    Grid.Row="7"
+                                    Grid.Column="0"
+                                    Text="Title"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Entry
+                                    Grid.Row="7"
+                                    Grid.Column="1"
+                                    Style="{StaticResource AuroraEntry_Blue}"
+                                    Text="{Binding SelectedCard.Title, Mode=TwoWay}"
+                                    TextChanged="OnTitleChanged"
+                                    FontSize="13"
+                                    TextColor="#E2E8F0"
+                                    Placeholder="Card title" />
+
+                                <!-- User-overridable estimated value -->
+                                <Label
+                                    Style="{StaticResource AuroraLabel_Blue}"
+                                    Grid.Row="8"
+                                    Grid.Column="0"
+                                    Text="Est. Value"
+                                    TextColor="#A0AEC0"
+                                    FontSize="12" />
+                                <Border
+                                    Grid.Row="8"
+                                    Grid.Column="1"
+                                    Stroke="#00D9FF"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    BackgroundColor="#120A1A2A"
+                                    Padding="10,2">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="4">
+                                        <Label Text="$" TextColor="#6CD4FF" VerticalTextAlignment="Center" FontAttributes="Bold" />
+                                        <Entry Grid.Column="1"
+                                               Text="{Binding SelectedCard.EstimatedValue, Mode=TwoWay}"
+                                               Keyboard="Numeric"
+                                               BackgroundColor="Transparent"
+                                               TextColor="#F8FAFC"
+                                               FontSize="13"
+                                               Placeholder="Manual estimate" />
+                                    </Grid>
+                                </Border>
 
                                 <!-- Purchase price -->
                                 <Label
                                      Style="{StaticResource AuroraLabel_Blue}"
-                                    Grid.Row="7"
+                                    Grid.Row="9"
                                     Grid.Column="0"
                                     Text="Purchase"
                                     TextColor="#A0AEC0"
@@ -366,7 +432,7 @@
                                     x:Name="PriceEntry"
                                     Style="{StaticResource AuroraEntry_Blue}"
                                     Text="{Binding SelectedCard.PurchasePrice, StringFormat='{0:0.00}'}"
-                                    Grid.Row="7"
+                                    Grid.Row="9"
                                     Grid.Column="1"
                                     FontSize="13"
                                     Keyboard="Numeric"
@@ -375,14 +441,14 @@
                                 <!-- Sport -->
                                 <Label
                                     Style="{StaticResource AuroraLabel_Blue}"
-                                    Grid.Row="8"
+                                    Grid.Row="10"
                                     Grid.Column="0"
                                     Text="Sport"
                                     TextColor="#A0AEC0"
                                     FontSize="12" />
                                 <Picker
                                     x:Name="SportPicker"
-                                    Grid.Row="8"
+                                    Grid.Row="10"
                                     Grid.Column="1"
                                     FontSize="13"
                                     TextColor="#E2E8F0"

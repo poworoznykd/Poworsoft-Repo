@@ -23,9 +23,11 @@ namespace CollectIQ.Services
     /// </summary>
     public sealed class SqliteDatabase : IDatabase
     {
-        private const int CurrentDatabaseVersion = 2;
+        private const int CurrentDatabaseVersion = 4;
         private const string InitialMigrationName = "20260608_InitialCollectIQFoundation";
         private const string DatabaseSafetyMigrationName = "20260823_NonDestructiveDatabaseUpgradeSafety";
+        private const string DatabaseIdentityMigrationName = "20260823_DatabaseIdentityAndDiagnostics";
+        private const string AuthenticationIntegrityMigrationName = "20260823_AuthenticationIntegrityAndCredentialDurability";
         private const int MaximumAutomaticBackups = 12;
         private SQLiteAsyncConnection? connection;
         private bool isInitialized;
@@ -320,7 +322,228 @@ namespace CollectIQ.Services
                     {
                         await EnsureCardSchemaAsync();
                     });
+                existingVersion = 2;
             }
+
+            if (existingVersion < 3)
+            {
+                await RunMigrationTransactionAsync(
+                    3,
+                    DatabaseIdentityMigrationName,
+                    async () =>
+                    {
+                        await EnsureDatabaseIdentityAsync();
+                    });
+                existingVersion = 3;
+            }
+
+            if (existingVersion < 4)
+            {
+                await RunMigrationTransactionAsync(
+                    4,
+                    AuthenticationIntegrityMigrationName,
+                    async () =>
+                    {
+                        await EnsureAuthenticationIntegrityAsync();
+                    });
+                existingVersion = 4;
+            }
+
+            // Keep these checks idempotent on every launch. They never drop or
+            // recreate authentication tables. If an older build left a profile
+            // and credential out of sync, CollectIQ repairs the linkage in place.
+            await EnsureDatabaseIdentityAsync();
+            await EnsureAuthenticationIntegrityAsync();
+        }
+
+        /// <summary>
+        /// Creates a permanent identity inside this exact SQLite database file.
+        /// The value is written once and never intentionally changed. Developer
+        /// diagnostics can therefore prove whether the app is still using the
+        /// same database after an update.
+        /// </summary>
+        private async Task EnsureDatabaseIdentityAsync()
+        {
+            await connection!.ExecuteAsync(
+                "CREATE TABLE IF NOT EXISTS CollectIQDatabaseMetadata (" +
+                "MetadataKey TEXT PRIMARY KEY NOT NULL, " +
+                "MetadataValue TEXT NOT NULL);");
+
+            string? databaseId = await connection.ExecuteScalarAsync<string?>(
+                "SELECT MetadataValue FROM CollectIQDatabaseMetadata WHERE MetadataKey = 'DatabaseInstanceId' LIMIT 1;");
+
+            if (string.IsNullOrWhiteSpace(databaseId))
+            {
+                databaseId = Guid.NewGuid().ToString("D");
+                await connection.ExecuteAsync(
+                    "INSERT OR REPLACE INTO CollectIQDatabaseMetadata (MetadataKey, MetadataValue) VALUES (?, ?);",
+                    "DatabaseInstanceId",
+                    databaseId);
+                await connection.ExecuteAsync(
+                    "INSERT OR REPLACE INTO CollectIQDatabaseMetadata (MetadataKey, MetadataValue) VALUES (?, ?);",
+                    "CreatedUtc",
+                    DateTime.UtcNow.ToString("O"));
+            }
+
+            await connection.ExecuteAsync(
+                "INSERT OR REPLACE INTO CollectIQDatabaseMetadata (MetadataKey, MetadataValue) VALUES (?, ?);",
+                "LastOpenedUtc",
+                DateTime.UtcNow.ToString("O"));
+            await connection.ExecuteAsync(
+                "INSERT OR REPLACE INTO CollectIQDatabaseMetadata (MetadataKey, MetadataValue) VALUES (?, ?);",
+                "SchemaVersion",
+                CurrentDatabaseVersion.ToString());
+        }
+
+        /// <summary>
+        /// Repairs account/profile/credential linkage without deleting, replacing,
+        /// or recreating existing authentication rows. This is intentionally
+        /// idempotent and also runs on normal startup so old local accounts remain
+        /// usable after application updates.
+        /// </summary>
+        private async Task EnsureAuthenticationIntegrityAsync()
+        {
+            List<UserAccount> accounts = await connection!.Table<UserAccount>().ToListAsync();
+            List<UserProfile> profiles = await connection.Table<UserProfile>().ToListAsync();
+            List<UserCredential> credentials = await connection.Table<UserCredential>().ToListAsync();
+
+            foreach (UserAccount account in accounts)
+            {
+                string canonicalEmail = NormalizeEmail(
+                    !string.IsNullOrWhiteSpace(account.EmailNormalized)
+                        ? account.EmailNormalized
+                        : account.Email);
+
+                bool accountChanged = false;
+                if (!string.IsNullOrWhiteSpace(canonicalEmail) && account.EmailNormalized != canonicalEmail)
+                {
+                    account.EmailNormalized = canonicalEmail;
+                    accountChanged = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(account.Email) && !string.IsNullOrWhiteSpace(canonicalEmail))
+                {
+                    account.Email = canonicalEmail;
+                    accountChanged = true;
+                }
+
+                if (accountChanged)
+                {
+                    account.UpdatedUtc = DateTime.UtcNow;
+                    await connection.UpdateAsync(account);
+                }
+
+                UserProfile? profile = profiles.FirstOrDefault(item => item.UserAccountId == account.Id);
+                if (profile == null && !string.IsNullOrWhiteSpace(canonicalEmail))
+                {
+                    profile = profiles.FirstOrDefault(item =>
+                        NormalizeEmail(item.Email) == canonicalEmail);
+
+                    if (profile != null)
+                    {
+                        profile.UserAccountId = account.Id;
+                        profile.UpdatedUtc = DateTime.UtcNow;
+                        await connection.UpdateAsync(profile);
+                    }
+                }
+
+                if (profile == null)
+                {
+                    profile = new UserProfile
+                    {
+                        UserAccountId = account.Id,
+                        Email = canonicalEmail,
+                        DisplayName = account.IsGuest ? "Guest" : (!string.IsNullOrWhiteSpace(account.Email) ? account.Email : canonicalEmail),
+                        Role = account.IsGuest ? UserRoles.Guest : UserRoles.Regular,
+                        CreatedUtc = DateTime.UtcNow,
+                        UpdatedUtc = DateTime.UtcNow
+                    };
+
+                    await connection.InsertAsync(profile);
+                    profiles.Add(profile);
+                }
+
+                UserCredential? localCredential = credentials.FirstOrDefault(item =>
+                    item.UserAccountId == account.Id &&
+                    string.Equals(item.AuthProvider, "Local", StringComparison.OrdinalIgnoreCase));
+
+                // Older CollectIQ versions stored the hash on UserProfile. If the
+                // credential row is absent, restore it from that surviving hash.
+                if (localCredential == null && !account.IsGuest && !string.IsNullOrWhiteSpace(profile.PasswordHash))
+                {
+                    localCredential = new UserCredential
+                    {
+                        UserAccountId = account.Id,
+                        AuthProvider = "Local",
+                        PasswordHash = profile.PasswordHash,
+                        PasswordAlgorithm = profile.PasswordHash.StartsWith("PBKDF2$", StringComparison.OrdinalIgnoreCase)
+                            ? "PBKDF2-SHA256-100000"
+                            : "Legacy-SHA256",
+                        LastChangedUtc = DateTime.UtcNow,
+                        CreatedUtc = DateTime.UtcNow,
+                        UpdatedUtc = DateTime.UtcNow
+                    };
+
+                    await connection.InsertAsync(localCredential);
+                    credentials.Add(localCredential);
+                }
+                else if (localCredential != null && string.IsNullOrWhiteSpace(localCredential.PasswordHash) && !string.IsNullOrWhiteSpace(profile.PasswordHash))
+                {
+                    localCredential.PasswordHash = profile.PasswordHash;
+                    localCredential.PasswordAlgorithm = profile.PasswordHash.StartsWith("PBKDF2$", StringComparison.OrdinalIgnoreCase)
+                        ? "PBKDF2-SHA256-100000"
+                        : "Legacy-SHA256";
+                    localCredential.LastChangedUtc = DateTime.UtcNow;
+                    localCredential.UpdatedUtc = DateTime.UtcNow;
+                    await connection.UpdateAsync(localCredential);
+                }
+
+                // Keep the legacy hash as a temporary local recovery copy while
+                // CollectIQ still supports offline/local password authentication.
+                // The credential table remains the authoritative source.
+                if (localCredential != null &&
+                    !string.IsNullOrWhiteSpace(localCredential.PasswordHash) &&
+                    profile.PasswordHash != localCredential.PasswordHash)
+                {
+                    profile.PasswordHash = localCredential.PasswordHash;
+                    profile.UserAccountId = account.Id;
+                    profile.UpdatedUtc = DateTime.UtcNow;
+                    await connection.UpdateAsync(profile);
+                }
+            }
+
+            // Repair orphaned legacy profiles by attaching them to an existing
+            // account with the same normalized email. Never invent a new account
+            // when an existing identity can be recovered.
+            foreach (UserProfile profile in profiles.Where(item => string.IsNullOrWhiteSpace(item.UserAccountId)))
+            {
+                string profileEmail = NormalizeEmail(profile.Email);
+                if (string.IsNullOrWhiteSpace(profileEmail))
+                {
+                    continue;
+                }
+
+                UserAccount? matchingAccount = accounts.FirstOrDefault(item =>
+                    NormalizeEmail(item.EmailNormalized) == profileEmail ||
+                    NormalizeEmail(item.Email) == profileEmail);
+
+                if (matchingAccount != null)
+                {
+                    profile.UserAccountId = matchingAccount.Id;
+                    profile.UpdatedUtc = DateTime.UtcNow;
+                    await connection.UpdateAsync(profile);
+                }
+            }
+
+            await connection.ExecuteAsync(
+                "CREATE INDEX IF NOT EXISTS IX_UserProfile_UserAccountId ON UserProfile(UserAccountId);");
+            await connection.ExecuteAsync(
+                "CREATE INDEX IF NOT EXISTS IX_UserCredential_UserAccount_Provider ON UserCredential(UserAccountId, AuthProvider);");
+
+            await connection.ExecuteAsync(
+                "INSERT OR REPLACE INTO CollectIQDatabaseMetadata (MetadataKey, MetadataValue) VALUES (?, ?);",
+                "AuthenticationIntegrityLastCheckedUtc",
+                DateTime.UtcNow.ToString("O"));
         }
 
         /// <summary>
@@ -618,7 +841,35 @@ namespace CollectIQ.Services
             profile.Role = UserRoles.Normalize(profile.Role);
             profile.UpdatedUtc = DateTime.UtcNow;
 
-            await connection!.InsertOrReplaceAsync(profile);
+            UserProfile? existing = await connection!.Table<UserProfile>()
+                .Where(item => item.Id == profile.Id)
+                .FirstOrDefaultAsync();
+
+            if (existing == null && !string.IsNullOrWhiteSpace(profile.UserAccountId))
+            {
+                existing = await connection.Table<UserProfile>()
+                    .Where(item => item.UserAccountId == profile.UserAccountId)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (existing != null)
+            {
+                profile.Id = existing.Id;
+                profile.CreatedUtc = existing.CreatedUtc;
+
+                // Never accidentally erase the local recovery hash because a UI
+                // profile save did not populate the legacy PasswordHash property.
+                if (string.IsNullOrWhiteSpace(profile.PasswordHash))
+                {
+                    profile.PasswordHash = existing.PasswordHash;
+                }
+
+                await connection.UpdateAsync(profile);
+            }
+            else
+            {
+                await connection.InsertAsync(profile);
+            }
         }
 
         /// <summary>
@@ -660,7 +911,28 @@ namespace CollectIQ.Services
 
             account.UpdatedUtc = DateTime.UtcNow;
 
-            await connection!.InsertOrReplaceAsync(account);
+            UserAccount? existing = await connection!.Table<UserAccount>()
+                .Where(item => item.Id == account.Id)
+                .FirstOrDefaultAsync();
+
+            if (existing == null && !string.IsNullOrWhiteSpace(account.EmailNormalized))
+            {
+                existing = await connection.Table<UserAccount>()
+                    .Where(item => item.EmailNormalized == account.EmailNormalized)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (existing != null)
+            {
+                account.Id = existing.Id;
+                account.CreatedUtc = existing.CreatedUtc;
+                await connection.UpdateAsync(account);
+            }
+            else
+            {
+                await connection.InsertAsync(account);
+            }
+
             return account;
         }
 
@@ -691,7 +963,39 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
             credential.UpdatedUtc = DateTime.UtcNow;
-            await connection!.InsertOrReplaceAsync(credential);
+
+            UserCredential? existing = await connection!.Table<UserCredential>()
+                .Where(item => item.Id == credential.Id)
+                .FirstOrDefaultAsync();
+
+            if (existing == null && !string.IsNullOrWhiteSpace(credential.UserAccountId))
+            {
+                existing = await connection.Table<UserCredential>()
+                    .Where(item => item.UserAccountId == credential.UserAccountId && item.AuthProvider == credential.AuthProvider)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (existing != null)
+            {
+                credential.Id = existing.Id;
+                credential.CreatedUtc = existing.CreatedUtc;
+
+                // A partial update must never blank an already stored password.
+                if (string.IsNullOrWhiteSpace(credential.PasswordHash) &&
+                    string.Equals(credential.AuthProvider, "Local", StringComparison.OrdinalIgnoreCase))
+                {
+                    credential.PasswordHash = existing.PasswordHash;
+                    credential.PasswordSalt = existing.PasswordSalt;
+                    credential.PasswordAlgorithm = existing.PasswordAlgorithm;
+                    credential.LastChangedUtc = existing.LastChangedUtc;
+                }
+
+                await connection.UpdateAsync(credential);
+            }
+            else
+            {
+                await connection.InsertAsync(credential);
+            }
         }
 
         /// <summary>

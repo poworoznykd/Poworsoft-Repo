@@ -24,6 +24,7 @@
 //
 
 using CollectIQ.Models;
+using CollectIQ.Models.SportsCardsPro;
 using CollectIQ.Services;
 using Microsoft.Maui.ApplicationModel;
 using System;
@@ -35,6 +36,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows.Input;
 
 namespace CollectIQ.ViewModels
 {
@@ -46,10 +48,11 @@ namespace CollectIQ.ViewModels
         #region Private Constants
 
         /// <summary>
-        /// Maximum amount of rows rendered.
-        /// Keep this low while testing Android performance.
+        /// We fetch a deeper candidate pool than we initially render.  This lets
+        /// the user load more parallels without rerunning the search.
         /// </summary>
-        private const int MaxResultsToDisplay = 15;
+        private const int MinimumFetchPool = 40;
+        private const int MaximumFetchPool = 80;
 
         #endregion
 
@@ -66,6 +69,9 @@ namespace CollectIQ.ViewModels
         private int averageCountFilter;
         private string lastImageBase64;
         private string lastManualQuery;
+        private SportsCardsProGradeOption selectedGrade;
+        private int resultsPerPage;
+        private readonly List<EbayListing> bufferedResults = new();
 
         #endregion
 
@@ -90,6 +96,9 @@ namespace CollectIQ.ViewModels
             averageCountFilter = 10;
             lastImageBase64 = string.Empty;
             lastManualQuery = string.Empty;
+            selectedGrade = SportsCardsProGradeCatalog.Ungraded;
+            resultsPerPage = 10;
+            LoadMoreResultsCommand = new Command(async () => await LoadMoreResultsAsync(), () => HasMoreResults && !IsBusy);
         }
 
         #endregion
@@ -109,6 +118,7 @@ namespace CollectIQ.ViewModels
                     isLoadingResults = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsBusy));
+                    (LoadMoreResultsCommand as Command)?.ChangeCanExecute();
                 }
             }
         }
@@ -168,6 +178,7 @@ namespace CollectIQ.ViewModels
                     isSearching = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsBusy));
+                    (LoadMoreResultsCommand as Command)?.ChangeCanExecute();
                 }
             }
         }
@@ -204,6 +215,86 @@ namespace CollectIQ.ViewModels
 
         public string LastManualQuery => lastManualQuery;
 
+        public IReadOnlyList<SportsCardsProGradeOption> GradeOptions => SportsCardsProGradeCatalog.All;
+
+        public SportsCardsProGradeOption SelectedGrade
+        {
+            get => selectedGrade;
+            set
+            {
+                SportsCardsProGradeOption next = value ?? SportsCardsProGradeCatalog.Ungraded;
+                if (!ReferenceEquals(selectedGrade, next))
+                {
+                    selectedGrade = next;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedGradeLabel));
+                }
+            }
+        }
+
+        public string SelectedGradeLabel => SelectedGrade?.Label ?? "Ungraded";
+
+        /// <summary>
+        /// Available initial/next-page result sizes. Ten is the default.
+        /// </summary>
+        public IReadOnlyList<int> ResultCountOptions { get; } = new[] { 5, 10, 15, 20 };
+
+        public int ResultsPerPage
+        {
+            get => resultsPerPage;
+            set
+            {
+                int next = ResultCountOptions.Contains(value) ? value : 10;
+                if (resultsPerPage != next)
+                {
+                    resultsPerPage = next;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LoadMoreButtonText));
+                }
+            }
+        }
+
+        public bool HasMoreResults => Listings.Count < bufferedResults.Count;
+
+        public string LoadMoreButtonText
+        {
+            get
+            {
+                int remaining = Math.Max(0, bufferedResults.Count - Listings.Count);
+                int nextCount = Math.Min(ResultsPerPage, remaining);
+                return nextCount > 0 ? $"LOAD {nextCount} MORE RESULTS" : "NO MORE RESULTS";
+            }
+        }
+
+        public string ResultsSummary => bufferedResults.Count == 0
+            ? string.Empty
+            : $"Showing {Listings.Count} of {bufferedResults.Count} matches";
+
+        public ICommand LoadMoreResultsCommand { get; }
+
+        private int GetFetchLimit()
+        {
+            return Math.Min(MaximumFetchPool, Math.Max(MinimumFetchPool, ResultsPerPage * 4));
+        }
+
+        public string BuildGradeAwareQuery(string query)
+        {
+            string baseQuery = query?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(baseQuery))
+                return string.Empty;
+
+            if (SelectedGrade == null || string.Equals(SelectedGrade.Label, "Ungraded", StringComparison.OrdinalIgnoreCase))
+                return baseQuery + " raw";
+
+            if (string.IsNullOrWhiteSpace(SelectedGrade.SearchSuffix))
+                return baseQuery;
+
+            if (baseQuery.Contains(SelectedGrade.SearchSuffix, StringComparison.OrdinalIgnoreCase))
+                return baseQuery;
+
+            return $"{baseQuery} {SelectedGrade.SearchSuffix}".Trim();
+        }
+
         #endregion
 
         #region Public Search Methods
@@ -223,16 +314,17 @@ namespace CollectIQ.ViewModels
                 }
 
                 lastManualQuery = query.Trim();
+                string gradedQuery = BuildGradeAwareQuery(lastManualQuery);
 
                 IsSearching = true;
-                StatusText = $"Searching eBay for: {lastManualQuery}";
+                StatusText = $"Searching eBay for {SelectedGradeLabel}: {lastManualQuery}";
 
                 //// Give the UI one frame to show the spinner/status text.
                 //await Task.Delay(100);
                
                 List<EbayListing> results = await ebayService.SearchListingsAsync(
-                    lastManualQuery,
-                    limit: Math.Max(averageCountFilter, MaxResultsToDisplay),
+                    gradedQuery,
+                    limit: Math.Max(averageCountFilter, GetFetchLimit()),
                     listingTypeFilter: listingTypeFilter,
                     daysRange: daysRangeFilter);
 
@@ -311,7 +403,7 @@ namespace CollectIQ.ViewModels
                 {
                     results = await ebayService.SearchByImageAsync(
                         lastImageBase64,
-                        limit: Math.Max(averageCountFilter, MaxResultsToDisplay),
+                        limit: Math.Max(averageCountFilter, GetFetchLimit()),
                         listingTypeFilter: "active",
                         daysRange: daysRangeFilter);
                 }
@@ -367,16 +459,14 @@ namespace CollectIQ.ViewModels
 
                     return results
                         .Where(r => r != null)
-                        .Take(MaxResultsToDisplay)
+                        .Take(MaximumFetchPool)
                         .Select(listing =>
                         {
                             listing.IsSelected = false;
-
                             if (!listing.EstimatedValue.HasValue)
                             {
                                 listing.EstimatedValue = listing.Price;
                             }
-
                             return listing;
                         })
                         .ToList();
@@ -386,42 +476,76 @@ namespace CollectIQ.ViewModels
                 {
                     SelectedListing = null;
                     Listings.Clear();
-                    StatusText = $"Preparing {preparedResults.Count} results...";
+                    bufferedResults.Clear();
+                    bufferedResults.AddRange(preparedResults);
+                    StatusText = $"Found {bufferedResults.Count} candidate matches.";
+                    NotifyResultPagingChanged();
                 });
 
-                const int BatchSize = 5;
-
-                for (int i = 0; i < preparedResults.Count; i += BatchSize)
-                {
-                    List<EbayListing> batch = preparedResults
-                        .Skip(i)
-                        .Take(BatchSize)
-                        .ToList();
-
-                    await MainThread.InvokeOnMainThreadAsync(() =>
-                    {
-                        foreach (EbayListing listing in batch)
-                        {
-                            Listings.Add(listing);
-                        }
-
-                        StatusText =
-                            $"Loading result {Listings.Count} of {preparedResults.Count}...";
-                    });
-
-                    // Allows Android to draw/respond between batches without turning one search into a long wait.
-                    await Task.Delay(50);
-                }
-
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    StatusText = $"Loaded {Listings.Count} results.";
-                });
+                await AppendNextPageAsync();
             }
             finally
             {
                 IsLoadingResults = false;
+                NotifyResultPagingChanged();
             }
+        }
+
+        /// <summary>
+        /// Appends the next user-selected batch without replacing the cards that
+        /// are already on screen.
+        /// </summary>
+        public async Task LoadMoreResultsAsync()
+        {
+            if (IsBusy || !HasMoreResults)
+                return;
+
+            IsLoadingResults = true;
+            try
+            {
+                await AppendNextPageAsync();
+            }
+            finally
+            {
+                IsLoadingResults = false;
+                NotifyResultPagingChanged();
+            }
+        }
+
+        private async Task AppendNextPageAsync()
+        {
+            int startIndex = Listings.Count;
+            List<EbayListing> nextPage = bufferedResults
+                .Skip(startIndex)
+                .Take(ResultsPerPage)
+                .ToList();
+
+            const int UiBatchSize = 5;
+            for (int i = 0; i < nextPage.Count; i += UiBatchSize)
+            {
+                List<EbayListing> batch = nextPage.Skip(i).Take(UiBatchSize).ToList();
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    foreach (EbayListing listing in batch)
+                        Listings.Add(listing);
+                    NotifyResultPagingChanged();
+                });
+                await Task.Delay(30);
+            }
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StatusText = ResultsSummary;
+                NotifyResultPagingChanged();
+            });
+        }
+
+        private void NotifyResultPagingChanged()
+        {
+            OnPropertyChanged(nameof(HasMoreResults));
+            OnPropertyChanged(nameof(LoadMoreButtonText));
+            OnPropertyChanged(nameof(ResultsSummary));
+            (LoadMoreResultsCommand as Command)?.ChangeCanExecute();
         }
 
         /// <summary>
@@ -433,8 +557,10 @@ namespace CollectIQ.ViewModels
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 Listings.Clear();
+                bufferedResults.Clear();
                 SelectedListing = null;
                 StatusText = newStatusText;
+                NotifyResultPagingChanged();
             });
         }
 
@@ -477,7 +603,7 @@ namespace CollectIQ.ViewModels
 
             List<EbayListing> identified = await ebayService.SearchByImageAsync(
                 lastImageBase64,
-                limit: 5,
+                limit: GetFetchLimit(),
                 listingTypeFilter: "active",
                 daysRange: lookbackDays);
 
@@ -500,14 +626,15 @@ namespace CollectIQ.ViewModels
                 return identified;
             }
 
-            StatusText = $"Checking sold comps for: {bestTitle}";
-            Debug.WriteLine($"[eBay IMAGE] Best visual match title: {bestTitle}");
+            string gradedTitle = BuildGradeAwareQuery(bestTitle);
+            StatusText = $"Checking {SelectedGradeLabel} sold comps for: {bestTitle}";
+            Debug.WriteLine($"[eBay IMAGE] Best visual match title: {bestTitle}; graded query: {gradedTitle}");
 
             try
             {
                 List<EbayListing> soldForTitle = await EbayService.SearchSoldAsync(
-                    bestTitle,
-                    limit: Math.Max(averageCountFilter * 3, 30),
+                    gradedTitle,
+                    limit: Math.Max(GetFetchLimit(), averageCountFilter * 3),
                     daysRange: lookbackDays);
 
                 if (soldForTitle != null &&

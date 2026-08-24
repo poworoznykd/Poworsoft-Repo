@@ -1,4 +1,4 @@
-﻿/*
+/*
 * FILE            : Card.cs
 * PROJECT         : CollectIQ (Mobile Application)
 * PROGRAMMER      : Darryl Poworoznyk
@@ -121,8 +121,21 @@ namespace CollectIQ.Models
         /// IMPORTANT: some pages historically bind to SelectedCard.Name.
         /// Title is the real stored field; Name is an alias (see below).
         /// </summary>
+        private string title = string.Empty;
+
         [Indexed]
-        public string Title { get; set; } = string.Empty;
+        public string Title
+        {
+            get => title;
+            set
+            {
+                string next = value ?? string.Empty;
+                if (title == next) return;
+                title = next;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Name));
+            }
+        }
 
         /// <summary>
         /// Alias for Title.

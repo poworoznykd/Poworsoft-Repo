@@ -230,14 +230,71 @@ namespace CollectIQ.Services
             if (s.GradedPrice.HasValue) score += 2;
             if (s.ManualOnlyPrice.HasValue) score += 2;
             if (s.Bgs10Price.HasValue) score += 1;
+            if (s.Condition9Price.HasValue) score += 1;
+            if (s.Condition10Price.HasValue) score += 1;
+            if (s.Condition13Price.HasValue) score += 1;
+            if (s.Condition14Price.HasValue) score += 1;
+            if (s.Condition15Price.HasValue) score += 1;
+            if (s.Condition16Price.HasValue) score += 1;
             if (s.Condition17Price.HasValue) score += 1;
             if (s.Condition18Price.HasValue) score += 1;
+            if (s.Condition19Price.HasValue) score += 1;
+            if (s.Condition20Price.HasValue) score += 1;
+            if (s.Condition21Price.HasValue) score += 1;
+            if (s.Condition22Price.HasValue) score += 1;
 
             // Sales volume is a confidence signal
             if (s.SalesVolume.HasValue) 
                     score += 1;
 
             return score;
+        }
+
+        public static decimal? GetPriceForGrade(
+            SportCardsProPricesSnapshot? snapshot,
+            SportsCardsProGradeOption? gradeOption)
+        {
+            if (snapshot == null)
+                return null;
+
+            gradeOption ??= SportsCardsProGradeCatalog.Ungraded;
+
+            long? pennies = gradeOption.ApiPriceKey switch
+            {
+                "loose-price" => snapshot.LoosePrice,
+                "condition-9-price" => snapshot.Condition9Price,
+                "condition-10-price" => snapshot.Condition10Price,
+                "condition-13-price" => snapshot.Condition13Price,
+                "condition-14-price" => snapshot.Condition14Price,
+                "condition-15-price" => snapshot.Condition15Price,
+                "condition-16-price" => snapshot.Condition16Price,
+                "cib-price" => snapshot.CibPrice,
+                "new-price" => snapshot.NewPrice,
+                "graded-price" => snapshot.GradedPrice,
+                "box-only-price" => snapshot.BoxOnlyPrice,
+                "manual-only-price" => snapshot.ManualOnlyPrice,
+                "bgs-10-price" => snapshot.Bgs10Price,
+                "condition-17-price" => snapshot.Condition17Price,
+                "condition-18-price" => snapshot.Condition18Price,
+                "condition-19-price" => snapshot.Condition19Price,
+                "condition-20-price" => snapshot.Condition20Price,
+                "condition-21-price" => snapshot.Condition21Price,
+                "condition-22-price" => snapshot.Condition22Price,
+                _ => null
+            };
+
+            return pennies.HasValue && pennies.Value > 0
+                ? pennies.Value / 100m
+                : null;
+        }
+
+        public async Task<decimal?> GetBestMatchPriceForGradeAsync(
+            string query,
+            SportsCardsProGradeOption gradeOption,
+            CancellationToken cancellationToken = default)
+        {
+            SportCardsProItem? item = await GetBestMatchAsync(query, cancellationToken);
+            return GetPriceForGrade(item?.CardSnapShot, gradeOption);
         }
 
         private async Task<string> GetFirstOkJsonAsync(string path, CancellationToken cancellationToken)

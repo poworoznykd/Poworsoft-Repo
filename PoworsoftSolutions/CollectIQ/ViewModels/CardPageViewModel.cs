@@ -1,5 +1,6 @@
-﻿using CollectIQ.Interfaces;
+using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Models.SportsCardsPro;
 using CollectIQ.Services;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,18 @@ namespace CollectIQ.ViewModels
 {
     public class CardPageViewModel : BaseViewModel
     {
+        private string headerTitle;
+        public string HeaderTitle
+        {
+            get => headerTitle;
+            private set
+            {
+                if (headerTitle == value) return;
+                headerTitle = value;
+                OnPropertyChanged();
+            }
+        }
+
         private string cardSubTitle;
         public string CardSubTitle
         {
@@ -40,12 +53,47 @@ namespace CollectIQ.ViewModels
 
         public CardPageViewModel(Card card)
         {
-            this.selectedCard = card;
-            string team = card.Team?.Name ?? string.Empty;
-            string set = card.Set ?? string.Empty;
-            string year = card.Year > 0 ? card.Year.ToString() : string.Empty;
-            string number = card.Number ?? string.Empty;
-            cardSubTitle = $"{year} - {team} - {set} - #{number}".Trim(' ', '-');
+            this.selectedCard = card ?? new Card();
+            RefreshHeader(useStoredTitle: true);
+        }
+
+        /// <summary>
+        /// Refreshes the large header so edits made below are immediately visible.
+        /// The stored marketplace/source title remains available on the card, but
+        /// after the user edits card metadata the header becomes a live summary of
+        /// the current card fields instead of being frozen to the original match.
+        /// </summary>
+        public void RefreshHeader(bool useStoredTitle = false)
+        {
+            Card card = SelectedCard ?? new Card();
+            string player = card.Player?.FullName?.Trim() ?? string.Empty;
+            string year = card.Year.HasValue && card.Year.Value > 0 ? card.Year.Value.ToString() : string.Empty;
+            string set = card.Set?.Trim() ?? string.Empty;
+            string number = card.Number?.Trim() ?? string.Empty;
+            string team = card.Team?.Name?.Trim() ?? string.Empty;
+
+            if (useStoredTitle && !string.IsNullOrWhiteSpace(card.Title))
+            {
+                HeaderTitle = card.Title.Trim();
+            }
+            else
+            {
+                string[] titleParts = new[] { year, set, player }
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToArray();
+                string rebuilt = string.Join(" ", titleParts);
+                if (!string.IsNullOrWhiteSpace(number))
+                    rebuilt = $"{rebuilt} #{number}".Trim();
+                HeaderTitle = string.IsNullOrWhiteSpace(rebuilt)
+                    ? (!string.IsNullOrWhiteSpace(card.Title) ? card.Title : "Card Detail")
+                    : rebuilt;
+            }
+
+            List<string> subtitleParts = new();
+            if (!string.IsNullOrWhiteSpace(team)) subtitleParts.Add(team);
+            if (!string.IsNullOrWhiteSpace(set)) subtitleParts.Add(set);
+            if (!string.IsNullOrWhiteSpace(number)) subtitleParts.Add($"#{number}");
+            CardSubTitle = string.Join(" • ", subtitleParts);
         }
 
         // ============================================================
@@ -56,6 +104,35 @@ namespace CollectIQ.ViewModels
             Enum.GetValues(typeof(CollectingCardCategory))
                 .Cast<CollectingCardCategory>()
                 .ToList();
+
+        public IReadOnlyList<SportsCardsProGradeOption> GradeOptions => SportsCardsProGradeCatalog.All;
+
+        public SportsCardsProGradeOption SelectedGradeOption
+        {
+            get => SportsCardsProGradeCatalog.FromCard(SelectedCard);
+            set
+            {
+                SportsCardsProGradeOption selected = value ?? SportsCardsProGradeCatalog.Ungraded;
+                selected.ApplyToCard(SelectedCard);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedGradeDisplay));
+            }
+        }
+
+        public string SelectedGradeDisplay
+        {
+            get
+            {
+                Grading grading = SelectedCard?.Grading ?? new Grading();
+                if (!grading.Grade.HasValue)
+                    return "Ungraded";
+
+                string company = grading.Company?.Trim() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(company)
+                    ? grading.Grade.Value.ToString("0.##")
+                    : $"{company} {grading.Grade.Value:0.##}";
+            }
+        }
 
         public CollectingCardCategory SelectedSport
         {

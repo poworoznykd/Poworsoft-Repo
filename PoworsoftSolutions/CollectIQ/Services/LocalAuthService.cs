@@ -12,6 +12,7 @@
 //
 
 using System.Security.Cryptography;
+using System.Collections.Generic;
 using CollectIQ.Enums;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
@@ -28,6 +29,7 @@ namespace CollectIQ.Services
     public sealed class LocalAuthService : IAuthService
     {
         private const string SessionKey = "current_user_email";
+        private const string SessionUserAccountIdKey = "current_user_account_id";
         private const string SessionProviderKey = "current_auth_provider";
         private const string LastLoginKey = "last_login";
         private const int PasswordIterations = 100000;
@@ -122,8 +124,9 @@ namespace CollectIQ.Services
             };
 
             await database.UpsertUserProfileAsync(profile);
+            await VerifyPersistedLocalAuthenticationAsync(account.Id, password, passwordHash);
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
-            await StoreSessionAsync(normalizedEmail, AuthProvider.Local);
+            await StoreSessionAsync(normalizedEmail, account.Id, AuthProvider.Local);
             await SetCurrentUserAsync(profile);
 
             await database.RecordLoginHistoryAsync(new LoginHistory
@@ -150,12 +153,48 @@ namespace CollectIQ.Services
 
             string normalizedEmail = NormalizeEmail(email);
 
+            // Resolve the identity defensively. Older/local database revisions can
+            // leave Email, EmailNormalized, and UserProfile.Email out of sync even
+            // though the UserAccount/Profile records themselves still exist.
+            // Never create a replacement account merely because one email column
+            // stopped matching.
             UserAccount? account = await database.GetUserAccountByEmailAsync(normalizedEmail);
             UserProfile? profile = await database.GetUserProfileByEmailAsync(normalizedEmail);
+
+            if (account == null)
+            {
+                SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
+
+                List<UserAccount> accounts = await connection.Table<UserAccount>().ToListAsync();
+                account = accounts.FirstOrDefault(item =>
+                    string.Equals(NormalizeEmail(item.EmailNormalized), normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
+
+                if (account == null)
+                {
+                    List<UserProfile> profiles = await connection.Table<UserProfile>().ToListAsync();
+                    profile ??= profiles.FirstOrDefault(item =>
+                        string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
+
+                    if (profile != null && !string.IsNullOrWhiteSpace(profile.UserAccountId))
+                    {
+                        account = accounts.FirstOrDefault(item => item.Id == profile.UserAccountId);
+                    }
+                }
+            }
 
             if (account == null && profile != null)
             {
                 account = await CreateAccountForLegacyProfileAsync(profile);
+            }
+
+            if (account != null && profile == null)
+            {
+                SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
+                List<UserProfile> profiles = await connection.Table<UserProfile>().ToListAsync();
+                profile = profiles.FirstOrDefault(item => item.UserAccountId == account.Id)
+                    ?? profiles.FirstOrDefault(item =>
+                        string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
             }
 
             if (account == null)
@@ -185,6 +224,26 @@ namespace CollectIQ.Services
             {
                 await RecordFailedLoginAsync(account.Id, normalizedEmail, "Invalid password.");
                 return false;
+            }
+
+            // If login succeeded using the legacy profile hash, immediately heal
+            // the missing authoritative UserCredential row before continuing.
+            if (credential == null)
+            {
+                credential = new UserCredential
+                {
+                    UserAccountId = account.Id,
+                    AuthProvider = AuthProvider.Local.ToString(),
+                    PasswordHash = storedHash,
+                    PasswordAlgorithm = storedHash.StartsWith("PBKDF2$", StringComparison.OrdinalIgnoreCase)
+                        ? "PBKDF2-SHA256-100000"
+                        : "Legacy-SHA256",
+                    LastChangedUtc = DateTime.UtcNow,
+                    CreatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow
+                };
+
+                await database.UpsertUserCredentialAsync(credential);
             }
 
             // Upgrade older SHA256 hashes to PBKDF2 after a successful login.
@@ -219,10 +278,15 @@ namespace CollectIQ.Services
             profile ??= await EnsureProfileForAccountAsync(account, UserRoles.Regular);
             profile.LastLoginUtc = DateTime.UtcNow;
             profile.UserAccountId = account.Id;
+            if (!string.IsNullOrWhiteSpace(credential?.PasswordHash))
+            {
+                profile.PasswordHash = credential.PasswordHash;
+            }
             await database.UpsertUserProfileAsync(profile);
+            await VerifyPersistedLocalAuthenticationAsync(account.Id, password, credential?.PasswordHash ?? storedHash);
 
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
-            await StoreSessionAsync(normalizedEmail, AuthProvider.Local);
+            await StoreSessionAsync(normalizedEmail, account.Id, AuthProvider.Local);
             await SetCurrentUserAsync(profile);
 
             await database.RecordLoginHistoryAsync(new LoginHistory
@@ -244,6 +308,7 @@ namespace CollectIQ.Services
         public Task<bool> SignOutAsync()
         {
             SecureStorage.Remove(SessionKey);
+            SecureStorage.Remove(SessionUserAccountIdKey);
             SecureStorage.Remove(SessionProviderKey);
             SecureStorage.Remove(LastLoginKey);
 
@@ -259,15 +324,9 @@ namespace CollectIQ.Services
         /// <returns>True when the user is signed in; otherwise false.</returns>
         public async Task<bool> IsSignedInAsync()
         {
-            string? email = await SecureStorage.GetAsync(SessionKey);
             string? lastLogin = await SecureStorage.GetAsync(LastLoginKey);
 
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(lastLogin))
-            {
-                return false;
-            }
-
-            if (!DateTime.TryParse(lastLogin, out DateTime timestamp))
+            if (string.IsNullOrWhiteSpace(lastLogin) || !DateTime.TryParse(lastLogin, out DateTime timestamp))
             {
                 return false;
             }
@@ -277,8 +336,7 @@ namespace CollectIQ.Services
                 return false;
             }
 
-            UserProfile? profile = await database.GetUserProfileByEmailAsync(email);
-
+            UserProfile? profile = await ResolveCurrentSessionProfileAsync();
             if (profile == null)
             {
                 return false;
@@ -303,14 +361,7 @@ namespace CollectIQ.Services
         /// <returns>The current user profile, or null.</returns>
         public async Task<UserProfile?> GetCurrentUserProfileAsync()
         {
-            string? email = await GetCurrentUserEmailAsync();
-
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                return null;
-            }
-
-            UserProfile? profile = await database.GetUserProfileByEmailAsync(email);
+            UserProfile? profile = await ResolveCurrentSessionProfileAsync();
 
             if (profile != null)
             {
@@ -361,7 +412,7 @@ namespace CollectIQ.Services
 
             await database.UpsertUserProfileAsync(profile);
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
-            await StoreSessionAsync(normalizedEmail, AuthProvider.Guest);
+            await StoreSessionAsync(normalizedEmail, account.Id, AuthProvider.Guest);
             await SetCurrentUserAsync(profile);
 
             return true;
@@ -470,7 +521,7 @@ namespace CollectIQ.Services
 
             await database.UpsertUserProfileAsync(profile);
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
-            await StoreSessionAsync(normalizedEmail, provider);
+            await StoreSessionAsync(normalizedEmail, account.Id, provider);
             await SetCurrentUserAsync(profile);
 
             await database.RecordLoginHistoryAsync(new LoginHistory
@@ -488,6 +539,36 @@ namespace CollectIQ.Services
         #endregion
 
         #region Private Helpers
+
+        /// <summary>
+        /// Refuses to report a successful registration/login until the local
+        /// credential can be read back from SQLite and verified.
+        /// </summary>
+        private async Task VerifyPersistedLocalAuthenticationAsync(
+            string userAccountId,
+            string plainTextPassword,
+            string? expectedHash)
+        {
+            UserCredential? persisted = await database.GetLocalCredentialAsync(userAccountId);
+
+            if (persisted == null || string.IsNullOrWhiteSpace(persisted.PasswordHash))
+            {
+                throw new InvalidOperationException(
+                    "CollectIQ could not persist the local login credential. The account was not reported as successfully authenticated.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(expectedHash) && persisted.PasswordHash != expectedHash)
+            {
+                throw new InvalidOperationException(
+                    "CollectIQ read back a different password hash than the one just stored. Authentication was stopped to protect the account.");
+            }
+
+            if (!VerifyPassword(plainTextPassword, persisted.PasswordHash))
+            {
+                throw new InvalidOperationException(
+                    "CollectIQ saved the credential but could not verify it immediately afterward. Authentication was stopped.");
+            }
+        }
 
         /// <summary>
         /// Creates an account for an older UserProfile-only record.
@@ -541,10 +622,22 @@ namespace CollectIQ.Services
         /// <returns>The profile.</returns>
         private async Task<UserProfile> EnsureProfileForAccountAsync(UserAccount account, string role)
         {
-            UserProfile? profile = await database.GetUserProfileByEmailAsync(account.EmailNormalized);
+            SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
+            UserProfile? profile = await connection.Table<UserProfile>()
+                .Where(item => item.UserAccountId == account.Id)
+                .FirstOrDefaultAsync();
+
+            profile ??= await database.GetUserProfileByEmailAsync(account.EmailNormalized);
 
             if (profile != null)
             {
+                // Repair linkage in place instead of creating a second profile.
+                if (profile.UserAccountId != account.Id)
+                {
+                    profile.UserAccountId = account.Id;
+                    await database.UpsertUserProfileAsync(profile);
+                }
+
                 return profile;
             }
 
@@ -586,11 +679,114 @@ namespace CollectIQ.Services
         /// </summary>
         /// <param name="email">The normalized email address.</param>
         /// <param name="provider">The auth provider.</param>
-        private static async Task StoreSessionAsync(string email, AuthProvider provider)
+        private static async Task StoreSessionAsync(string email, string userAccountId, AuthProvider provider)
         {
-            await SecureStorage.SetAsync(SessionKey, email);
+            await SecureStorage.SetAsync(SessionKey, NormalizeEmail(email));
+            await SecureStorage.SetAsync(SessionUserAccountIdKey, userAccountId ?? string.Empty);
             await SecureStorage.SetAsync(LastLoginKey, DateTime.UtcNow.ToString("O"));
             await SecureStorage.SetAsync(SessionProviderKey, provider.ToString());
+        }
+
+        /// <summary>
+        /// Resolves the signed-in profile by the stable UserAccount ID first.
+        /// Older sessions that only stored email are upgraded automatically.
+        /// </summary>
+        private async Task<UserProfile?> ResolveCurrentSessionProfileAsync()
+        {
+            await database.InitializeAsync();
+            SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
+
+            string? accountId = await SecureStorage.GetAsync(SessionUserAccountIdKey);
+            string? email = await SecureStorage.GetAsync(SessionKey);
+
+            // Stable identity path: never require the email string to find the profile.
+            if (!string.IsNullOrWhiteSpace(accountId))
+            {
+                UserAccount? account = await connection.Table<UserAccount>()
+                    .Where(item => item.Id == accountId)
+                    .FirstOrDefaultAsync();
+
+                if (account != null)
+                {
+                    UserProfile? profile = await connection.Table<UserProfile>()
+                        .Where(item => item.UserAccountId == account.Id)
+                        .FirstOrDefaultAsync();
+
+                    if (profile == null)
+                    {
+                        // A UserAccount without its profile should not make the app unusable.
+                        // Recreate only the missing profile shell while preserving the same
+                        // permanent account ID and therefore collection ownership.
+                        profile = await EnsureProfileForAccountAsync(account,
+                            account.IsGuest ? UserRoles.Guest : UserRoles.Regular);
+                    }
+
+                    string canonicalEmail = !string.IsNullOrWhiteSpace(account.EmailNormalized)
+                        ? NormalizeEmail(account.EmailNormalized)
+                        : NormalizeEmail(account.Email);
+
+                    if (!string.IsNullOrWhiteSpace(canonicalEmail))
+                    {
+                        await SecureStorage.SetAsync(SessionKey, canonicalEmail);
+                    }
+
+                    return profile;
+                }
+
+                // Stale account ID: clear just the bad pointer and try legacy email recovery.
+                SecureStorage.Remove(SessionUserAccountIdKey);
+            }
+
+            // Compatibility path for sessions created before account IDs were persisted.
+            string normalizedEmail = NormalizeEmail(email);
+            if (string.IsNullOrWhiteSpace(normalizedEmail))
+            {
+                return null;
+            }
+
+            List<UserAccount> accounts = await connection.Table<UserAccount>().ToListAsync();
+            UserAccount? recoveredAccount = accounts.FirstOrDefault(item =>
+                string.Equals(NormalizeEmail(item.EmailNormalized), normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
+
+            List<UserProfile> profiles = await connection.Table<UserProfile>().ToListAsync();
+            UserProfile? recoveredProfile = null;
+
+            if (recoveredAccount != null)
+            {
+                recoveredProfile = profiles.FirstOrDefault(item => item.UserAccountId == recoveredAccount.Id);
+            }
+
+            recoveredProfile ??= profiles.FirstOrDefault(item =>
+                string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
+
+            if (recoveredAccount == null && recoveredProfile != null && !string.IsNullOrWhiteSpace(recoveredProfile.UserAccountId))
+            {
+                recoveredAccount = accounts.FirstOrDefault(item => item.Id == recoveredProfile.UserAccountId);
+            }
+
+            if (recoveredAccount == null)
+            {
+                return null;
+            }
+
+            recoveredProfile ??= await EnsureProfileForAccountAsync(
+                recoveredAccount,
+                recoveredAccount.IsGuest ? UserRoles.Guest : UserRoles.Regular);
+
+            // Permanently upgrade the session so future profile loads use account ID.
+            await SecureStorage.SetAsync(SessionUserAccountIdKey, recoveredAccount.Id);
+
+            string recoveredEmail = !string.IsNullOrWhiteSpace(recoveredAccount.EmailNormalized)
+                ? NormalizeEmail(recoveredAccount.EmailNormalized)
+                : NormalizeEmail(recoveredAccount.Email);
+
+            if (!string.IsNullOrWhiteSpace(recoveredEmail))
+            {
+                await SecureStorage.SetAsync(SessionKey, recoveredEmail);
+            }
+
+            return recoveredProfile;
         }
 
         /// <summary>
