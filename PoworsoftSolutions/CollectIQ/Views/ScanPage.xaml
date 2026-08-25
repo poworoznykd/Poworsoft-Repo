@@ -14,8 +14,7 @@
              xmlns:controls="clr-namespace:CollectIQ.Controls"
              x:Class="CollectIQ.Views.ScanPage"
              BackgroundColor="#050814"
-             Title="Scan Card"
-             Disappearing="OnDisappearing">
+             Title="Scan Card">
 
     <!-- 4 rows:
          0 = top mode toggle bar (Collect / Inspect / Trade)

@@ -67,7 +67,7 @@ namespace CollectIQ
         private static void RegisterServices(MauiAppBuilder builder)
         {
             // Database
-            builder.Services.AddSingleton<IDatabase, SqliteDatabase>();
+            builder.Services.AddSingleton<IDatabase>(_ => App.Database);
 
             // Repositories
             builder.Services.AddSingleton<IUserRepository, UserRepository>();

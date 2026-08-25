@@ -1,47 +1,32 @@
-﻿using CollectIQ.Interfaces;
+using CollectIQ.Interfaces;
+using CollectIQ.Services.Session;
 using CollectIQ.ViewModels;
-using Microsoft.Maui.Storage;
-using System.IO;
 
 namespace CollectIQ.Services
 {
-    public class ProfileService : IProfileService
+    /// <summary>
+    /// Provides the UI profile for the currently authenticated account.
+    /// The view model is shared for UI binding, but its persisted preferences
+    /// are scoped by UserAccount.Id so accounts cannot inherit each other's UI profile.
+    /// </summary>
+    public sealed class ProfileService : IProfileService
     {
-        private const string AvatarPathPreferenceKey = "CollectIQ.Profile.AvatarPath";
+        private readonly ProfileViewModel profile = new ProfileViewModel();
 
-        public ProfileViewModel Profile { get; } = new ProfileViewModel();
-
-        public ProfileService()
+        public ProfileViewModel Profile
         {
-            // Load persisted avatar path once at app startup
-            try
+            get
             {
-                string savedPath = Preferences.Default.Get(AvatarPathPreferenceKey, string.Empty);
-
-                if (!string.IsNullOrWhiteSpace(savedPath) && File.Exists(savedPath))
-                {
-                    Profile.AvatarPath = savedPath;
-                }
-            }
-            catch
-            {
-                // Never crash app startup because of a preference read or file check
+                profile.ActivateAccount(UserSession.CurrentUser);
+                return profile;
             }
         }
 
+        [Obsolete("Avatar persistence is account-scoped by ProfileViewModel.AvatarPath.")]
         public static void PersistAvatarPath(string path)
         {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(path))
-                {
-                    Preferences.Default.Set(AvatarPathPreferenceKey, path);
-                }
-            }
-            catch
-            {
-                // Ignore persistence errors (device/storage edge cases)
-            }
+            // Intentionally empty. Older callers are harmless; ProfileViewModel
+            // now persists the value under the active UserAccount.Id.
         }
     }
 }

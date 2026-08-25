@@ -211,7 +211,7 @@
                         Style="{StaticResource AuroraGlassBorder}"
                         Margin="14,0,14,0">
 
-                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
                           RowSpacing="6">
                         <!-- Status ribbon (FULL WIDTH so your long status text never destroys layout) -->
                         <Border Grid.Row="0"
@@ -279,31 +279,8 @@
                             </Border>
                         </Grid>
 
-                        <!-- Result page size. The search fetches a deeper candidate pool,
-                             while this controls how many cards are rendered at a time. -->
-                        <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="Results"
-                                   TextColor="#A8EFFF"
-                                   FontSize="11"
-                                   VerticalOptions="Center" />
-                            <Border Grid.Column="1"
-                                    Stroke="#00E5FF"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 14"
-                                    BackgroundColor="#120A1A2A"
-                                    Padding="8,2">
-                                <Picker Title="Results per page"
-                                        ItemsSource="{Binding ResultCountOptions}"
-                                        SelectedItem="{Binding ResultsPerPage, Mode=TwoWay}"
-                                        TextColor="White"
-                                        TitleColor="#6CD4FF"
-                                        BackgroundColor="Transparent"
-                                        HorizontalOptions="Fill" />
-                            </Border>
-                        </Grid>
-
                         <!-- Entry + buttons (tight) -->
-                        <Grid Grid.Row="4"
+                        <Grid Grid.Row="3"
                               RowDefinitions="Auto,Auto"
                               RowSpacing="6">
 

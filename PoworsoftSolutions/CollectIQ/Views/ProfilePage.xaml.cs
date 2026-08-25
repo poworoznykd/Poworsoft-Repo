@@ -13,6 +13,7 @@
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Services;
+using CollectIQ.Services.Session;
 using CollectIQ.ViewModels;
 using Microsoft.Maui.Storage;
 using System;
@@ -31,12 +32,19 @@ namespace CollectIQ.Views
             InitializeComponent();
             profileService = profileServiceParam;
 
-            BindingContext = ServiceHelper.GetService<IProfileService>().Profile;
+            BindingContext = profileService.Profile;
         }
 
         // XAML/Shell-safe constructor
-        public ProfilePage() : this(ServiceHelper.GetService<IProfileService>() ?? new ProfileService())
+        public ProfilePage() : this(ServiceHelper.GetService<IProfileService>() ?? throw new InvalidOperationException("IProfileService is not registered."))
         {
+        }
+
+
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            BindingContext = profileService.Profile;
         }
 
         private async void OnBackClicked(object sender, TappedEventArgs e)
@@ -109,7 +117,7 @@ namespace CollectIQ.Views
                 }
 
                 string savedPath = await SaveProfileImageAsync(photo);
-                SetAvatarPath(savedPath);
+                await SetAvatarPathAsync(savedPath);
             }
             catch (Exception ex)
             {
@@ -133,7 +141,7 @@ namespace CollectIQ.Views
                 }
 
                 string savedPath = await SaveProfileImageAsync(photo);
-                SetAvatarPath(savedPath);
+                await SetAvatarPathAsync(savedPath);
             }
             catch (Exception ex)
             {
@@ -163,14 +171,18 @@ namespace CollectIQ.Views
             return destinationPath;
         }
 
-        private void SetAvatarPath(string path)
+        private async Task SetAvatarPathAsync(string path)
         {
             if (BindingContext is ProfileViewModel vm)
             {
                 vm.AvatarPath = path;
+            }
 
-                // Persist so it survives restarts AND is available app-wide
-                ProfileService.PersistAvatarPath(path);
+            if (UserSession.CurrentUser != null)
+            {
+                UserSession.CurrentUser.AvatarImageId = path;
+                UserSession.CurrentUser.UpdatedUtc = DateTime.UtcNow;
+                await App.Database.UpsertUserProfileAsync(UserSession.CurrentUser);
             }
         }
 
@@ -192,8 +204,8 @@ namespace CollectIQ.Views
                 return;
             }
 
-            // Use the same auth flow App.xaml.cs uses (LocalAuthService + App.Database)
-            var auth = new LocalAuthService(App.Database, new SupabaseAuthService());
+            IAuthService auth = ServiceHelper.GetService<IAuthService>()
+                ?? throw new InvalidOperationException("IAuthService is not registered.");
             await auth.SignOutAsync();
 
             // Bounce back to the login screen, same styling as App.OnStart()

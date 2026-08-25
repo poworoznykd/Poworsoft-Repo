@@ -126,9 +126,10 @@ namespace CollectIQ.Services
             await database.UpsertUserProfileAsync(profile);
             await VerifyPersistedLocalAuthenticationAsync(account.Id, password, passwordHash);
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
-            await StoreSessionAsync(normalizedEmail, account.Id, AuthProvider.Local);
-            await SetCurrentUserAsync(profile);
 
+            // Registration creates durable account/profile/credential data but does
+            // not silently switch the active session. LoginViewModel explicitly tells
+            // the user to sign in after account creation.
             await database.RecordLoginHistoryAsync(new LoginHistory
             {
                 UserAccountId = account.Id,

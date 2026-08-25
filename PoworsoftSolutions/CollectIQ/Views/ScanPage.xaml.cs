@@ -1,4 +1,4 @@
-﻿/*
+/*
 * FILE: ScanPage.xaml.cs
 * PROJECT: CollectIQ (Mobile Application)
 * PROGRAMMER: Darryl Poworoznyk
@@ -43,6 +43,13 @@ namespace CollectIQ.Views
         /// captured image paths.
         /// </summary>
         private readonly ScanPageViewModel viewModel;
+
+        /// <summary>
+        /// Cancellation source for the decorative scan-line animation.
+        /// A new source is created every time the page appears so an old
+        /// animation cannot keep running against a stopped/restarted camera.
+        /// </summary>
+        private CancellationTokenSource? scanAnimationCancellationTokenSource;
 
         // =========================
         // Constructors
@@ -130,21 +137,57 @@ namespace CollectIQ.Views
 
             viewModel.InitializeForAppearing();
 
+            scanAnimationCancellationTokenSource?.Cancel();
+            scanAnimationCancellationTokenSource?.Dispose();
+            scanAnimationCancellationTokenSource = new CancellationTokenSource();
+
+            bool cameraStarted = await RestartCameraPreviewAsync();
+            if (!cameraStarted)
+            {
+                return;
+            }
+
+            // WAIT for CameraView to actually measure.
+            await WaitForValidHeightAsync(CameraView);
+            await WaitForValidHeightAsync(ScanLine);
+
+            // Start exactly one animation for this appearance.
+            _ = RunScanLineAnimationAsync(scanAnimationCancellationTokenSource.Token);
+        }
+
+        /// <summary>
+        /// Stops any stale CameraView session and starts a fresh preview.
+        /// CameraView can retain a completed/stale native session after a
+        /// capture/navigation cycle on Android, so explicitly resetting it
+        /// makes repeated scans reliable.
+        /// </summary>
+        private async Task<bool> RestartCameraPreviewAsync()
+        {
             try
             {
-                var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    CameraView.StopCameraPreview();
+                }
+                catch (Exception stopException)
+                {
+                    Debug.WriteLine($"[Camera] Pre-start stop ignored: {stopException.Message}");
+                }
+
+                // Give Android a short moment to release the previous camera session.
+                await Task.Delay(150);
+
+                using var cancellationTokenSource =
+                    new CancellationTokenSource(TimeSpan.FromSeconds(8));
+
                 await CameraView.StartCameraPreview(cancellationTokenSource.Token);
-
-                // WAIT for CameraView to actually measure.
-                await WaitForValidHeightAsync(CameraView);
-                await WaitForValidHeightAsync(ScanLine);
-
-                // Start animation once the heights are actually valid.
-                _ = RunScanLineAnimationAsync();
+                Debug.WriteLine("[Camera] Preview started/restarted successfully.");
+                return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Camera] Failed to start: {ex.Message}");
+                Debug.WriteLine($"[Camera] Failed to start/restart preview: {ex}");
+                return false;
             }
         }
 
@@ -175,41 +218,26 @@ namespace CollectIQ.Views
         /// </summary>
         protected override void OnDisappearing()
         {
-            base.OnDisappearing();
-
+            // IMPORTANT: this is the one and only camera teardown path.
+            // The old XAML Disappearing event called this override again,
+            // which could stop/dispose the native camera session twice.
             viewModel.PrepareForDisappearing();
+
+            scanAnimationCancellationTokenSource?.Cancel();
+            scanAnimationCancellationTokenSource?.Dispose();
+            scanAnimationCancellationTokenSource = null;
 
             try
             {
-                if (CameraView != null)
-                {
-                    CameraView.StopCameraPreview();
-                    Debug.WriteLine("[Camera] Preview stopped safely in OnDisappearing override.");
-                }
+                CameraView?.StopCameraPreview();
+                Debug.WriteLine("[Camera] Preview stopped once in OnDisappearing.");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Camera] Cleanup failed in OnDisappearing override: {ex.Message}");
+                Debug.WriteLine($"[Camera] Cleanup failed in OnDisappearing: {ex.Message}");
             }
-        }
 
-        /// <summary>
-        /// FUNCTION: OnDisappearing
-        /// DESCRIPTION:
-        ///     Event handler used by XAML (Disappearing="OnDisappearing").
-        ///     Forwards to the parameterless override to keep logic in one place.
-        /// PARAMETERS:
-        ///     sender - The page raising the event.
-        ///     e      - Event arguments.
-        /// RETURNS:
-        ///     None.
-        /// </summary>
-        /// <param name="sender">Event source.</param>
-        /// <param name="e">Event arguments.</param>
-        private void OnDisappearing(object sender, EventArgs e)
-        {
-            // Forward to the override, so XAML wiring still works.
-            OnDisappearing();
+            base.OnDisappearing();
         }
 
         // =========================
@@ -246,7 +274,7 @@ namespace CollectIQ.Views
         /// RETURNS:
         ///     Task.
         /// </summary>
-        private async Task RunScanLineAnimationAsync()
+        private async Task RunScanLineAnimationAsync(CancellationToken cancellationToken)
         {
             if (ScanLine == null || CameraView == null)
             {
@@ -257,12 +285,16 @@ namespace CollectIQ.Views
             double startY = 0;
             double endY = containerHeight - 10;
 
-            while (viewModel.IsScanning)
+            while (viewModel.IsScanning && !cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     await ScanLine.TranslateTo(0, endY, 1800, Easing.CubicInOut);
                     await ScanLine.TranslateTo(0, startY, 1800, Easing.CubicInOut);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -446,6 +478,10 @@ namespace CollectIQ.Views
                     "Now flip your card and capture the BACK side.",
                     "OK");
 
+                // Some Android CameraView implementations leave the preview
+                // frozen after CaptureImage. Re-open the preview before the
+                // second side rather than relying on the native session to recover.
+                await RestartCameraPreviewAsync();
                 viewModel.IsScanning = true;
                 return;
             }

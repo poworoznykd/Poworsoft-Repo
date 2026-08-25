@@ -1,4 +1,4 @@
-﻿/*
+/*
 * FILE            : CardRepository.cs
 * PROJECT         : CollectIQ (Mobile Application)
 * PROGRAMMER      : Darryl Poworoznyk
@@ -12,6 +12,8 @@
 
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace CollectIQ.Repositories
 {
@@ -37,8 +39,23 @@ namespace CollectIQ.Repositories
         /// <param name="card">The card to save.</param>
         public async Task SaveAsync(Card card)
         {
+            if (card == null)
+            {
+                throw new ArgumentNullException(nameof(card));
+            }
+
             card.UpdatedUtc = DateTime.UtcNow;
-            await database.UpsertAsync(card);
+            List<Card> visibleCards = await database.GetAllCardsAsync();
+            bool exists = visibleCards.Any(item => item.Id == card.Id);
+
+            if (exists)
+            {
+                await database.UpdateCardAsync(card);
+            }
+            else
+            {
+                await database.AddCardAsync(card);
+            }
         }
 
         /// <summary>
@@ -48,11 +65,8 @@ namespace CollectIQ.Repositories
         /// <returns>The matching card, or null when none exists.</returns>
         public async Task<Card?> GetByIdAsync(string id)
         {
-            SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
-
-            return await connection.Table<Card>()
-                .Where(c => c.Id == id)
-                .FirstOrDefaultAsync();
+            List<Card> visibleCards = await database.GetAllCardsAsync();
+            return visibleCards.FirstOrDefault(card => card.Id == id);
         }
 
         /// <summary>

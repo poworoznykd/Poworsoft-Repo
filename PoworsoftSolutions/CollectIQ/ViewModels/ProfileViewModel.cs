@@ -1,4 +1,4 @@
-﻿/*
+/*
  * FILE         : ProfileViewModel.cs
  * PROJECT      : CollectIQ (Mobile Application)
  * PROGRAMMER   : Darryl Poworoznyk
@@ -14,15 +14,18 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.Maui.Storage;
+using CollectIQ.Models;
 
 namespace CollectIQ.ViewModels
 {
     public class ProfileViewModel : INotifyPropertyChanged
     {
-        public string CloudUserId { get; set; } = string.Empty;
+        public string CloudUserId { get; private set; } = string.Empty;
+        private string activeAccountId = string.Empty;
 
 
         private const string PrefDisplayName = "collectiq.profile.displayName";
@@ -57,7 +60,44 @@ namespace CollectIQ.ViewModels
 
         public ProfileViewModel()
         {
-            LoadFromPreferences();
+        }
+
+        public void ActivateAccount(UserProfile? userProfile)
+        {
+            string accountId = userProfile?.UserAccountId ?? string.Empty;
+            if (string.Equals(activeAccountId, accountId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            activeAccountId = accountId;
+            CloudUserId = accountId;
+
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                displayName = "Collector";
+                handle = "@collectiq";
+                avatarPath = string.Empty;
+                location = string.Empty;
+                memberSince = string.Empty;
+                RaiseAllProfileProperties();
+                return;
+            }
+
+            string fallbackName = string.IsNullOrWhiteSpace(userProfile?.DisplayName)
+                ? (userProfile?.Email ?? "Collector")
+                : userProfile.DisplayName;
+
+            displayName = Preferences.Get(Key(PrefDisplayName), fallbackName);
+            handle = Preferences.Get(Key(PrefHandle), BuildDefaultHandle(fallbackName));
+            string savedAvatar = Preferences.Get(Key(PrefAvatarPath), userProfile?.AvatarImageId ?? string.Empty);
+            avatarPath = !string.IsNullOrWhiteSpace(savedAvatar) && File.Exists(savedAvatar) ? savedAvatar : string.Empty;
+            isVerified = Preferences.Get(Key(PrefIsVerified), false);
+            rating = Preferences.Get(Key(PrefRating), 5.0);
+            ratingCount = Preferences.Get(Key(PrefRatingCount), 0);
+            location = Preferences.Get(Key(PrefLocation), userProfile?.LocationDisplay ?? string.Empty);
+            memberSince = Preferences.Get(Key(PrefMemberSince), $"Member since {(userProfile?.CreatedUtc ?? DateTime.UtcNow):yyyy}");
+            RaiseAllProfileProperties();
         }
 
         public string DisplayName
@@ -68,7 +108,7 @@ namespace CollectIQ.ViewModels
                 if (displayName == value) return;
                 displayName = value;
                 OnPropertyChanged();
-                Preferences.Set(PrefDisplayName, displayName);
+                SetPreference(PrefDisplayName, displayName);
             }
         }
 
@@ -80,7 +120,7 @@ namespace CollectIQ.ViewModels
                 if (handle == value) return;
                 handle = value;
                 OnPropertyChanged();
-                Preferences.Set(PrefHandle, handle);
+                SetPreference(PrefHandle, handle);
             }
         }
 
@@ -94,7 +134,7 @@ namespace CollectIQ.ViewModels
                 avatarPath = value ?? string.Empty;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AvatarImagePath)); // keep compatibility
-                Preferences.Set(PrefAvatarPath, avatarPath);
+                SetPreference(PrefAvatarPath, avatarPath);
             }
         }
 
@@ -113,7 +153,7 @@ namespace CollectIQ.ViewModels
                 if (isVerified == value) return;
                 isVerified = value;
                 OnPropertyChanged();
-                Preferences.Set(PrefIsVerified, isVerified);
+                SetPreference(PrefIsVerified, isVerified);
             }
         }
 
@@ -125,7 +165,7 @@ namespace CollectIQ.ViewModels
                 if (Math.Abs(rating - value) < 0.0001) return;
                 rating = value;
                 OnPropertyChanged();
-                Preferences.Set(PrefRating, rating);
+                SetPreference(PrefRating, rating);
             }
         }
 
@@ -137,7 +177,7 @@ namespace CollectIQ.ViewModels
                 if (ratingCount == value) return;
                 ratingCount = value;
                 OnPropertyChanged();
-                Preferences.Set(PrefRatingCount, ratingCount);
+                SetPreference(PrefRatingCount, ratingCount);
             }
         }
 
@@ -149,7 +189,7 @@ namespace CollectIQ.ViewModels
                 if (location == value) return;
                 location = value ?? string.Empty;
                 OnPropertyChanged();
-                Preferences.Set(PrefLocation, location);
+                SetPreference(PrefLocation, location);
             }
         }
 
@@ -161,7 +201,7 @@ namespace CollectIQ.ViewModels
                 if (memberSince == value) return;
                 memberSince = value ?? string.Empty;
                 OnPropertyChanged();
-                Preferences.Set(PrefMemberSince, memberSince);
+                SetPreference(PrefMemberSince, memberSince);
             }
         }
 
@@ -210,7 +250,7 @@ namespace CollectIQ.ViewModels
                     return false;
                 }
 
-                string profileDir = Path.Combine(FileSystem.AppDataDirectory, "ProfileImages");
+                string profileDir = Path.Combine(FileSystem.AppDataDirectory, "ProfileImages", string.IsNullOrWhiteSpace(activeAccountId) ? "unassigned" : activeAccountId);
                 Directory.CreateDirectory(profileDir);
 
                 string ext = Path.GetExtension(file.FileName);
@@ -262,24 +302,52 @@ namespace CollectIQ.ViewModels
             }
         }
 
-        private void LoadFromPreferences()
+        private string Key(string baseKey)
         {
-            DisplayName = Preferences.Get(PrefDisplayName, displayName);
-            Handle = Preferences.Get(PrefHandle, handle);
+            return string.IsNullOrWhiteSpace(activeAccountId)
+                ? $"{baseKey}.signedout"
+                : $"{baseKey}.{activeAccountId}";
+        }
 
-            string savedAvatar = Preferences.Get(PrefAvatarPath, string.Empty);
-            if (!string.IsNullOrWhiteSpace(savedAvatar) && File.Exists(savedAvatar))
-            {
-                avatarPath = savedAvatar;
-                OnPropertyChanged(nameof(AvatarPath));
-                OnPropertyChanged(nameof(AvatarImagePath));
-            }
+        private void SetPreference(string baseKey, string value)
+        {
+            if (!string.IsNullOrWhiteSpace(activeAccountId)) Preferences.Set(Key(baseKey), value ?? string.Empty);
+        }
 
-            IsVerified = Preferences.Get(PrefIsVerified, false);
-            Rating = Preferences.Get(PrefRating, 5.0);
-            RatingCount = Preferences.Get(PrefRatingCount, 0);
-            Location = Preferences.Get(PrefLocation, location);
-            MemberSince = Preferences.Get(PrefMemberSince, memberSince);
+        private void SetPreference(string baseKey, bool value)
+        {
+            if (!string.IsNullOrWhiteSpace(activeAccountId)) Preferences.Set(Key(baseKey), value);
+        }
+
+        private void SetPreference(string baseKey, double value)
+        {
+            if (!string.IsNullOrWhiteSpace(activeAccountId)) Preferences.Set(Key(baseKey), value);
+        }
+
+        private void SetPreference(string baseKey, int value)
+        {
+            if (!string.IsNullOrWhiteSpace(activeAccountId)) Preferences.Set(Key(baseKey), value);
+        }
+
+        private static string BuildDefaultHandle(string displayName)
+        {
+            string clean = new string((displayName ?? string.Empty)
+                .Where(char.IsLetterOrDigit)
+                .ToArray());
+            return string.IsNullOrWhiteSpace(clean) ? "@collectiq" : "@" + clean.ToLowerInvariant();
+        }
+
+        private void RaiseAllProfileProperties()
+        {
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(Handle));
+            OnPropertyChanged(nameof(AvatarPath));
+            OnPropertyChanged(nameof(AvatarImagePath));
+            OnPropertyChanged(nameof(IsVerified));
+            OnPropertyChanged(nameof(Rating));
+            OnPropertyChanged(nameof(RatingCount));
+            OnPropertyChanged(nameof(Location));
+            OnPropertyChanged(nameof(MemberSince));
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
