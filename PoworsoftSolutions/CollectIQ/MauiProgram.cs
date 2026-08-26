@@ -66,8 +66,11 @@ namespace CollectIQ
         /// <param name="builder">The MAUI app builder.</param>
         private static void RegisterServices(MauiAppBuilder builder)
         {
-            // Database
-            builder.Services.AddSingleton<IDatabase>(_ => App.Database);
+            // Database: one physical SQLite service instance for the entire app.
+            // App.Database is assigned this exact singleton by App's DI constructor.
+            builder.Services.AddSingleton<SqliteDatabase>();
+            builder.Services.AddSingleton<IDatabase>(serviceProvider =>
+                serviceProvider.GetRequiredService<SqliteDatabase>());
 
             // Repositories
             builder.Services.AddSingleton<IUserRepository, UserRepository>();

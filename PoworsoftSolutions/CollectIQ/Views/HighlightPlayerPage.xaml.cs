@@ -13,7 +13,7 @@
 *         - Displays key card details (name, subtitle, grade, est. value).
 *         - Displays highlight clip info (position + description).
 *         - Lets the user move between clips using:
-*               * "‹" and "›" nav buttons overlaid on the player
+*               * "â€¹" and "â€º" nav buttons overlaid on the player
 *               * A horizontal strip of glowing clip chips
 *         - Provides:
 *               * "Play"  -> open current clip via Launcher (YouTube app/browser)
@@ -40,6 +40,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CollectIQ.Models;
+using CollectIQ.Services;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls;
@@ -110,48 +111,20 @@ namespace CollectIQ.Views
             }
 
             isInitialized = true;
-
             InitializeCardHeader();
 
-            // If we do not have any clips, try to populate them from YouTube.
-            if (highlightReel.Clips == null || highlightReel.Clips.Count == 0)
-            {
-                await TryPopulateHighlightsFromYouTubeAsync();
-            }
+            highlightReel.Clips ??= new List<HighlightClip>();
+            highlightReel.Clips = highlightReel.Clips
+                .Where(c => c != null && !string.IsNullOrWhiteSpace(c.VideoUrl))
+                .ToList();
 
-            // Drop any null / empty-URL clips.
-            highlightReel.Clips =
-                highlightReel.Clips
-                    .Where(c => c != null && !string.IsNullOrWhiteSpace(c.VideoUrl))
-                    .ToList();
-
-            if (highlightReel.Clips.Count == 0)
-            {
-                await DisplayAlert(
-                    "Highlights",
-                    "No playable highlight clips are available for this card.",
-                    "OK");
-
-                await Navigation.PopAsync();
-                return;
-            }
-
-            // Clamp starting index into valid range.
-            int startIndex = requestedStartIndex;
-            if (startIndex < 0)
-            {
-                startIndex = 0;
-            }
-
-            if (startIndex >= highlightReel.Clips.Count)
-            {
-                startIndex = highlightReel.Clips.Count - 1;
-            }
-
-            currentIndex = startIndex;
+            currentIndex = highlightReel.Clips.Count == 0
+                ? 0
+                : Math.Clamp(requestedStartIndex, 0, highlightReel.Clips.Count - 1);
 
             BuildClipStrip();
             UpdateCurrentClipUi();
+            await Task.CompletedTask;
         }
 
         /*
@@ -163,12 +136,10 @@ namespace CollectIQ.Views
         */
         private async Task TryPopulateHighlightsFromYouTubeAsync()
         {
-            // Determine the best available player name.
-            string playerName = card.Player?.FullName;
-
+            string playerName = card.Player?.FullName ?? string.Empty;
             if (string.IsNullOrWhiteSpace(playerName))
             {
-                playerName = card.Player.FullName;
+                playerName = card.DisplayName;
             }
 
             if (string.IsNullOrWhiteSpace(playerName))
@@ -176,31 +147,26 @@ namespace CollectIQ.Views
                 return;
             }
 
-            string query = $"{playerName} career highlights";
-
-            try
+            HighlightService service = new HighlightService();
+            HighlightReel suggestions = await service.FindHighlightReelAsync($"{playerName} career highlights");
+            if (suggestions?.Clips == null || suggestions.Clips.Count == 0)
             {
-                YouTubeHighlightService service = new YouTubeHighlightService();
-
-                IList<HighlightClip> clips =
-                    await service.SearchHighlightsAsync(query, maxResults: 5);
-
-                if (clips != null && clips.Count > 0)
-                {
-                    highlightReel.Clips = clips.ToList();
-
-                    // Also push back onto the card so you can persist this
-                    // into HighlightJson via Card.Highlights.
-                    card.Highlights = new HighlightReel
-                    {
-                        Clips = clips.ToList()
-                    };
-                }
+                return;
             }
-            catch (Exception ex)
+
+            foreach (HighlightClip clip in suggestions.Clips)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"[HIGHLIGHTS] YouTube search failed: {ex.Message}");
+                if (clip == null || string.IsNullOrWhiteSpace(clip.VideoUrl))
+                {
+                    continue;
+                }
+
+                bool duplicate = highlightReel.Clips.Any(existing =>
+                    string.Equals(existing.VideoUrl?.Trim(), clip.VideoUrl.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!duplicate)
+                {
+                    highlightReel.Clips.Add(clip);
+                }
             }
         }
 
@@ -296,14 +262,13 @@ namespace CollectIQ.Views
         private void BuildClipStrip()
         {
             ClipStripLayout.Children.Clear();
+            SavedCountLabel.Text = $"{highlightReel.Clips.Count} saved";
+            ClipStripLayout.IsVisible = highlightReel.Clips.Count > 0;
 
-            if (highlightReel.Clips.Count <= 1)
+            if (highlightReel.Clips.Count == 0)
             {
-                ClipStripLayout.IsVisible = false;
                 return;
             }
-
-            ClipStripLayout.IsVisible = true;
 
             for (int i = 0; i < highlightReel.Clips.Count; i++)
             {
@@ -380,10 +345,30 @@ namespace CollectIQ.Views
         */
         private void UpdateCurrentClipUi()
         {
+            SavedCountLabel.Text = $"{highlightReel.Clips.Count} saved";
+
             if (highlightReel.Clips.Count == 0)
             {
+                ThumbnailImage.Source = null;
+                PlayGlyphLabel.Text = "+";
+                PlayerHintLabel.Text = "Add your first favorite video below";
+                ClipDescriptionLabel.Text = "No saved highlight clips yet.";
+                ClipPositionLabel.Text = "0 clips";
+                PreviousButton.IsEnabled = false;
+                NextButton.IsEnabled = false;
+                PlayButton.IsEnabled = false;
+                CopyButton.IsEnabled = false;
+                ShareButton.IsEnabled = false;
                 return;
             }
+
+            PlayGlyphLabel.Text = "â–¶";
+            PlayerHintLabel.Text = "Tap to play";
+            PreviousButton.IsEnabled = highlightReel.Clips.Count > 1;
+            NextButton.IsEnabled = highlightReel.Clips.Count > 1;
+            PlayButton.IsEnabled = true;
+            CopyButton.IsEnabled = true;
+            ShareButton.IsEnabled = true;
 
             if (currentIndex < 0)
             {
@@ -608,6 +593,127 @@ namespace CollectIQ.Views
                     "Share Error",
                     $"Unable to share this highlight: {ex.Message}",
                     "OK");
+            }
+        }
+
+        private async void OnAddClipClicked(object sender, EventArgs e)
+        {
+            string url = VideoUrlEntry.Text?.Trim() ?? string.Empty;
+            string description = DescriptionEntry.Text?.Trim() ?? string.Empty;
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+            {
+                await DisplayAlert("Highlight Reel", "Enter a valid http/https video link.", "OK");
+                return;
+            }
+
+            if (highlightReel.Clips.Any(c => string.Equals(c.VideoUrl?.Trim(), url, StringComparison.OrdinalIgnoreCase)))
+            {
+                await DisplayAlert("Highlight Reel", "That video is already saved to this collectible.", "OK");
+                return;
+            }
+
+            highlightReel.Clips.Add(new HighlightClip
+            {
+                VideoUrl = url,
+                Description = string.IsNullOrWhiteSpace(description) ? "Favorite collectible highlight" : description
+            });
+
+            currentIndex = highlightReel.Clips.Count - 1;
+            VideoUrlEntry.Text = string.Empty;
+            DescriptionEntry.Text = string.Empty;
+            BuildClipStrip();
+            UpdateCurrentClipUi();
+            await SaveReelAsync(showConfirmation: false);
+        }
+
+        private async void OnRemoveCurrentClicked(object sender, EventArgs e)
+        {
+            if (highlightReel.Clips.Count == 0)
+            {
+                return;
+            }
+
+            HighlightClip clip = highlightReel.Clips[currentIndex];
+            bool remove = await DisplayAlert("Remove Highlight",
+                $"Remove '{(string.IsNullOrWhiteSpace(clip.Description) ? "this video" : clip.Description)}' from this collectible?",
+                "Remove", "Cancel");
+            if (!remove)
+            {
+                return;
+            }
+
+            highlightReel.Clips.RemoveAt(currentIndex);
+            currentIndex = highlightReel.Clips.Count == 0 ? 0 : Math.Min(currentIndex, highlightReel.Clips.Count - 1);
+            BuildClipStrip();
+            UpdateCurrentClipUi();
+            await SaveReelAsync(showConfirmation: false);
+        }
+
+        private async void OnMakeFeaturedClicked(object sender, EventArgs e)
+        {
+            if (highlightReel.Clips.Count == 0 || currentIndex == 0)
+            {
+                return;
+            }
+
+            HighlightClip selected = highlightReel.Clips[currentIndex];
+            highlightReel.Clips.RemoveAt(currentIndex);
+            highlightReel.Clips.Insert(0, selected);
+            currentIndex = 0;
+            BuildClipStrip();
+            UpdateCurrentClipUi();
+            await SaveReelAsync(showConfirmation: false);
+        }
+
+        private async void OnSaveReelClicked(object sender, EventArgs e)
+        {
+            await SaveReelAsync(showConfirmation: true);
+        }
+
+        private async Task SaveReelAsync(bool showConfirmation)
+        {
+            card.Highlights = new HighlightReel { Clips = highlightReel.Clips.ToList() };
+
+            Player player = card.Player ?? new Player();
+            player.HighlightReel = new HighlightReel { Clips = highlightReel.Clips.ToList() };
+            card.Player = player;
+
+            int affected = await App.Database.UpdateCardAsync(card);
+            if (affected == 0)
+            {
+                await App.Database.AddCardAsync(card);
+            }
+
+            if (showConfirmation)
+            {
+                await DisplayAlert("Highlight Reel", $"Saved {highlightReel.Clips.Count} highlight clip(s) to this collectible.", "OK");
+            }
+        }
+
+        private async void OnFindSuggestionsClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                int before = highlightReel.Clips.Count;
+                await TryPopulateHighlightsFromYouTubeAsync();
+                int added = highlightReel.Clips.Count - before;
+
+                if (added <= 0)
+                {
+                    await DisplayAlert("Highlight Suggestions", "No new highlight suggestions were found. You can still paste any video link manually.", "OK");
+                    return;
+                }
+
+                currentIndex = before;
+                BuildClipStrip();
+                UpdateCurrentClipUi();
+                await DisplayAlert("Highlight Suggestions", $"Added {added} suggestion(s). Remove any you do not want, then save the reel.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Highlight Suggestions", $"Suggestions could not be loaded: {ex.Message}\n\nYou can still paste video links manually.", "OK");
             }
         }
 

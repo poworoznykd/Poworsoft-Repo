@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:CollectIQ.Controls"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
     BackgroundColor="#050814"
     Title="Centering">
 
@@ -11,67 +12,107 @@
         <controls:AppModeToggleBar Grid.Row="0" Margin="16,8,16,4" />
 
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Margin="16,4,16,8" Spacing="10">
-                <Label Text="Centering Inspector" TextColor="#E5E7EB" FontSize="20" FontAttributes="Bold" />
-                <Label Text="Capture or load a front card photo on a simple background, then run Auto Analyze. CollectIQ will detect the outer card edges, flatten the card, estimate the inner frame, and draw the exact measurement guides it used. You can also switch to Manual Mode and move the four lines after auto-detection."
-                       TextColor="#9CA3AF" FontSize="12" LineBreakMode="WordWrap" />
+            <VerticalStackLayout Margin="16,4,16,14" Spacing="12">
+                <Label Text="CENTERING INSPECTOR" TextColor="#F9FAFB" FontSize="20" FontAttributes="Bold" />
 
-                <Border Stroke="#6D28D9" StrokeThickness="1.5" Background="#0B1120" StrokeShape="RoundRectangle 24" Padding="10">
-                    <Grid>
-                        <Image Source="{Binding CardImageSource}" Aspect="AspectFit" Scale="{Binding ZoomLevel}" HeightRequest="420" />
-                        <ActivityIndicator IsVisible="{Binding IsBusy}" IsRunning="{Binding IsBusy}" Color="#C084FC" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Border Stroke="#312E81" Background="#111827" StrokeShape="RoundRectangle 16" Padding="12">
+                    <VerticalStackLayout Spacing="5">
+                        <Label Text="HOW TO USE IT" TextColor="#C4B5FD" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="1. Put the card flat on a plain background with all 4 edges visible." TextColor="#E5E7EB" FontSize="12" />
+                        <Label Text="2. Hold the phone straight above it and fit the whole card inside the purple guide." TextColor="#E5E7EB" FontSize="12" />
+                        <Label Text="3. Tap CAPTURE CARD. CollectIQ analyzes it automatically." TextColor="#E5E7EB" FontSize="12" />
+                        <Label Text="4. Check the guides and scores. Use Manual Adjustments only if a detected line is wrong." TextColor="#E5E7EB" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#6D28D9" StrokeThickness="2" Background="Black" StrokeShape="RoundRectangle 22" Padding="8">
+                    <Grid RowDefinitions="440,Auto" RowSpacing="8">
+                        <!-- The live camera/result owns its own row. Nothing is ever drawn over
+                             the captured card, so all four physical edges remain visible. -->
+                        <Grid Grid.Row="0">
+                            <toolkit:CameraView x:Name="CenteringCameraView" BackgroundColor="Black" CameraFlashMode="Off" />
+                            <Image x:Name="CenteringResultImage"
+                                   Source="{Binding CardImageSource}"
+                                   Aspect="AspectFit"
+                                   Margin="18"
+                                   HorizontalOptions="Fill"
+                                   VerticalOptions="Fill"
+                                   IsVisible="False" />
+
+                            <Border x:Name="CenteringCameraGuide" Margin="38,34,38,34" Stroke="#C084FC" StrokeThickness="3" BackgroundColor="#08000000" StrokeShape="RoundRectangle 18" InputTransparent="True" />
+
+                            <Label x:Name="CameraStatusLabel" Text="Starting camera…" TextColor="#FFFFFF" BackgroundColor="#C0050814" Padding="10,7" HorizontalOptions="Fill" HorizontalTextAlignment="Center" VerticalOptions="Start" Margin="10" FontSize="12" />
+                            <Button x:Name="RestartCameraButton" Text="RESTART CAMERA" Clicked="OnRestartCameraClicked" IsVisible="False" HorizontalOptions="Center" VerticalOptions="Center" CornerRadius="20" BackgroundColor="#B91C1C" TextColor="White" />
+                            <ActivityIndicator IsVisible="{Binding IsBusy}" IsRunning="{Binding IsBusy}" Color="#C084FC" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <!-- Capture/retake is BELOW the picture instead of hiding the bottom edge. -->
+                        <Button Grid.Row="1"
+                                x:Name="CenteringShutterButton"
+                                Text="●  CAPTURE CARD"
+                                Clicked="OnTakePhotoClicked"
+                                HorizontalOptions="Center"
+                                Padding="28,12"
+                                CornerRadius="24"
+                                BackgroundColor="#7C3AED"
+                                TextColor="White"
+                                FontAttributes="Bold"
+                                FontSize="15" />
                     </Grid>
                 </Border>
 
-                <Label Text="{Binding StatusMessage}" TextColor="#D1FAE5" FontSize="12" LineBreakMode="WordWrap" />
+                <Label x:Name="CaptureInstructionLabel" Text="Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare." TextColor="#C4B5FD" FontSize="12" LineBreakMode="WordWrap" />
+                <Button Text="LOAD EXISTING PHOTO" Clicked="OnLoadPhotoClicked" CornerRadius="18" BackgroundColor="#312E81" TextColor="#F9FAFB" FontSize="12" />
 
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
-                    <Label Text="Horizontal" TextColor="#A5B4FC" FontSize="12" />
-                    <Label Grid.Column="1" Text="{Binding HorizontalCenteringText}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
-                    <Label Grid.Row="1" Text="Vertical" TextColor="#A5B4FC" FontSize="12" />
-                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding VerticalCenteringText}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
-                    <Label Grid.Row="2" Text="Confidence" TextColor="#A5B4FC" FontSize="12" />
-                    <Label Grid.Row="2" Grid.Column="1" Text="{Binding ConfidencePercent, StringFormat='{0:0}%'}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
-                </Grid>
-
-                <Label Text="{Binding CenteringSummary}" TextColor="#F9FAFB" FontSize="14" FontAttributes="Bold" />
-
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <VerticalStackLayout>
-                        <Label Text="Zoom" TextColor="#9CA3AF" FontSize="11" />
-                        <Slider Minimum="1" Maximum="3" Value="{Binding ZoomLevel}" ThumbColor="#C084FC" MinimumTrackColor="#C084FC" MaximumTrackColor="#4B5563" />
+                <Border Stroke="#1F2937" Background="#0B1120" StrokeShape="RoundRectangle 16" Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="RESULT" TextColor="#A5B4FC" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="{Binding StatusMessage}" TextColor="#D1FAE5" FontSize="12" LineBreakMode="WordWrap" />
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="5">
+                            <Label Text="Horizontal" TextColor="#A5B4FC" FontSize="12" />
+                            <Label Grid.Column="1" Text="{Binding HorizontalCenteringText}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
+                            <Label Grid.Row="1" Text="Vertical" TextColor="#A5B4FC" FontSize="12" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding VerticalCenteringText}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
+                            <Label Grid.Row="2" Text="Confidence" TextColor="#A5B4FC" FontSize="12" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding ConfidencePercent, StringFormat='{0:0}%'}" HorizontalTextAlignment="End" TextColor="#F9FAFB" FontSize="12" />
+                        </Grid>
+                        <Label Text="{Binding CenteringSummary}" TextColor="#F9FAFB" FontSize="14" FontAttributes="Bold" />
+                        <Label Text="{Binding Recommendation}" TextColor="#D1FAE5" FontSize="12" LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
-                    <VerticalStackLayout Grid.Column="1">
-                        <Label Text="Tolerance" TextColor="#9CA3AF" FontSize="11" />
-                        <Slider Minimum="1" Maximum="5" Value="{Binding Tolerance}" ThumbColor="#7C3AED" MinimumTrackColor="#7C3AED" MaximumTrackColor="#4B5563" />
+                </Border>
+
+                <Border Stroke="#134E4A" Background="#071A1A" StrokeShape="RoundRectangle 16" Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="MANUAL ADJUSTMENTS" TextColor="#5EEAD4" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="Only use this if Auto Analyze put an inner-frame line in the wrong place." TextColor="#9CA3AF" FontSize="11" />
+                        <Button Text="MANUAL MODE ON / OFF" Command="{Binding ToggleManualModeCommand}" CornerRadius="18" BackgroundColor="#0F766E" TextColor="#F9FAFB" FontSize="12" />
+                        <VerticalStackLayout IsVisible="{Binding IsManualMode}" Spacing="8">
+                            <Label Text="Each tap moves that detected line exactly 1 pixel in the arrow direction." TextColor="#99F6E4" FontSize="11" />
+                            <Grid ColumnDefinitions="58,*,76,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                                <Label Text="Left" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
+                                <Button Grid.Column="1" Text="◀ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Left:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+                                <Label Grid.Column="2" Text="{Binding LeftAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
+                                <Button Grid.Column="3" Text="1 px ▶" Command="{Binding AdjustManualLineCommand}" CommandParameter="Left:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+
+                                <Label Grid.Row="1" Text="Right" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
+                                <Button Grid.Row="1" Grid.Column="1" Text="◀ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Right:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+                                <Label Grid.Row="1" Grid.Column="2" Text="{Binding RightAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
+                                <Button Grid.Row="1" Grid.Column="3" Text="1 px ▶" Command="{Binding AdjustManualLineCommand}" CommandParameter="Right:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+
+                                <Label Grid.Row="2" Text="Top" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
+                                <Button Grid.Row="2" Grid.Column="1" Text="▲ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Top:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+                                <Label Grid.Row="2" Grid.Column="2" Text="{Binding TopAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
+                                <Button Grid.Row="2" Grid.Column="3" Text="▼ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Top:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+
+                                <Label Grid.Row="3" Text="Bottom" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
+                                <Button Grid.Row="3" Grid.Column="1" Text="▲ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Bottom:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+                                <Label Grid.Row="3" Grid.Column="2" Text="{Binding BottomAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
+                                <Button Grid.Row="3" Grid.Column="3" Text="▼ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Bottom:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
+                            </Grid>
+                            <Button Text="TOGGLE ANALYSIS OVERLAY" Command="{Binding ToggleOverlayCommand}" CornerRadius="18" BackgroundColor="#4C1D95" TextColor="#E5E7EB" FontSize="12" />
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
-                </Grid>
-
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
-                    <Button Text="Take Photo" Command="{Binding CapturePhotoCommand}" FontSize="13" CornerRadius="18" Padding="14,8" BackgroundColor="#4338CA" TextColor="#F9FAFB" />
-                    <Button Grid.Column="1" Text="Load Photo" Command="{Binding PickImageCommand}" FontSize="13" CornerRadius="18" Padding="14,8" BackgroundColor="#312E81" TextColor="#F9FAFB" />
-                    <Button Grid.Row="1" Text="Auto Analyze" Command="{Binding AnalyzeCommand}" FontSize="13" CornerRadius="18" Padding="14,8" BackgroundColor="#7C3AED" TextColor="#F9FAFB" />
-                    <Button Grid.Row="1" Grid.Column="1" Text="Toggle Overlay" Command="{Binding ToggleOverlayCommand}" FontSize="13" CornerRadius="18" Padding="14,8" BackgroundColor="#4C1D95" TextColor="#E5E7EB" />
-                    <Button Grid.Row="2" Grid.ColumnSpan="2" Text="Manual Mode On / Off" Command="{Binding ToggleManualModeCommand}" FontSize="13" CornerRadius="18" Padding="14,8" BackgroundColor="#0F766E" TextColor="#F9FAFB" />
-                </Grid>
-
-                <VerticalStackLayout IsVisible="{Binding IsManualMode}" Spacing="8">
-                    <Label Text="MANUAL INNER-FRAME ADJUSTMENTS" TextColor="#86EFAC" FontAttributes="Bold" FontSize="12" />
-                    <Label Text="Move the four lines after auto-detection if the yellow inner frame is slightly off." TextColor="#9CA3AF" FontSize="11" />
-
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
-                        <Label Text="Left line" TextColor="#F9FAFB" FontSize="12" />
-                        <Slider Grid.Column="1" Minimum="-40" Maximum="40" Value="{Binding LeftAdjust}" ThumbColor="#22C55E" MinimumTrackColor="#22C55E" MaximumTrackColor="#4B5563" />
-                        <Label Grid.Row="1" Text="Right line" TextColor="#F9FAFB" FontSize="12" />
-                        <Slider Grid.Row="1" Grid.Column="1" Minimum="-40" Maximum="40" Value="{Binding RightAdjust}" ThumbColor="#22C55E" MinimumTrackColor="#22C55E" MaximumTrackColor="#4B5563" />
-                        <Label Grid.Row="2" Text="Top line" TextColor="#F9FAFB" FontSize="12" />
-                        <Slider Grid.Row="2" Grid.Column="1" Minimum="-40" Maximum="40" Value="{Binding TopAdjust}" ThumbColor="#22C55E" MinimumTrackColor="#22C55E" MaximumTrackColor="#4B5563" />
-                        <Label Grid.Row="3" Text="Bottom line" TextColor="#F9FAFB" FontSize="12" />
-                        <Slider Grid.Row="3" Grid.Column="1" Minimum="-40" Maximum="40" Value="{Binding BottomAdjust}" ThumbColor="#22C55E" MinimumTrackColor="#22C55E" MaximumTrackColor="#4B5563" />
-                    </Grid>
-                </VerticalStackLayout>
-
-                <Label Text="{Binding Recommendation}" TextColor="#D1FAE5" FontSize="12" Margin="0,4,0,0" LineBreakMode="WordWrap" />
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
 

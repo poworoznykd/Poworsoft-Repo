@@ -20,6 +20,7 @@ using CollectIQ.Helpers;
 using CollectIQ.Navigation;
 using CollectIQ.Services;
 using CollectIQ.Utilities;
+using CollectIQ.Views;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 
@@ -50,20 +51,47 @@ namespace CollectIQ.Controls
 
             RegisterTapEvents();
 
-            // Default highlight slot 1 (Home / Overview / Deals)
+            // Default highlight slot 1 (Home / Overview / Deals).
             HighlightActive(Slot1Wrapper);
 
-            Shell.Current.Navigated += OnShellNavigated;
-
             if (appModeService != null)
-            {
                 ApplyModeToNavBar(appModeService.CurrentMode);
-                appModeService.ModeChanged += OnAppModeChanged;
-            }
             else
-            {
                 ApplyModeToNavBar(AppMode.Collect);
-            }
+
+            // A nav bar instance exists on many pages. Subscribe only while this
+            // control is loaded so old inspection pages do not remain attached to
+            // global Shell/mode events after navigation.
+            Loaded += OnNavBarLoaded;
+            Unloaded += OnNavBarUnloaded;
+        }
+
+        private bool globalEventsAttached;
+
+        private void OnNavBarLoaded(object? sender, EventArgs e)
+        {
+            if (globalEventsAttached)
+                return;
+
+            if (Shell.Current != null)
+                Shell.Current.Navigated += OnShellNavigated;
+            if (appModeService != null)
+                appModeService.ModeChanged += OnAppModeChanged;
+
+            globalEventsAttached = true;
+        }
+
+        private void OnNavBarUnloaded(object? sender, EventArgs e)
+        {
+            if (!globalEventsAttached)
+                return;
+
+            if (Shell.Current != null)
+                Shell.Current.Navigated -= OnShellNavigated;
+            if (appModeService != null)
+                appModeService.ModeChanged -= OnAppModeChanged;
+
+            globalEventsAttached = false;
         }
 
         // ============================================================
@@ -165,83 +193,52 @@ namespace CollectIQ.Controls
 
         private void RegisterTapEvents()
         {
-            // Slot 1 – Home / Overview / Deals
-            Slot1Wrapper.GestureRecognizers.Add(
-                CreateTapHandler(
-                    Slot1Wrapper,
-                    mode =>
-                    {
-                        return "//DashboardPage";
-                    }));
-
-            // Slot 2 – Scan / Centering / Sell
-            Slot2Wrapper.GestureRecognizers.Add(
-                CreateTapHandler(
-                    Slot2Wrapper,
-                    mode =>
-                    {
-                        if (mode == AppMode.Inspect)
-                        {
-                            return "//InspectCenteringPage";
-                        }
-
-                        return "//ScanPage";
-                    }));
-
-            // Slot 3 – Collection / Surface / Buy
-            Slot3Wrapper.GestureRecognizers.Add(
-                CreateTapHandler(
-                    Slot3Wrapper,
-                    mode =>
-                    {
-                        return "//CollectionPage";
-                    }));
-
-            // Slot 4 – Search / Corners / Trade Block
-            Slot4Wrapper.GestureRecognizers.Add(
-                CreateTapHandler(
-                    Slot4Wrapper,
-                    mode =>
-                    {
-                        return "//EbaySearchPage";
-                    }));
+            Slot1Wrapper.GestureRecognizers.Add(CreateTapHandler(Slot1Wrapper, 1));
+            Slot2Wrapper.GestureRecognizers.Add(CreateTapHandler(Slot2Wrapper, 2));
+            Slot3Wrapper.GestureRecognizers.Add(CreateTapHandler(Slot3Wrapper, 3));
+            Slot4Wrapper.GestureRecognizers.Add(CreateTapHandler(Slot4Wrapper, 4));
         }
 
-        private TapGestureRecognizer CreateTapHandler(
-            VisualElement element,
-            Func<AppMode, string> routeSelector)
+        private TapGestureRecognizer CreateTapHandler(VisualElement element, int slot)
         {
             var tap = new TapGestureRecognizer();
-
-            tap.Tapped += async (s, e) =>
-            {
-                var mode = appModeService?.CurrentMode ?? AppMode.Collect;
-                var route = routeSelector(mode);
-
-                if (string.IsNullOrWhiteSpace(route))
-                {
-                    return;
-                }
-
-                await HandleTapAsync(element, route);
-            };
-
+            tap.Tapped += async (_, _) => await HandleTapAsync(element, slot);
             return tap;
         }
 
-        private async Task HandleTapAsync(VisualElement element, string route)
+        private async Task HandleTapAsync(VisualElement element, int slot)
         {
             try
             {
-                if (activeElement == element)
-                {
-                    return;
-                }
-
                 await AnimatePulse(element);
                 HighlightActive(element);
 
-                await Shell.Current.GoToAsync(route, false);
+                AppMode mode = appModeService?.CurrentMode ?? AppMode.Collect;
+                if (mode == AppMode.Inspect)
+                {
+                    string? inspectionRoute = slot switch
+                    {
+                        1 => nameof(InspectHubPage),
+                        2 => nameof(InspectCenteringPage),
+                        3 => nameof(InspectSurfacePage),
+                        4 => nameof(InspectCornersPage),
+                        _ => nameof(InspectHubPage)
+                    };
+
+                    await CollectIQNavigation.GoToInspectAsync(inspectionRoute);
+                    return;
+                }
+
+                string collectRoute = slot switch
+                {
+                    1 => "DashboardPage",
+                    2 => "ScanPage",
+                    3 => "CollectionPage",
+                    4 => "EbaySearchPage",
+                    _ => "DashboardPage"
+                };
+
+                await CollectIQNavigation.GoToCollectAsync(collectRoute);
             }
             catch (Exception ex)
             {
@@ -258,24 +255,29 @@ namespace CollectIQ.Controls
             try
             {
                 string currentRoute = e.Current?.Location?.ToString() ?? string.Empty;
+                AppMode mode = appModeService?.CurrentMode ?? AppMode.Collect;
 
-                if (currentRoute.Contains("DashboardPage", StringComparison.OrdinalIgnoreCase))
+                if (mode == AppMode.Inspect)
                 {
-                    HighlightActive(Slot1Wrapper);
+                    if (currentRoute.Contains(nameof(InspectCenteringPage), StringComparison.OrdinalIgnoreCase))
+                        HighlightActive(Slot2Wrapper);
+                    else if (currentRoute.Contains(nameof(InspectSurfacePage), StringComparison.OrdinalIgnoreCase))
+                        HighlightActive(Slot3Wrapper);
+                    else if (currentRoute.Contains(nameof(InspectCornersPage), StringComparison.OrdinalIgnoreCase))
+                        HighlightActive(Slot4Wrapper);
+                    else
+                        HighlightActive(Slot1Wrapper);
+                    return;
                 }
-                else if (currentRoute.Contains("ScanPage", StringComparison.OrdinalIgnoreCase) ||
-                         currentRoute.Contains("InspectCenteringPage", StringComparison.OrdinalIgnoreCase))
-                {
+
+                if (currentRoute.Contains("ScanPage", StringComparison.OrdinalIgnoreCase))
                     HighlightActive(Slot2Wrapper);
-                }
                 else if (currentRoute.Contains("CollectionPage", StringComparison.OrdinalIgnoreCase))
-                {
                     HighlightActive(Slot3Wrapper);
-                }
                 else if (currentRoute.Contains("EbaySearchPage", StringComparison.OrdinalIgnoreCase))
-                {
                     HighlightActive(Slot4Wrapper);
-                }
+                else
+                    HighlightActive(Slot1Wrapper);
             }
             catch (Exception ex)
             {

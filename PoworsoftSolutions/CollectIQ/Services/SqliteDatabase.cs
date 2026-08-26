@@ -835,8 +835,27 @@ namespace CollectIQ.Services
             string normalizedEmail = NormalizeEmail(email);
 
             return await connection!.Table<UserProfile>()
-                .Where(u => u.Email == normalizedEmail)
+                .Where(u => u.Email == normalizedEmail && !u.IsDeleted)
                 .FirstOrDefaultAsync();
+        }
+
+        /// <summary>
+        /// Gets the profile linked to one permanent account ID.
+        /// </summary>
+        public async Task<UserProfile?> GetUserProfileByAccountIdAsync(string userAccountId)
+        {
+            await InitializeAsync();
+            if (string.IsNullOrWhiteSpace(userAccountId))
+                return null;
+
+            List<UserProfile> matches = await connection!.Table<UserProfile>()
+                .Where(item => item.UserAccountId == userAccountId && !item.IsDeleted)
+                .ToListAsync();
+
+            return matches
+                .OrderByDescending(item => item.UpdatedUtc)
+                .ThenByDescending(item => item.CreatedUtc)
+                .FirstOrDefault();
         }
 
         /// <summary>
@@ -896,6 +915,23 @@ namespace CollectIQ.Services
         /// </summary>
         /// <param name="email">The email address.</param>
         /// <returns>The matching account, or null.</returns>
+        /// <summary>
+        /// Gets a user account by its permanent CollectIQ account ID.
+        /// </summary>
+        public async Task<UserAccount?> GetUserAccountByIdAsync(string userAccountId)
+        {
+            await InitializeAsync();
+
+            if (string.IsNullOrWhiteSpace(userAccountId))
+            {
+                return null;
+            }
+
+            return await connection!.Table<UserAccount>()
+                .Where(item => item.Id == userAccountId && !item.IsDeleted)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<UserAccount?> GetUserAccountByEmailAsync(string email)
         {
             await InitializeAsync();
@@ -903,7 +939,7 @@ namespace CollectIQ.Services
             string normalizedEmail = NormalizeEmail(email);
 
             return await connection!.Table<UserAccount>()
-                .Where(u => u.EmailNormalized == normalizedEmail)
+                .Where(u => !u.IsDeleted && (u.EmailNormalized == normalizedEmail || u.Email == normalizedEmail))
                 .FirstOrDefaultAsync();
         }
 
@@ -1230,6 +1266,62 @@ namespace CollectIQ.Services
             }
 
             return owned.OrderByDescending(c => c.IsDefault).ThenBy(c => c.Name).ToList();
+        }
+
+        /// <summary>
+        /// Reconnects collections that still reference an older account ID to the
+        /// authenticated canonical account. Cards are NOT rewritten or deleted because
+        /// they already belong to those collections. This method must only be called
+        /// after authentication has proven both IDs represent the same email identity.
+        /// </summary>
+        public async Task<int> RecoverOwnedDataForAccountAsync(string legacyUserAccountId, string canonicalUserAccountId)
+        {
+            await InitializeAsync();
+
+            if (string.IsNullOrWhiteSpace(legacyUserAccountId) ||
+                string.IsNullOrWhiteSpace(canonicalUserAccountId) ||
+                string.Equals(legacyUserAccountId, canonicalUserAccountId, StringComparison.Ordinal))
+                return 0;
+
+            int changes = 0;
+            List<CardCollection> legacyCollections = await connection!.Table<CardCollection>()
+                .Where(item => item.OwnerUserAccountId == legacyUserAccountId && !item.IsDeleted)
+                .ToListAsync();
+
+            foreach (CardCollection collection in legacyCollections)
+            {
+                collection.OwnerUserAccountId = canonicalUserAccountId;
+                collection.UpdatedUtc = DateTime.UtcNow;
+                changes += await connection.UpdateAsync(collection);
+
+                List<CollectionMember> oldMembers = await connection.Table<CollectionMember>()
+                    .Where(item => item.CollectionId == collection.Id &&
+                                   item.UserAccountId == legacyUserAccountId &&
+                                   !item.IsDeleted)
+                    .ToListAsync();
+
+                CollectionMember? canonicalMember = await connection.Table<CollectionMember>()
+                    .Where(item => item.CollectionId == collection.Id &&
+                                   item.UserAccountId == canonicalUserAccountId &&
+                                   !item.IsDeleted)
+                    .FirstOrDefaultAsync();
+
+                if (canonicalMember == null && oldMembers.Count > 0)
+                {
+                    CollectionMember member = oldMembers[0];
+                    member.UserAccountId = canonicalUserAccountId;
+                    member.CollectionRole = "Owner";
+                    member.CanView = true;
+                    member.CanAddCards = true;
+                    member.CanEditCards = true;
+                    member.CanDeleteCards = true;
+                    member.CanInvite = true;
+                    member.UpdatedUtc = DateTime.UtcNow;
+                    changes += await connection.UpdateAsync(member);
+                }
+            }
+
+            return changes;
         }
 
         /// <summary>

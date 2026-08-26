@@ -3,223 +3,101 @@
     x:Class="CollectIQ.Views.HighlightPlayerPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="#050814"
     Title="Highlight Reel">
 
-    <Grid RowDefinitions="Auto,*"
-          BackgroundColor="#050814">
-
-        <!-- HEADER BAR -->
-        <Border Grid.Row="0"
-                Style="{StaticResource AuroraGlassBorder}"
-                Padding="12,8">
-            <Grid ColumnDefinitions="Auto,*"
-                  ColumnSpacing="12"
-                  VerticalOptions="Center">
-
-                <!-- Back button -->
-                <Button Text="Back"
-                        Style="{StaticResource AuroraNeonButton}"
-                        Padding="12,4"
-                        Clicked="OnBackClicked" />
-
-                <!-- Title / card name -->
-                <VerticalStackLayout Grid.Column="1"
-                                     Spacing="2"
-                                     VerticalOptions="Center">
-                    <Label Text="Highlight Control Room"
-                           FontAttributes="Bold"
-                           FontSize="18"
-                           TextColor="#F2F6FF" />
-                    <Label x:Name="CardNameLabel"
-                           FontSize="13"
-                           TextColor="#E2E8F0"
-                           LineBreakMode="TailTruncation"
-                           MaxLines="1" />
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0" Style="{StaticResource AuroraGlassBorder}" Padding="12,8">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Button Text="Back" Style="{StaticResource AuroraNeonButton}" Padding="12,4" Clicked="OnBackClicked" />
+                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                    <Label Text="Highlight Reel" FontAttributes="Bold" FontSize="18" TextColor="#F2F6FF" />
+                    <Label x:Name="CardNameLabel" FontSize="13" TextColor="#E2E8F0" LineBreakMode="TailTruncation" MaxLines="1" />
                 </VerticalStackLayout>
-
             </Grid>
         </Border>
 
-        <!-- BODY -->
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16,12,16,24"
-                                 Spacing="16">
+            <VerticalStackLayout Padding="16,12,16,28" Spacing="16">
 
-                <!-- MAIN CONTROL AREA -->
                 <Border Style="{StaticResource AuroraGlassBorder}">
-                    <Grid RowDefinitions="Auto,Auto,Auto"
-                          RowSpacing="12"
-                          Padding="10,10,10,12">
-
-                        <!-- PSEUDO PLAYER SURFACE -->
-                        <Grid Grid.Row="0"
-      x:Name="PlayerSurface"
-      HeightRequest="220">
-
-                            <!-- Gesture recognizer MUST be before or after the child elements -->
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Padding="10,10,10,12">
+                        <Grid Grid.Row="0" x:Name="PlayerSurface" HeightRequest="220">
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnPlaySurfaceTapped" />
                             </Grid.GestureRecognizers>
-
-                            <Image x:Name="ThumbnailImage"
-           Aspect="AspectFill"
-           Opacity="0.95" />
-
-                            <!-- dark overlay -->
+                            <Image x:Name="ThumbnailImage" Aspect="AspectFill" Opacity="0.95" />
                             <Grid BackgroundColor="#66000000" />
-
-                            <!-- center overlay: big play hint -->
-                            <VerticalStackLayout
-        HorizontalOptions="Center"
-        VerticalOptions="Center"
-        Spacing="6">
-                                <Label Text="▶"
-               FontSize="40"
-               TextColor="#F2F6FF"
-               HorizontalTextAlignment="Center" />
-                                <Label Text="Tap to play on YouTube"
-               TextColor="#E2E8F0"
-               FontSize="12"
-               HorizontalTextAlignment="Center" />
+                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="6">
+                                <Label x:Name="PlayGlyphLabel" Text="▶" FontSize="40" TextColor="#F2F6FF" HorizontalTextAlignment="Center" />
+                                <Label x:Name="PlayerHintLabel" Text="Tap to play" TextColor="#E2E8F0" FontSize="12" HorizontalTextAlignment="Center" />
                             </VerticalStackLayout>
-
-                            <!-- left/right nav arrows -->
-                            <Button Text="‹"
-            FontSize="22"
-            BackgroundColor="#66000000"
-            TextColor="#F2F6FF"
-            CornerRadius="20"
-            Padding="6,0"
-            HorizontalOptions="Start"
-            VerticalOptions="Center"
-            Clicked="OnPrevClipClicked" />
-
-                            <Button Text="›"
-            FontSize="22"
-            BackgroundColor="#66000000"
-            TextColor="#F2F6FF"
-            CornerRadius="20"
-            Padding="6,0"
-            HorizontalOptions="End"
-            VerticalOptions="Center"
-            Clicked="OnNextClipClicked" />
+                            <Button x:Name="PreviousButton" Text="‹" FontSize="22" BackgroundColor="#66000000" TextColor="#F2F6FF" CornerRadius="20" Padding="6,0" HorizontalOptions="Start" VerticalOptions="Center" Clicked="OnPrevClipClicked" />
+                            <Button x:Name="NextButton" Text="›" FontSize="22" BackgroundColor="#66000000" TextColor="#F2F6FF" CornerRadius="20" Padding="6,0" HorizontalOptions="End" VerticalOptions="Center" Clicked="OnNextClipClicked" />
                         </Grid>
 
-
-                        <!-- CARD + CLIP INFO -->
-                        <Grid Grid.Row="1"
-                              ColumnDefinitions="*,Auto"
-                              ColumnSpacing="12">
-                            <!-- left side: subtitle + clip text -->
-                            <VerticalStackLayout Grid.Column="0"
-                                                 Spacing="4">
-                                <Label x:Name="CardSubtitleLabel"
-                                       FontSize="12"
-                                       TextColor="#A0AEC0"
-                                       LineBreakMode="TailTruncation"
-                                       MaxLines="2" />
-                                <Label x:Name="ClipDescriptionLabel"
-                                       FontSize="13"
-                                       TextColor="#F2F6FF"
-                                       LineBreakMode="WordWrap" />
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                <Label x:Name="CardSubtitleLabel" FontSize="12" TextColor="#A0AEC0" LineBreakMode="TailTruncation" MaxLines="2" />
+                                <Label x:Name="ClipDescriptionLabel" FontSize="13" TextColor="#F2F6FF" LineBreakMode="WordWrap" />
                             </VerticalStackLayout>
-
-                            <!-- right side: badge block -->
-                            <VerticalStackLayout Grid.Column="1"
-                                                 Spacing="4"
-                                                 HorizontalOptions="End"
-                                                 VerticalOptions="Center">
-                                <HorizontalStackLayout Spacing="4">
-                                    <Label Text="Grade:"
-                                           FontSize="11"
-                                           TextColor="#A0AEC0" />
-                                    <Label x:Name="GradeLabel"
-                                           FontSize="12"
-                                           TextColor="#E2E8F0" />
-                                </HorizontalStackLayout>
-                                <HorizontalStackLayout Spacing="4">
-                                    <Label Text="Est:"
-                                           FontSize="11"
-                                           TextColor="#A0AEC0" />
-                                    <Label x:Name="EstimatedValueLabel"
-                                           FontSize="12"
-                                           TextColor="#E2E8F0" />
-                                </HorizontalStackLayout>
-                                <Label x:Name="ClipPositionLabel"
-                                       FontSize="11"
-                                       TextColor="#A0AEC0"
-                                       HorizontalTextAlignment="End" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="4" HorizontalOptions="End" VerticalOptions="Center">
+                                <HorizontalStackLayout Spacing="4"><Label Text="Grade:" FontSize="11" TextColor="#A0AEC0" /><Label x:Name="GradeLabel" FontSize="12" TextColor="#E2E8F0" /></HorizontalStackLayout>
+                                <HorizontalStackLayout Spacing="4"><Label Text="Est:" FontSize="11" TextColor="#A0AEC0" /><Label x:Name="EstimatedValueLabel" FontSize="12" TextColor="#E2E8F0" /></HorizontalStackLayout>
+                                <Label x:Name="ClipPositionLabel" FontSize="11" TextColor="#A0AEC0" HorizontalTextAlignment="End" />
                             </VerticalStackLayout>
                         </Grid>
 
-                        <!-- ACTION BAR (PLAY / COPY / SHARE as neon icon buttons) -->
-                        <Grid Grid.Row="2"
-                            RowDefinitions="Auto,Auto"
-                            ColumnDefinitions="Auto,Auto,Auto"
-                            ColumnSpacing="24"
-                            HorizontalOptions="Center">
-
-                            <!-- ICON ROW -->
-                            <ImageButton Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource AuroraNeonRoundIconButton}"
-                                Source="play_icon.png"
-                                Clicked="OnPlayClicked" />
-
-                            <ImageButton Grid.Row="0"
-                                Grid.Column="1"
-                                Style="{StaticResource AuroraNeonRoundIconButton}"
-                                Source="open_link_icon.png"
-                                Clicked="OnCopyLinkClicked" />
-
-                            <ImageButton Grid.Row="0"
-                                Grid.Column="2"
-                                Style="{StaticResource AuroraNeonRoundIconButton}"
-                                Source="share_icon.png"
-                                Clicked="OnShareClicked" />
-
-                            <!-- LABEL ROW -->
-                            <Label Grid.Row="1"
-                               Grid.Column="0"
-                               Text="Play"
-                               FontSize="11"
-                               TextColor="#E2E8F0"
-                               HorizontalTextAlignment="Center" />
-
-                            <Label Grid.Row="1"
-                               Grid.Column="1"
-                               Text="Copy"
-                               FontSize="11"
-                               TextColor="#E2E8F0"
-                               HorizontalTextAlignment="Center" />
-
-                            <Label Grid.Row="1"
-                               Grid.Column="2"
-                               Text="Share"
-                               FontSize="11"
-                               TextColor="#E2E8F0"
-                               HorizontalTextAlignment="Center" />
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="24" HorizontalOptions="Center">
+                            <ImageButton x:Name="PlayButton" Grid.Row="0" Grid.Column="0" Style="{StaticResource AuroraNeonRoundIconButton}" Source="play_icon.png" Clicked="OnPlayClicked" />
+                            <ImageButton x:Name="CopyButton" Grid.Row="0" Grid.Column="1" Style="{StaticResource AuroraNeonRoundIconButton}" Source="open_link_icon.png" Clicked="OnCopyLinkClicked" />
+                            <ImageButton x:Name="ShareButton" Grid.Row="0" Grid.Column="2" Style="{StaticResource AuroraNeonRoundIconButton}" Source="share_icon.png" Clicked="OnShareClicked" />
+                            <Label Grid.Row="1" Grid.Column="0" Text="Play" FontSize="11" TextColor="#E2E8F0" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="Copy" FontSize="11" TextColor="#E2E8F0" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="1" Grid.Column="2" Text="Share" FontSize="11" TextColor="#E2E8F0" HorizontalTextAlignment="Center" />
                         </Grid>
-
                     </Grid>
                 </Border>
 
-                <!-- CLIP STRIP -->
                 <Border Style="{StaticResource AuroraGlassBorder}">
-                    <VerticalStackLayout Padding="8,6"
-                                         Spacing="6">
-                        <Label Text="Highlight Clips"
-                               FontAttributes="Bold"
-                               FontSize="13"
-                               TextColor="#F2F6FF" />
+                    <VerticalStackLayout Padding="10,8" Spacing="7">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Saved Clips" FontAttributes="Bold" FontSize="13" TextColor="#F2F6FF" />
+                            <Label x:Name="SavedCountLabel" Grid.Column="1" Text="0 saved" FontSize="11" TextColor="#38BDF8" />
+                        </Grid>
                         <ScrollView Orientation="Horizontal">
-                            <HorizontalStackLayout x:Name="ClipStripLayout"
-                                                   Spacing="8"
-                                                   Padding="0,4,0,4" />
+                            <HorizontalStackLayout x:Name="ClipStripLayout" Spacing="8" Padding="0,4" />
                         </ScrollView>
                     </VerticalStackLayout>
                 </Border>
 
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Manage Highlight Reel" FontSize="15" FontAttributes="Bold" TextColor="#F2F6FF" />
+                                <Label Text="Save one or many favorite videos directly to this collectible." FontSize="10" TextColor="#94A3B8" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1" Text="Find" Padding="12,5" HeightRequest="34" BackgroundColor="#0F172A" TextColor="#38BDF8" CornerRadius="12" Clicked="OnFindSuggestionsClicked" />
+                        </Grid>
+
+                        <Label Text="Video link" FontSize="10" TextColor="#94A3B8" />
+                        <Entry x:Name="VideoUrlEntry" Placeholder="YouTube, TikTok, Instagram, Vimeo or web video URL" Keyboard="Url" TextColor="#F2F6FF" PlaceholderColor="#64748B" BackgroundColor="#0B1220" />
+
+                        <Label Text="Caption / why it matters" FontSize="10" TextColor="#94A3B8" />
+                        <Entry x:Name="DescriptionEntry" Placeholder="e.g. Rookie debut — first career touchdown" TextColor="#F2F6FF" PlaceholderColor="#64748B" BackgroundColor="#0B1220" />
+
+                        <Button Text="+ Add Video to Reel" Style="{StaticResource AuroraNeonButton}" HeightRequest="44" Clicked="OnAddClipClicked" />
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Button Grid.Column="0" Text="Make Featured" BackgroundColor="#0F172A" TextColor="#FBBF24" CornerRadius="14" HeightRequest="42" Clicked="OnMakeFeaturedClicked" />
+                            <Button Grid.Column="1" Text="Remove Current" BackgroundColor="#2A1010" TextColor="#FFE4E6" CornerRadius="14" HeightRequest="42" Clicked="OnRemoveCurrentClicked" />
+                        </Grid>
+
+                        <Button Text="Save Highlight Reel" BackgroundColor="#102A1E" TextColor="#A7F3D0" CornerRadius="14" HeightRequest="44" Clicked="OnSaveReelClicked" />
+                        <Label Text="The first clip is the featured clip. Rearranging or deleting clips only changes this collectible's HighlightJson; no database migration is required." FontSize="9" TextColor="#64748B" />
+                    </VerticalStackLayout>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

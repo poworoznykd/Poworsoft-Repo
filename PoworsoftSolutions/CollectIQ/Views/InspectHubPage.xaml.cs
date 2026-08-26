@@ -7,6 +7,8 @@
 *     Surface as independent modules so each can be validated separately.
 */
 
+using CollectIQ.Navigation;
+
 namespace CollectIQ.Views
 {
     public partial class InspectHubPage : ContentPage
@@ -18,22 +20,22 @@ namespace CollectIQ.Views
 
         private async void OnCenteringClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync(nameof(InspectCenteringPage));
+            await CollectIQNavigation.GoToInspectAsync(nameof(InspectCenteringPage));
         }
 
         private async void OnCornersClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync(nameof(InspectCornersPage));
+            await CollectIQNavigation.GoToInspectAsync(nameof(InspectCornersPage));
         }
 
         private async void OnEdgesClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync(nameof(InspectEdgesPage));
+            await CollectIQNavigation.GoToInspectAsync(nameof(InspectEdgesPage));
         }
 
         private async void OnSurfaceClicked(object sender, EventArgs e)
         {
-            await Shell.Current.GoToAsync(nameof(InspectSurfacePage));
+            await CollectIQNavigation.GoToInspectAsync(nameof(InspectSurfacePage));
         }
     }
 }

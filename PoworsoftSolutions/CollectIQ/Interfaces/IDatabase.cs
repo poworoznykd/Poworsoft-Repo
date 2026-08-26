@@ -30,6 +30,7 @@ namespace CollectIQ.Interfaces
 
         // Legacy user profile operations
         Task<UserProfile?> GetUserProfileByEmailAsync(string email);
+        Task<UserProfile?> GetUserProfileByAccountIdAsync(string userAccountId);
         Task StorePasswordHashAsync(string email, string passwordHash);
         Task<string?> GetPasswordHashAsync(string email);
         Task UpsertUserProfileAsync(UserProfile profile);
@@ -46,6 +47,7 @@ namespace CollectIQ.Interfaces
         // Collection operations
         Task<CardCollection> GetOrCreateDefaultCollectionAsync(string userAccountId);
         Task<List<CardCollection>> GetCollectionsForUserAsync(string userAccountId);
+        Task<int> RecoverOwnedDataForAccountAsync(string legacyUserAccountId, string canonicalUserAccountId);
         Task UpsertCollectionAsync(CardCollection collection);
         Task DeleteCollectionAsync(string collectionId);
 

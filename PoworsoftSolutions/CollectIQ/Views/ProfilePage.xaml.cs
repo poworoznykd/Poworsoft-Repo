@@ -186,6 +186,11 @@ namespace CollectIQ.Views
             }
         }
 
+        private async void OnAccountCenterClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new AccountPage());
+        }
+
         /// <summary>
         /// Opens the local developer database view.
         /// </summary>

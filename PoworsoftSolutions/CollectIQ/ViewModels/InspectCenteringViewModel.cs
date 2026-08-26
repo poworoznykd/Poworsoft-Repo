@@ -32,7 +32,7 @@ namespace CollectIQ.Views
         private string verticalCenteringText = "Not analyzed";
         private string recommendation = "Use a full front photo on a solid background so the card edges are easy to detect.";
         private string statusMessage = "No image selected.";
-        private double zoomLevel = 1.0;
+        private double zoomLevel = 1.0; // Display is always 1:1 scale inside AspectFit; no UI zoom/crop.
         private double tolerance = 3.0;
         private bool isBusy;
         private bool hasAnalysis;
@@ -43,6 +43,7 @@ namespace CollectIQ.Views
         private double rightAdjust;
         private double topAdjust;
         private double bottomAdjust;
+        private long overlayRenderVersion;
 
         private CenteringMeasurement baseMeasurement = new();
         private CenteringMeasurement currentMeasurement = new();
@@ -57,6 +58,7 @@ namespace CollectIQ.Views
             AnalyzeCommand = new Command(async () => await ExecuteAnalyzeAsync(), () => !IsBusy);
             ToggleOverlayCommand = new Command(ExecuteToggleOverlay, () => !IsBusy && HasAnalysis);
             ToggleManualModeCommand = new Command(ExecuteToggleManualMode, () => !IsBusy && HasAnalysis);
+            AdjustManualLineCommand = new Command<string>(async parameter => await ExecuteAdjustManualLineAsync(parameter), parameter => !IsBusy && HasAnalysis && IsManualMode);
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -83,6 +85,7 @@ namespace CollectIQ.Views
         public ICommand AnalyzeCommand { get; }
         public ICommand ToggleOverlayCommand { get; }
         public ICommand ToggleManualModeCommand { get; }
+        public ICommand AdjustManualLineCommand { get; }
 
         private void RaiseCanExecutes()
         {
@@ -91,6 +94,7 @@ namespace CollectIQ.Views
             (AnalyzeCommand as Command)?.ChangeCanExecute();
             (ToggleOverlayCommand as Command)?.ChangeCanExecute();
             (ToggleManualModeCommand as Command)?.ChangeCanExecute();
+            (AdjustManualLineCommand as Command<string>)?.ChangeCanExecute();
         }
 
         private async Task ExecuteCapturePhotoAsync()
@@ -142,6 +146,25 @@ namespace CollectIQ.Views
             await using FileStream destination = new(localPath, FileMode.Create, FileAccess.Write, FileShare.None);
             await source.CopyToAsync(destination);
 
+            LoadLocalImage(localPath);
+        }
+
+        /// <summary>
+        /// Loads a photo captured by CollectIQ's embedded centering CameraView.
+        /// This keeps camera ownership in the page while the centering model
+        /// remains responsible for analysis state.
+        /// </summary>
+        public void LoadCapturedImage(string localPath)
+        {
+            if (string.IsNullOrWhiteSpace(localPath) || !File.Exists(localPath))
+                throw new FileNotFoundException("The centering capture could not be found.", localPath);
+
+            LoadLocalImage(localPath);
+            StatusMessage = "Photo captured. Tap Auto Analyze to detect the card and estimate centering.";
+        }
+
+        private void LoadLocalImage(string localPath)
+        {
             selectedImagePath = localPath;
             rawDisplayPath = localPath;
             canonicalImagePath = null;
@@ -156,6 +179,11 @@ namespace CollectIQ.Views
             Recommendation = "Tap Auto Analyze to find the card edges and estimate centering.";
             ResetAdjustments();
         }
+
+        /// <summary>
+        /// Runs centering analysis for an image that was captured by the embedded camera.
+        /// </summary>
+        public Task AnalyzeLoadedImageAsync() => ExecuteAnalyzeAsync();
 
         private async Task ExecuteAnalyzeAsync()
         {
@@ -175,6 +203,15 @@ namespace CollectIQ.Views
 
                 using ImageSharpImage source = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(selectedImagePath);
                 source.Mutate(x => x.AutoOrient());
+                // Inspection is designed for an upright phone/card. Some Android camera
+                // providers return a landscape pixel buffer even when the preview is portrait.
+                // Normalize that buffer once, before geometry, instead of allowing the corner
+                // ordering code to arbitrarily rotate individual results.
+                if (source.Width > source.Height)
+                {
+                    source.Mutate(x => x.Rotate(RotateMode.Rotate90));
+                }
+
                 CardGeometryResult geometry = geometryService.DetectCard(source);
                 if (!geometry.Success || geometry.Corners.Length != 4)
                 {
@@ -236,8 +273,9 @@ namespace CollectIQ.Views
         {
             if (!HasAnalysis) return;
             IsManualMode = !IsManualMode;
+            RaiseCanExecutes();
             StatusMessage = IsManualMode
-                ? "Manual mode enabled. Move the four line sliders to adjust the detected inner frame."
+                ? "Manual mode enabled. Use the arrow buttons below. Every tap moves exactly one image pixel."
                 : "Manual mode disabled. Auto-detected measurement lines restored.";
 
             if (!IsManualMode)
@@ -255,6 +293,37 @@ namespace CollectIQ.Views
             rightAdjust = 0; OnPropertyChanged(nameof(RightAdjust));
             topAdjust = 0; OnPropertyChanged(nameof(TopAdjust));
             bottomAdjust = 0; OnPropertyChanged(nameof(BottomAdjust));
+        }
+
+        private async Task ExecuteAdjustManualLineAsync(string? parameter)
+        {
+            if (!HasAnalysis || !IsManualMode || string.IsNullOrWhiteSpace(parameter)) return;
+
+            string[] pieces = parameter.Split(':');
+            if (pieces.Length != 2 || !int.TryParse(pieces[1], out int delta) || Math.Abs(delta) != 1) return;
+
+            switch (pieces[0])
+            {
+                case "Left":
+                    LeftAdjust = Math.Clamp(Math.Round(LeftAdjust) + delta, -80, 80);
+                    break;
+                case "Right":
+                    RightAdjust = Math.Clamp(Math.Round(RightAdjust) + delta, -80, 80);
+                    break;
+                case "Top":
+                    TopAdjust = Math.Clamp(Math.Round(TopAdjust) + delta, -80, 80);
+                    break;
+                case "Bottom":
+                    BottomAdjust = Math.Clamp(Math.Round(BottomAdjust) + delta, -80, 80);
+                    break;
+                default:
+                    return;
+            }
+
+            // Property setters update the measurement immediately. Render one fresh, uniquely
+            // named overlay so MAUI/Android cannot keep showing a cached PNG from the prior tap.
+            await RebuildOverlayAsync();
+            StatusMessage = "Manual line moved exactly 1 image pixel.";
         }
 
         private void ApplyManualAdjustments()
@@ -275,7 +344,6 @@ namespace CollectIQ.Views
             currentMeasurement.RightPercent = 100.0f - currentMeasurement.LeftPercent;
             currentMeasurement.TopPercent = (currentMeasurement.TopInset / vTotal) * 100.0f;
             currentMeasurement.BottomPercent = 100.0f - currentMeasurement.TopPercent;
-            _ = RebuildOverlayAsync();
             UpdateDisplayedMeasurements();
         }
 
@@ -289,13 +357,21 @@ namespace CollectIQ.Views
             if (string.IsNullOrWhiteSpace(canonicalImagePath) || !File.Exists(canonicalImagePath) || string.IsNullOrWhiteSpace(outputDirectory))
                 return;
 
+            long version = Interlocked.Increment(ref overlayRenderVersion);
             using ImageSharpImage canonical = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(canonicalImagePath);
-            overlayDisplayPath = Path.Combine(outputDirectory, "centering_overlay.png");
-            await SaveCenteringOverlayAsync(canonical, currentMeasurement, overlayDisplayPath);
-            if (showingOverlay || CardImageSource == null)
+            string nextOverlayPath = Path.Combine(outputDirectory, $"centering_overlay_{version:000000}.png");
+            await SaveCenteringOverlayAsync(canonical, currentMeasurement, nextOverlayPath);
+
+            // Only the newest requested redraw is allowed to become visible. This prevents
+            // quick one-pixel taps from racing each other and apparently not moving the line.
+            if (version == Interlocked.Read(ref overlayRenderVersion))
             {
-                CardImageSource = ImageSource.FromFile(overlayDisplayPath);
-                showingOverlay = true;
+                overlayDisplayPath = nextOverlayPath;
+                if (showingOverlay || CardImageSource == null)
+                {
+                    CardImageSource = ImageSource.FromFile(nextOverlayPath);
+                    showingOverlay = true;
+                }
             }
         }
 
@@ -461,15 +537,30 @@ namespace CollectIQ.Views
 
         private static async Task SaveCenteringOverlayAsync(ImageSharpImage canonical, CenteringMeasurement m, string path)
         {
-            using ImageSharpImage overlay = canonical.Clone();
-            DrawRectangle(overlay, 4, 4, CanonicalWidth - 5, CanonicalHeight - 5, new Rgba32(57, 255, 20), 2);
-            int innerLeft = m.LeftInset;
-            int innerTop = m.TopInset;
-            int innerRight = CanonicalWidth - m.RightInset - 1;
-            int innerBottom = CanonicalHeight - m.BottomInset - 1;
+            // Do not draw the physical card edge flush against the Image control boundary.
+            // A generous dark inspection margin makes all four true outer edges visible after capture.
+            // This is display-only padding; it does not alter centering measurements.
+            const int padding = 72;
+            using ImageSharpImage overlay = new(
+                CanonicalWidth + (padding * 2),
+                CanonicalHeight + (padding * 2),
+                new Rgba32(5, 8, 20, 255));
+            overlay.Mutate(context => context.DrawImage(canonical, new SixLabors.ImageSharp.Point(padding, padding), 1.0f));
+
+            int cardLeft = padding;
+            int cardTop = padding;
+            int cardRight = padding + CanonicalWidth - 1;
+            int cardBottom = padding + CanonicalHeight - 1;
+            DrawRectangle(overlay, cardLeft, cardTop, cardRight, cardBottom, new Rgba32(57, 255, 20), 2);
+
+            int innerLeft = padding + m.LeftInset;
+            int innerTop = padding + m.TopInset;
+            int innerRight = padding + CanonicalWidth - m.RightInset - 1;
+            int innerBottom = padding + CanonicalHeight - m.BottomInset - 1;
             DrawRectangle(overlay, innerLeft, innerTop, innerRight, innerBottom, new Rgba32(255, 221, 0), 3);
-            DrawLine(overlay, CanonicalWidth / 2, 0, CanonicalWidth / 2, CanonicalHeight - 1, new Rgba32(0, 225, 255, 180));
-            DrawLine(overlay, 0, CanonicalHeight / 2, CanonicalWidth - 1, CanonicalHeight / 2, new Rgba32(0, 225, 255, 180));
+            DrawLine(overlay, padding + (CanonicalWidth / 2), cardTop, padding + (CanonicalWidth / 2), cardBottom, new Rgba32(0, 225, 255, 180));
+            DrawLine(overlay, cardLeft, padding + (CanonicalHeight / 2), cardRight, padding + (CanonicalHeight / 2), new Rgba32(0, 225, 255, 180));
+
             await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
             await overlay.SaveAsync(stream, new PngEncoder());
         }

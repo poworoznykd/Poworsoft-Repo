@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="CollectIQ.Views.AccountPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="#020617"
+    Title="Account">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0" Style="{StaticResource AuroraGlassBorder}" Margin="16,16,16,8" Padding="10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Button Text="←" WidthRequest="44" HeightRequest="38" Padding="0"
+                        BackgroundColor="#0F172A" TextColor="#E2E8F0" CornerRadius="14"
+                        Clicked="OnBackClicked" />
+                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                    <Label Text="Account Center" FontSize="19" FontAttributes="Bold" TextColor="#F2F6FF" />
+                    <Label Text="Identity, security and local data" FontSize="11" TextColor="#94A3B8" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,28" Spacing="14">
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="CollectIQ Identity" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                <Label Text="This permanent account ID owns your collections and cards." FontSize="10" TextColor="#94A3B8" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="1" Padding="8,4" Stroke="#22C55E" Background="#102A1E" StrokeShape="RoundRectangle 12">
+                                <Label x:Name="StatusLabel" Text="Active" FontSize="10" TextColor="#A7F3D0" />
+                            </Border>
+                        </Grid>
+
+                        <Label Text="Email" FontSize="10" TextColor="#94A3B8" />
+                        <Label x:Name="EmailLabel" Text="—" FontSize="14" TextColor="#F2F6FF" />
+
+                        <Label Text="Account ID" FontSize="10" TextColor="#94A3B8" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label x:Name="AccountIdLabel" Text="—" FontSize="11" TextColor="#CBD5E1" LineBreakMode="MiddleTruncation" VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Copy" Padding="12,5" HeightRequest="34" BackgroundColor="#0F172A" TextColor="#38BDF8" CornerRadius="12" Clicked="OnCopyAccountIdClicked" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Border Grid.Column="0" Padding="10" Stroke="#334155" Background="#0B1220" StrokeShape="RoundRectangle 14">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Email" FontSize="10" TextColor="#94A3B8" />
+                                    <Label x:Name="EmailVerifiedLabel" Text="Not verified" FontSize="12" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="1" Padding="10" Stroke="#334155" Background="#0B1220" StrokeShape="RoundRectangle 14">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Local Login" FontSize="10" TextColor="#94A3B8" />
+                                    <Label x:Name="CredentialLabel" Text="Checking…" FontSize="12" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Public Collector Profile" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label Text="These details can later be used on shared collections, trades and marketplace listings." FontSize="10" TextColor="#94A3B8" />
+
+                        <Label Text="Display Name" FontSize="10" TextColor="#94A3B8" />
+                        <Entry x:Name="DisplayNameEntry" Placeholder="Collector name" TextColor="#F2F6FF" PlaceholderColor="#64748B" BackgroundColor="#0B1220" />
+
+                        <Label Text="Location" FontSize="10" TextColor="#94A3B8" />
+                        <Entry x:Name="LocationEntry" Placeholder="City / Region (optional)" TextColor="#F2F6FF" PlaceholderColor="#64748B" BackgroundColor="#0B1220" />
+
+                        <Label Text="Bio" FontSize="10" TextColor="#94A3B8" />
+                        <Editor x:Name="BioEditor" Placeholder="Tell other collectors what you collect…" AutoSize="TextChanges" HeightRequest="90" TextColor="#F2F6FF" PlaceholderColor="#64748B" BackgroundColor="#0B1220" />
+
+                        <Button Text="Save Profile" Style="{StaticResource AuroraNeonButton}" HeightRequest="44" Clicked="OnSaveProfileClicked" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Your Local Data" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                            <Border Grid.Column="0" Padding="10" Stroke="#334155" Background="#0B1220" StrokeShape="RoundRectangle 14">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Collections" FontSize="9" TextColor="#94A3B8" />
+                                    <Label x:Name="CollectionCountLabel" Text="0" FontSize="18" FontAttributes="Bold" TextColor="#F2F6FF" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="1" Padding="10" Stroke="#334155" Background="#0B1220" StrokeShape="RoundRectangle 14">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Cards" FontSize="9" TextColor="#94A3B8" />
+                                    <Label x:Name="CardCountLabel" Text="0" FontSize="18" FontAttributes="Bold" TextColor="#F2F6FF" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="2" Padding="10" Stroke="#334155" Background="#0B1220" StrokeShape="RoundRectangle 14">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Value" FontSize="9" TextColor="#94A3B8" />
+                                    <Label x:Name="CollectionValueLabel" Text="$0" FontSize="15" FontAttributes="Bold" TextColor="#F2F6FF" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+                        <Label Text="Local SQLite is the offline store for this device. Cloud sync will layer on top of these permanent account and collection IDs later." FontSize="10" TextColor="#64748B" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Marketplace Readiness" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label x:Name="ReadinessLabel" Text="Complete your profile to prepare for future buying, selling and trading." FontSize="11" TextColor="#94A3B8" />
+                        <ProgressBar x:Name="ReadinessProgress" Progress="0" HeightRequest="8" />
+                        <Label x:Name="ReadinessPercentLabel" Text="0% ready" FontSize="11" FontAttributes="Bold" TextColor="#38BDF8" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Button Text="Developer Database View" BackgroundColor="#0F172A" TextColor="#22C55E" CornerRadius="14" HeightRequest="44" Clicked="OnDeveloperDatabaseClicked" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

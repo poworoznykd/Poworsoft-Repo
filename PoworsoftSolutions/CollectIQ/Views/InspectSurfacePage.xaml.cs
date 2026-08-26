@@ -11,7 +11,10 @@
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection;
+using CollectIQ.Navigation;
+using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
+using System.Diagnostics;
 
 namespace CollectIQ.Views
 {
@@ -26,6 +29,7 @@ namespace CollectIQ.Views
         private SurfaceLightDirection currentDirection = SurfaceLightDirection.Top;
         private bool captureInProgress;
         private bool cameraReady;
+        private CancellationTokenSource? cameraStartCancellationTokenSource;
 
         public InspectSurfacePage()
         {
@@ -45,11 +49,18 @@ namespace CollectIQ.Views
 
         protected override void OnDisappearing()
         {
-            base.OnDisappearing();
+            cameraStartCancellationTokenSource?.Cancel();
+            cameraStartCancellationTokenSource?.Dispose();
+            cameraStartCancellationTokenSource = null;
+            cameraReady = false;
             try { SurfaceCameraView?.StopCameraPreview(); } catch { }
+            base.OnDisappearing();
         }
 
-        private async void OnBackClicked(object sender, EventArgs e) => await Shell.Current.GoToAsync("..");
+        private async void OnBackClicked(object sender, EventArgs e)
+        {
+            await CollectIQNavigation.GoToInspectAsync();
+        }
 
         private void OnExternalModeClicked(object sender, EventArgs e) => SelectMode(SurfaceInspectionMode.ExternalLight);
         private void OnSinglePhotoModeClicked(object sender, EventArgs e) => SelectMode(SurfaceInspectionMode.SinglePhoto);
@@ -87,30 +98,63 @@ namespace CollectIQ.Views
             CaptureButton.Text = "INITIALIZING CAMERA...";
             HeaderStatusLabel.Text = "Starting inspection camera";
 
+            PermissionStatus permission = await Permissions.CheckStatusAsync<Permissions.Camera>();
+            if (permission != PermissionStatus.Granted)
+                permission = await Permissions.RequestAsync<Permissions.Camera>();
+
+            if (permission != PermissionStatus.Granted)
+            {
+                CaptureButton.Text = "CAMERA PERMISSION REQUIRED";
+                HeaderStatusLabel.Text = "Camera permission required";
+                return;
+            }
+
+            cameraStartCancellationTokenSource?.Cancel();
+            cameraStartCancellationTokenSource?.Dispose();
+            cameraStartCancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
             try
             {
-                using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                await SurfaceCameraView.StartCameraPreview(cancellationTokenSource.Token);
-                await Task.Delay(650, cancellationTokenSource.Token);
-                cameraReady = SurfaceCameraView.IsAvailable;
-                if (!cameraReady)
-                    throw new InvalidOperationException("The rear camera is not available yet.");
+                // CameraView can keep a stale Android session when moving among Scan,
+                // Centering and Surface. Always stop first, let Android release it,
+                // wait until this visible view is measured, then create a fresh preview.
+                try { SurfaceCameraView.StopCameraPreview(); } catch { }
+                await Task.Delay(200, cameraStartCancellationTokenSource.Token);
+                await WaitForCameraLayoutAsync(cameraStartCancellationTokenSource.Token);
+                await SurfaceCameraView.StartCameraPreview(cameraStartCancellationTokenSource.Token);
+                await Task.Delay(350, cameraStartCancellationTokenSource.Token);
+
+                cameraReady = true;
                 UpdateCaptureStep();
             }
             catch (OperationCanceledException)
             {
                 cameraReady = false;
-                await DisplayAlert("Camera", "The camera took too long to start. Tap Restart to try again.", "OK");
+                HeaderStatusLabel.Text = "Camera start timed out";
+                Debug.WriteLine("[SurfaceCamera] Camera start timed out.");
             }
             catch (Exception ex)
             {
                 cameraReady = false;
-                await DisplayAlert("Camera", $"The inspection camera could not start: {ex.Message}", "OK");
+                HeaderStatusLabel.Text = "Camera unavailable — tap Restart";
+                Debug.WriteLine($"[SurfaceCamera] Start failed: {ex}");
             }
             finally
             {
                 CaptureButton.IsEnabled = cameraReady;
-                if (!cameraReady) CaptureButton.Text = "CAMERA NOT READY";
+                if (!cameraReady)
+                    CaptureButton.Text = "CAMERA NOT READY — TAP RESTART";
+            }
+        }
+
+        private async Task WaitForCameraLayoutAsync(CancellationToken cancellationToken)
+        {
+            for (int attempt = 0; attempt < 25; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (SurfaceCameraView.Width > 0 && SurfaceCameraView.Height > 0)
+                    return;
+                await Task.Delay(80, cancellationToken);
             }
         }
 
@@ -164,6 +208,7 @@ namespace CollectIQ.Views
                         return;
                     }
                     UpdateCaptureStep();
+                    await RefreshPreviewAfterCaptureAsync();
                     return;
                 }
 
@@ -173,6 +218,7 @@ namespace CollectIQ.Views
                     capturingReference = false;
                     CapturedCountLabel.Text = "1/5";
                     UpdateCaptureStep();
+                    await RefreshPreviewAfterCaptureAsync();
                     return;
                 }
 
@@ -186,6 +232,7 @@ namespace CollectIQ.Views
 
                 currentDirection = (SurfaceLightDirection)((int)currentDirection + 1);
                 UpdateCaptureStep();
+                await RefreshPreviewAfterCaptureAsync();
             }
             catch (OperationCanceledException)
             {
@@ -203,6 +250,14 @@ namespace CollectIQ.Views
                 CaptureButton.IsEnabled = cameraReady;
                 if (cameraReady && CapturePanel.IsVisible) UpdateCaptureStep();
             }
+        }
+
+        private async Task RefreshPreviewAfterCaptureAsync()
+        {
+            // Android CameraView may leave its preview frozen after CaptureImage.
+            // Restart only between captures; completed scans go straight to analysis.
+            cameraReady = false;
+            await StartCameraAsync();
         }
 
         private async void OnRestartClicked(object sender, EventArgs e)

@@ -1028,50 +1028,19 @@ namespace CollectIQ.Views
                 }
 
                 // ------------------------------------------------------------
-                // 3) We have no stored highlights; search YouTube.
+                // 3) No saved reel yet. Open the manager anyway.
+                //    Manual links must never depend on a YouTube API search.
                 // ------------------------------------------------------------
-                string playerName = card.Player.FullName;
-
-                if (string.IsNullOrWhiteSpace(playerName))
+                HighlightReel emptyReel = new HighlightReel
                 {
-                    playerName = player.FullName;
-                }
+                    Clips = new List<HighlightClip>()
+                };
 
-                if (string.IsNullOrWhiteSpace(playerName))
-                {
-                    await DisplayAlert(
-                        "Highlights",
-                        "Please fill in the Player/Name field before searching for highlights.",
-                        "OK");
-                    return;
-                }
+                card.Highlights = emptyReel;
+                player.HighlightReel = emptyReel;
+                card.Player = player;
 
-                string searchQuery = $"{playerName} career highlights";
-
-                HighlightService highlightService = new HighlightService();
-                HighlightReel foundReel =
-                    await highlightService.FindHighlightReelAsync(searchQuery);
-
-                if (foundReel == null || foundReel.Clips == null || foundReel.Clips.Count == 0)
-                {
-                    await DisplayAlert(
-                        "Highlights",
-                        "Sorry, no suitable highlight reel could be found for this card.",
-                        "OK");
-                    return;
-                }
-
-                // Attach the reel to the Player and Card domain models.
-                player.HighlightReel = foundReel;
-                card.Player = player;          // Updates PlayerJson
-
-                card.Highlights = foundReel;   // Updates HighlightJson
-
-                // Persist using shared save logic (no navigation or alert).
-                await SaveCardInternalAsync();
-
-                // Navigate to our CollectIQ-styled highlight player page.
-                await Navigation.PushAsync(new HighlightPlayerPage(card, foundReel, 0));
+                await Navigation.PushAsync(new HighlightPlayerPage(card, emptyReel, 0));
             }
             catch (Exception ex)
             {

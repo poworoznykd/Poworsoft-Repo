@@ -93,8 +93,9 @@ namespace CollectIQ.Views
                 return service;
             }
 
-            Debug.WriteLine("[CollectIQ AUTH] WARNING: DI auth service was unavailable. Falling back to local auth with a direct Supabase social broker.");
-            return new LocalAuthService(new SqliteDatabase(), new SupabaseAuthService());
+            throw new InvalidOperationException(
+                "CollectIQ authentication was not available from dependency injection. " +
+                "A second database/auth service will not be created because that can mix account state.");
         }
 
         /// <summary>

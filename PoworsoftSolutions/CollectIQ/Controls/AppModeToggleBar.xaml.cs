@@ -87,27 +87,20 @@ namespace CollectIQ.Controls
         //  BUTTON CLICK HANDLERS
         // ------------------------------------------------------------
 
-        private void OnCollectClicked(object sender, EventArgs e)
+        private async void OnCollectClicked(object sender, EventArgs e)
         {
-            // Collect is the only fully-enabled lane for now.
             SetMode(AppMode.Collect);
+            await CollectIQNavigation.GoToCollectAsync("DashboardPage");
         }
 
         private async void OnInspectClicked(object sender, EventArgs e)
         {
             SetMode(AppMode.Inspect);
-
-            if (Shell.Current?.CurrentPage is InspectHubPage)
-            {
-                return;
-            }
-
-            await Shell.Current.GoToAsync(nameof(InspectHubPage));
+            await CollectIQNavigation.GoToInspectAsync();
         }
 
         private async void OnTradeClicked(object sender, EventArgs e)
         {
-            // TRADE lane is not ready yet � show reusable under construction screen.
             await ShowUnderConstructionAsync("Trade lane");
         }
 

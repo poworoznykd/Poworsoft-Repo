@@ -83,10 +83,59 @@ namespace CollectIQ.Services.Inspection.Geometry
 
                 using Mat bgr = CreateBgrMat(detectionImage);
 
-                // First choice for CollectIQ inspection captures: find the strongest
-                // card-shaped closed rectangle directly from edges. The user is told
-                // to place the card on a solid matte background, so the physical
-                // perimeter should be the dominant large quadrilateral.
+                // FIRST choice for CollectIQ inspection: exploit the capture contract.
+                // The user places ONE complete card on a plain, contrasting background.
+                // Model that background from the image rim, segment the foreground card,
+                // then fit the four physical OUTER sides of that foreground silhouette.
+                // Printed borders/artwork cannot win because they are inside the foreground.
+                if (TryDetectCardFromBackgroundContrast(
+                    bgr,
+                    detectionWidth,
+                    detectionHeight,
+                    normalizedPriorCorners,
+                    out CardPoint[] backgroundCorners,
+                    out double backgroundConfidence))
+                {
+                    CardPoint[] backgroundFullResolution = backgroundCorners
+                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
+                        .ToArray();
+
+                    return new CardGeometryResult
+                    {
+                        Success = true,
+                        Corners = backgroundFullResolution,
+                        Confidence = backgroundConfidence,
+                        SourceWidth = source.Width,
+                        SourceHeight = source.Height
+                    };
+                }
+
+                // Second choice: use long Hough edge segments to recover the four
+                // OUTERMOST physical card sides. This is independent of artwork/printed borders.
+                if (TryDetectCardFromOuterLines(
+                    bgr,
+                    detectionWidth,
+                    detectionHeight,
+                    normalizedPriorCorners,
+                    out CardPoint[] lineCorners,
+                    out double lineConfidence))
+                {
+                    CardPoint[] lineFullResolution = lineCorners
+                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
+                        .ToArray();
+
+                    return new CardGeometryResult
+                    {
+                        Success = true,
+                        Corners = lineFullResolution,
+                        Confidence = lineConfidence,
+                        SourceWidth = source.Width,
+                        SourceHeight = source.Height
+                    };
+                }
+
+                // Second choice: find the strongest card-shaped closed contour directly
+                // from edges. This remains useful when a side is too broken for Hough.
                 if (TryDetectCardFromEdges(
                     bgr,
                     detectionWidth,
@@ -215,6 +264,422 @@ namespace CollectIQ.Services.Inspection.Geometry
         /// This deliberately prefers a large, convex, trading-card-shaped
         /// quadrilateral and ignores internal printed borders/artwork.
         /// </summary>
+        /// <summary>
+        /// Fits the four physical perimeter lines from long edge segments and intersects
+        /// them. The winning rectangle must be upright, convex, trading-card-shaped and
+        /// substantial in the frame. This is intentionally biased toward the OUTERMOST
+        /// plausible top/bottom/left/right sides so printed borders cannot win.
+        /// </summary>
+        /// <summary>
+        /// Primary detector for the real CollectIQ capture contract: one card, fully visible,
+        /// on a reasonably uniform contrasting background. The outside image rim is sampled
+        /// as BACKGROUND. Pixels sufficiently different from that rim become foreground.
+        /// The largest central card-shaped foreground contour is then converted to four
+        /// fitted physical side lines and mathematical corner intersections.
+        ///
+        /// This makes the actual card/background transition more important than artwork,
+        /// foil, text, printed borders, signatures, glare inside the card, etc.
+        /// </summary>
+        private static bool TryDetectCardFromBackgroundContrast(
+            Mat bgr,
+            int width,
+            int height,
+            IReadOnlyList<CardPoint>? normalizedPriorCorners,
+            out CardPoint[] ordered,
+            out double confidence)
+        {
+            ordered = Array.Empty<CardPoint>();
+            confidence = 0.0;
+
+            if (width < 80 || height < 120 || !bgr.IsContinuous())
+                return false;
+
+            int pixelCount = width * height;
+            byte[] pixels = new byte[pixelCount * 3];
+            Marshal.Copy(bgr.Data, pixels, 0, pixels.Length);
+
+            int rimX = Math.Max(4, (int)Math.Round(width * 0.055));
+            int rimY = Math.Max(4, (int)Math.Round(height * 0.055));
+
+            double sumB = 0, sumG = 0, sumR = 0;
+            long sampleCount = 0;
+
+            // Sample the full outer rim. The capture instructions require the card to be
+            // completely inside the frame, so this region should overwhelmingly be background.
+            for (int y = 0; y < height; y += 2)
+            {
+                for (int x = 0; x < width; x += 2)
+                {
+                    if (x >= rimX && x < width - rimX && y >= rimY && y < height - rimY)
+                        continue;
+
+                    int i = ((y * width) + x) * 3;
+                    sumB += pixels[i];
+                    sumG += pixels[i + 1];
+                    sumR += pixels[i + 2];
+                    sampleCount++;
+                }
+            }
+
+            if (sampleCount < 20)
+                return false;
+
+            double meanB = sumB / sampleCount;
+            double meanG = sumG / sampleCount;
+            double meanR = sumR / sampleCount;
+
+            // Measure natural background variation so shadows/noise in the mat do not become card.
+            double distanceSum = 0.0;
+            double distanceSqSum = 0.0;
+            long distanceCount = 0;
+            for (int y = 0; y < height; y += 3)
+            {
+                for (int x = 0; x < width; x += 3)
+                {
+                    if (x >= rimX && x < width - rimX && y >= rimY && y < height - rimY)
+                        continue;
+
+                    int i = ((y * width) + x) * 3;
+                    double db = pixels[i] - meanB;
+                    double dg = pixels[i + 1] - meanG;
+                    double dr = pixels[i + 2] - meanR;
+                    double d = Math.Sqrt((db * db) + (dg * dg) + (dr * dr));
+                    distanceSum += d;
+                    distanceSqSum += d * d;
+                    distanceCount++;
+                }
+            }
+
+            double meanDistance = distanceCount > 0 ? distanceSum / distanceCount : 0.0;
+            double variance = distanceCount > 0
+                ? Math.Max(0.0, (distanceSqSum / distanceCount) - (meanDistance * meanDistance))
+                : 0.0;
+            double stdDistance = Math.Sqrt(variance);
+
+            // Adaptive threshold, clamped so a very clean mat does not become oversensitive
+            // and a slightly textured/shadowed mat does not become impossible.
+            double threshold = Math.Clamp(meanDistance + (stdDistance * 2.6) + 14.0, 24.0, 88.0);
+
+            byte[] maskBytes = new byte[pixelCount];
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    int p = row + x;
+                    int i = p * 3;
+                    double db = pixels[i] - meanB;
+                    double dg = pixels[i + 1] - meanG;
+                    double dr = pixels[i + 2] - meanR;
+                    double distance = Math.Sqrt((db * db) + (dg * dg) + (dr * dr));
+                    maskBytes[p] = distance >= threshold ? (byte)255 : (byte)0;
+                }
+            }
+
+            using Mat rawMask = new(height, width, MatType.CV_8UC1);
+            Marshal.Copy(maskBytes, 0, rawMask.Data, maskBytes.Length);
+
+            using Mat closed = new();
+            using Mat cleaned = new();
+            using Mat closeKernel = Cv2.GetStructuringElement(
+                MorphShapes.Rect,
+                new CvSize(Math.Max(5, (width / 180) | 1), Math.Max(5, (height / 240) | 1)));
+            using Mat openKernel = Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(5, 5));
+
+            Cv2.MorphologyEx(rawMask, closed, MorphTypes.Close, closeKernel, iterations: 3);
+            Cv2.MorphologyEx(closed, cleaned, MorphTypes.Open, openKernel, iterations: 1);
+
+            Cv2.FindContours(
+                cleaned,
+                out CvPoint[][] contours,
+                out HierarchyIndex[] _,
+                RetrievalModes.External,
+                ContourApproximationModes.ApproxNone);
+
+            double imageArea = Math.Max(width * (double)height, 1.0);
+            double bestScore = double.NegativeInfinity;
+            CardPoint[]? best = null;
+
+            foreach (CvPoint[] contour in contours)
+            {
+                if (contour.Length < 40)
+                    continue;
+
+                double area = Math.Abs(Cv2.ContourArea(contour));
+                double areaFraction = area / imageArea;
+                if (areaFraction < 0.07 || areaFraction > 0.82)
+                    continue;
+
+                CvRect bounds = Cv2.BoundingRect(contour);
+                if (bounds.Width < width * 0.24 || bounds.Height < height * 0.30)
+                    continue;
+
+                // A valid card may approach the rim, but it should not actually be clipped by it.
+                const int safeRim = 2;
+                if (bounds.Left <= safeRim || bounds.Top <= safeRim ||
+                    bounds.Right >= width - safeRim || bounds.Bottom >= height - safeRim)
+                    continue;
+
+                CardPoint[]? candidate = null;
+
+                // For rounded corners, side-line fitting is preferred: it ignores the curved
+                // corner regions and uses the long straight outside perimeter.
+                CvPoint[] hull = Cv2.ConvexHull(contour);
+                if (TryFitFourSideIntersections(hull, out CardPoint[] fitted))
+                {
+                    candidate = fitted;
+                }
+                else
+                {
+                    CvPoint[]? quad = ApproximateFourCorners(hull);
+                    if (quad is not null)
+                        candidate = quad.Select(p => new CardPoint(p.X, p.Y)).ToArray();
+                }
+
+                if (candidate is null ||
+                    !TryOrderCardCornersForPortrait(candidate, out CardPoint[] candidateOrdered) ||
+                    !ValidateQuadrilateral(candidateOrdered, width, height))
+                    continue;
+
+                double top = Distance(candidateOrdered[0], candidateOrdered[1]);
+                double bottom = Distance(candidateOrdered[3], candidateOrdered[2]);
+                double left = Distance(candidateOrdered[0], candidateOrdered[3]);
+                double right = Distance(candidateOrdered[1], candidateOrdered[2]);
+                double meanWidth = (top + bottom) * 0.5;
+                double meanHeight = (left + right) * 0.5;
+                double ratio = meanWidth / Math.Max(meanHeight, 1.0);
+                double ratioError = Math.Abs(ratio - ExpectedCardRatio);
+
+                double centerX = candidateOrdered.Average(p => p.X) / Math.Max(width - 1.0, 1.0);
+                double centerY = candidateOrdered.Average(p => p.Y) / Math.Max(height - 1.0, 1.0);
+                double centerDistance = Math.Sqrt(
+                    Math.Pow(centerX - 0.5, 2) +
+                    Math.Pow(centerY - 0.5, 2));
+
+                double priorScore = 0.5;
+                if (normalizedPriorCorners is not null && normalizedPriorCorners.Count == 4)
+                {
+                    double total = 0.0;
+                    for (int c = 0; c < 4; c++)
+                    {
+                        double nx = candidateOrdered[c].X / Math.Max(width - 1.0, 1.0);
+                        double ny = candidateOrdered[c].Y / Math.Max(height - 1.0, 1.0);
+                        double dx = nx - normalizedPriorCorners[c].X;
+                        double dy = ny - normalizedPriorCorners[c].Y;
+                        total += Math.Sqrt((dx * dx) + (dy * dy));
+                    }
+                    priorScore = Math.Clamp(1.0 - ((total / 4.0) / 0.22), 0.0, 1.0);
+                }
+
+                double ratioScore = Math.Clamp(1.0 - (ratioError / 0.22), 0.0, 1.0);
+                double areaScore = Math.Clamp(areaFraction / 0.38, 0.0, 1.0);
+                double centeredScore = Math.Clamp(1.0 - (centerDistance / 0.36), 0.0, 1.0);
+
+                // Foreground AREA dominates: an internal printed rectangle simply cannot have
+                // the same segmented foreground silhouette as the whole physical card.
+                double score =
+                    (areaScore * 3.0) +
+                    (ratioScore * 2.2) +
+                    (centeredScore * 0.8) +
+                    (priorScore * 1.0);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = candidateOrdered;
+                }
+            }
+
+            if (best is null)
+                return false;
+
+            ordered = best;
+            confidence = Math.Clamp(0.68 + (bestScore / 18.0), 0.68, 0.995);
+            return true;
+        }
+
+        private static bool TryDetectCardFromOuterLines(
+            Mat bgr,
+            int width,
+            int height,
+            IReadOnlyList<CardPoint>? normalizedPriorCorners,
+            out CardPoint[] ordered,
+            out double confidence)
+        {
+            ordered = Array.Empty<CardPoint>();
+            confidence = 0.0;
+
+            using Mat gray = new();
+            using Mat blurred = new();
+            using Mat edges = new();
+            using Mat closed = new();
+
+            Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
+            Cv2.GaussianBlur(gray, blurred, new CvSize(5, 5), 1.1);
+
+            // Two Canny ranges are combined. Dark cards on light mats and bright cards
+            // on dark mats can have very different perimeter contrast.
+            using Mat edgesLow = new();
+            using Mat edgesHigh = new();
+            Cv2.Canny(blurred, edgesLow, 28, 92, 3, true);
+            Cv2.Canny(blurred, edgesHigh, 62, 175, 3, true);
+            Cv2.BitwiseOr(edgesLow, edgesHigh, edges);
+
+            using Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(5, 5));
+            Cv2.MorphologyEx(edges, closed, MorphTypes.Close, kernel, iterations: 2);
+
+            int minDimension = Math.Min(width, height);
+            LineSegmentPoint[] segments = Cv2.HoughLinesP(
+                closed,
+                1.0,
+                Math.PI / 360.0,
+                Math.Max(28, (int)Math.Round(minDimension * 0.055)),
+                Math.Max(55.0, minDimension * 0.22),
+                Math.Max(18.0, minDimension * 0.055));
+
+            if (segments.Length < 4) return false;
+
+            List<LineCandidate> top = new();
+            List<LineCandidate> bottom = new();
+            List<LineCandidate> left = new();
+            List<LineCandidate> right = new();
+
+            double rimX = width * 0.025;
+            double rimY = height * 0.025;
+
+            foreach (LineSegmentPoint segment in segments)
+            {
+                double dx = segment.P2.X - segment.P1.X;
+                double dy = segment.P2.Y - segment.P1.Y;
+                double length = Math.Sqrt((dx * dx) + (dy * dy));
+                if (length < 30.0) continue;
+
+                double midX = (segment.P1.X + segment.P2.X) * 0.5;
+                double midY = (segment.P1.Y + segment.P2.Y) * 0.5;
+                FittedLine line = new(
+                    midX,
+                    midY,
+                    dx / length,
+                    dy / length);
+
+                // Keep perspective tolerance generous (~35 degrees), but reject diagonals
+                // from artwork and text.
+                if (Math.Abs(dx) >= Math.Abs(dy) * 1.35 && length >= width * 0.24)
+                {
+                    if (midY > rimY && midY < height * 0.58)
+                        top.Add(new LineCandidate(line, midY, length));
+                    if (midY < height - rimY && midY > height * 0.42)
+                        bottom.Add(new LineCandidate(line, midY, length));
+                }
+                else if (Math.Abs(dy) >= Math.Abs(dx) * 1.35 && length >= height * 0.24)
+                {
+                    if (midX > rimX && midX < width * 0.58)
+                        left.Add(new LineCandidate(line, midX, length));
+                    if (midX < width - rimX && midX > width * 0.42)
+                        right.Add(new LineCandidate(line, midX, length));
+                }
+            }
+
+            // Outermost first, but retain several alternatives because a table seam or
+            // sleeve edge can occasionally sit outside the card.
+            LineCandidate[] tops = top.OrderBy(c => c.Position).ThenByDescending(c => c.Length).Take(10).ToArray();
+            LineCandidate[] bottoms = bottom.OrderByDescending(c => c.Position).ThenByDescending(c => c.Length).Take(10).ToArray();
+            LineCandidate[] lefts = left.OrderBy(c => c.Position).ThenByDescending(c => c.Length).Take(10).ToArray();
+            LineCandidate[] rights = right.OrderByDescending(c => c.Position).ThenByDescending(c => c.Length).Take(10).ToArray();
+
+            if (tops.Length == 0 || bottoms.Length == 0 || lefts.Length == 0 || rights.Length == 0)
+                return false;
+
+            double imageArea = Math.Max(width * (double)height, 1.0);
+            double bestScore = double.NegativeInfinity;
+            CardPoint[]? best = null;
+
+            foreach (LineCandidate t in tops)
+            foreach (LineCandidate b in bottoms)
+            foreach (LineCandidate l in lefts)
+            foreach (LineCandidate r in rights)
+            {
+                if (b.Position - t.Position < height * 0.30 || r.Position - l.Position < width * 0.25)
+                    continue;
+
+                if (!TryIntersect(t.Line, l.Line, out CardPoint tl) ||
+                    !TryIntersect(t.Line, r.Line, out CardPoint tr) ||
+                    !TryIntersect(b.Line, r.Line, out CardPoint br) ||
+                    !TryIntersect(b.Line, l.Line, out CardPoint bl))
+                    continue;
+
+                CardPoint[] candidate = { tl, tr, br, bl };
+                if (!ValidateQuadrilateral(candidate, width, height)) continue;
+
+                double topLength = Distance(tl, tr);
+                double bottomLength = Distance(bl, br);
+                double leftLength = Distance(tl, bl);
+                double rightLength = Distance(tr, br);
+                double meanWidth = (topLength + bottomLength) * 0.5;
+                double meanHeight = (leftLength + rightLength) * 0.5;
+                if (meanWidth <= 1.0 || meanHeight <= 1.0) continue;
+
+                double ratio = meanWidth / meanHeight;
+                double ratioError = Math.Abs(ratio - ExpectedCardRatio);
+                if (ratioError > 0.20) continue;
+
+                double areaFraction = PolygonArea(candidate) / imageArea;
+                double oppositeAgreement =
+                    (1.0 - Math.Min(Math.Abs(topLength - bottomLength) / Math.Max(meanWidth, 1.0), 1.0) +
+                     1.0 - Math.Min(Math.Abs(leftLength - rightLength) / Math.Max(meanHeight, 1.0), 1.0)) * 0.5;
+
+                double parallelScore =
+                    (Math.Abs((t.Line.Vx * b.Line.Vx) + (t.Line.Vy * b.Line.Vy)) +
+                     Math.Abs((l.Line.Vx * r.Line.Vx) + (l.Line.Vy * r.Line.Vy))) * 0.5;
+
+                double perpendicular = Math.Abs((t.Line.Vx * l.Line.Vx) + (t.Line.Vy * l.Line.Vy));
+                double perpendicularScore = 1.0 - Math.Clamp(perpendicular, 0.0, 1.0);
+
+                double support = Math.Clamp(
+                    (t.Length + b.Length + l.Length + r.Length) /
+                    Math.Max((meanWidth * 2.0) + (meanHeight * 2.0), 1.0),
+                    0.0,
+                    1.0);
+
+                double priorScore = 0.5;
+                if (normalizedPriorCorners is not null && normalizedPriorCorners.Count == 4)
+                {
+                    double total = 0.0;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        double nx = candidate[i].X / Math.Max(width - 1.0, 1.0);
+                        double ny = candidate[i].Y / Math.Max(height - 1.0, 1.0);
+                        double dxp = nx - normalizedPriorCorners[i].X;
+                        double dyp = ny - normalizedPriorCorners[i].Y;
+                        total += Math.Sqrt((dxp * dxp) + (dyp * dyp));
+                    }
+                    priorScore = Math.Clamp(1.0 - ((total / 4.0) / 0.18), 0.0, 1.0);
+                }
+
+                double ratioScore = Math.Clamp(1.0 - (ratioError / 0.20), 0.0, 1.0);
+                double areaScore = Math.Clamp(areaFraction / 0.34, 0.0, 1.0);
+                double score =
+                    (areaScore * 2.5) +
+                    (ratioScore * 2.2) +
+                    (oppositeAgreement * 1.2) +
+                    (parallelScore * 0.9) +
+                    (perpendicularScore * 0.8) +
+                    (support * 0.8) +
+                    (priorScore * 1.0);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+
+            if (best is null) return false;
+            ordered = best;
+            confidence = Math.Clamp(0.58 + (bestScore / 14.0), 0.58, 0.99);
+            return true;
+        }
+
         private static bool TryDetectCardFromEdges(
             Mat bgr,
             int width,
@@ -760,73 +1225,41 @@ namespace CollectIQ.Services.Inspection.Geometry
             out CardPoint[] ordered)
         {
             ordered = Array.Empty<CardPoint>();
-            if (input.Count != 4)
+            if (input.Count != 4) return false;
+
+            // Do NOT infer orientation from which detected edge happens to be shorter.
+            // That old behavior could rotate one capture 90 degrees when glare changed
+            // a contour. Inspection captures are required to be upright, so preserve
+            // screen/image orientation and order corners by their visual positions.
+            CardPoint? tl = null, tr = null, br = null, bl = null;
+            double minSum = double.PositiveInfinity, maxSum = double.NegativeInfinity;
+            double maxDiff = double.NegativeInfinity, minDiff = double.PositiveInfinity;
+
+            foreach (CardPoint point in input)
             {
-                return false;
+                double sum = point.X + point.Y;
+                double diff = point.X - point.Y;
+                if (sum < minSum) { minSum = sum; tl = point; }
+                if (sum > maxSum) { maxSum = sum; br = point; }
+                if (diff > maxDiff) { maxDiff = diff; tr = point; }
+                if (diff < minDiff) { minDiff = diff; bl = point; }
             }
 
-            CardPoint center = new(
-                input.Average(point => point.X),
-                input.Average(point => point.Y));
-            CardPoint[] clockwise = SortClockwise(input, center);
-
-            double[] lengths = new double[4];
-            for (int i = 0; i < 4; i++)
+            if (tl.HasValue && tr.HasValue && br.HasValue && bl.HasValue)
             {
-                lengths[i] = Distance(clockwise[i], clockwise[(i + 1) % 4]);
+                CardPoint[] candidate = { tl.Value, tr.Value, br.Value, bl.Value };
+                if (candidate.Distinct().Count() == 4 && PolygonArea(candidate) > 1.0)
+                {
+                    ordered = candidate;
+                    return true;
+                }
             }
 
-            double pair02 = (lengths[0] + lengths[2]) * 0.5;
-            double pair13 = (lengths[1] + lengths[3]) * 0.5;
-            int shortEdgeA = pair02 <= pair13 ? 0 : 1;
-            int shortEdgeB = (shortEdgeA + 2) % 4;
-
-            CardPoint a0 = clockwise[shortEdgeA];
-            CardPoint a1 = clockwise[(shortEdgeA + 1) % 4];
-            CardPoint b0 = clockwise[shortEdgeB];
-            CardPoint b1 = clockwise[(shortEdgeB + 1) % 4];
-
-            // Pick the short side whose midpoint appears highest in the
-            // auto-oriented camera image as canonical top. This is deterministic
-            // and, crucially, always produces portrait geometry.
-            double midAY = (a0.Y + a1.Y) * 0.5;
-            double midBY = (b0.Y + b1.Y) * 0.5;
-            int topEdge = midAY <= midBY ? shortEdgeA : shortEdgeB;
-
-            CardPoint top0 = clockwise[topEdge];
-            CardPoint top1 = clockwise[(topEdge + 1) % 4];
-
-            int topLeftIndex;
-            int topRightIndex;
-            if (top0.X <= top1.X)
-            {
-                topLeftIndex = topEdge;
-                topRightIndex = (topEdge + 1) % 4;
-            }
-            else
-            {
-                topLeftIndex = (topEdge + 1) % 4;
-                topRightIndex = topEdge;
-            }
-
-            // The bottom corner adjacent to TR is the non-top neighbour of TR;
-            // the bottom corner adjacent to TL is the non-top neighbour of TL.
-            int nextFromTr = (topRightIndex + 1) % 4;
-            int prevFromTr = (topRightIndex + 3) % 4;
-            int bottomRightIndex = nextFromTr == topLeftIndex ? prevFromTr : nextFromTr;
-
-            int nextFromTl = (topLeftIndex + 1) % 4;
-            int prevFromTl = (topLeftIndex + 3) % 4;
-            int bottomLeftIndex = nextFromTl == topRightIndex ? prevFromTl : nextFromTl;
-
-            ordered = new[]
-            {
-                clockwise[topLeftIndex],
-                clockwise[topRightIndex],
-                clockwise[bottomRightIndex],
-                clockwise[bottomLeftIndex]
-            };
-
+            // Conservative fallback for near-axis-aligned perspective views.
+            CardPoint[] byY = input.OrderBy(point => point.Y).ToArray();
+            CardPoint[] topPair = byY.Take(2).OrderBy(point => point.X).ToArray();
+            CardPoint[] bottomPair = byY.Skip(2).OrderBy(point => point.X).ToArray();
+            ordered = new[] { topPair[0], topPair[1], bottomPair[1], bottomPair[0] };
             return PolygonArea(ordered) > 1.0;
         }
 
@@ -991,6 +1424,8 @@ namespace CollectIQ.Services.Inspection.Geometry
                 SourceHeight = source.Height
             };
         }
+
+        private readonly record struct LineCandidate(FittedLine Line, double Position, double Length);
 
         private readonly record struct FittedLine(
             double X,

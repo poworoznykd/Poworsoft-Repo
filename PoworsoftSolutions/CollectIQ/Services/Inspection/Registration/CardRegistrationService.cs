@@ -142,7 +142,7 @@ namespace CollectIQ.Services.Inspection.Registration
             CancellationToken cancellationToken)
         {
             using SixLabors.ImageSharp.Image<Rgba32> source = await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
-            source.Mutate(context => context.AutoOrient());
+            NormalizeInspectionOrientation(source);
 
             CardGeometryResult geometry = geometryService.DetectCard(source);
             if (!geometry.Success || geometry.Corners.Length != 4)
@@ -185,7 +185,7 @@ namespace CollectIQ.Services.Inspection.Registration
         {
             using SixLabors.ImageSharp.Image<Rgba32> source =
                 await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
-            source.Mutate(context => context.AutoOrient());
+            NormalizeInspectionOrientation(source);
 
             CardGeometryResult geometry =
                 geometryService.DetectCardNearPrior(source, normalizedReferenceCorners);
@@ -216,6 +216,21 @@ namespace CollectIQ.Services.Inspection.Registration
                 Geometry = geometry,
                 Luminance = ExtractLuminance(rectified)
             };
+        }
+
+        private static void NormalizeInspectionOrientation(SixLabors.ImageSharp.Image<Rgba32> source)
+        {
+            source.Mutate(context => context.AutoOrient());
+
+            // Never rotate based on card artwork, glare, contour width, or a "best match".
+            // EXIF is authoritative. Only if the decoded Android sensor buffer itself is
+            // landscape do we apply the single deterministic sensor-to-portrait rotation.
+            // Every capture follows the identical rule, so directional frames cannot
+            // randomly alternate between portrait and landscape.
+            if (source.Width > source.Height)
+            {
+                source.Mutate(context => context.Rotate(RotateMode.Rotate90));
+            }
         }
 
         private static SixLabors.ImageSharp.Image<Rgba32> WarpToCanonical(

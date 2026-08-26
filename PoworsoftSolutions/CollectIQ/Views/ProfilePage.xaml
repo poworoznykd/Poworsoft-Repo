@@ -286,17 +286,17 @@
                             TextColor="#E2E8F0" />
 
                         <Label
-                            Text="Email/phone verification, badges, and marketplace settings will live here."
+                            Text="Manage your identity, security status, collector profile and marketplace readiness."
                             FontSize="11"
                             TextColor="#94A3B8" />
 
                         <Button
-                            Text="Under Construction"
+                            Text="Open Account Center"
                             BackgroundColor="#0F172A"
-                            TextColor="#E2E8F0"
+                            TextColor="#38BDF8"
                             CornerRadius="14"
                             HeightRequest="44"
-                            Clicked="OnUnderConstructionClicked" />
+                            Clicked="OnAccountCenterClicked" />
 
                         <Button
                             Text="Developer Database View"
