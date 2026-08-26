@@ -128,16 +128,21 @@ namespace CollectIQ.Services.Inspection
             float[] localRelief = PositiveHighPass(relief, 5);
             float[] localNeutralResidual = PositiveHighPass(neutralResidual, 7);
             float[] albedoEdge = GradientMagnitudeLocal(albedo, ProcessingWidth, ProcessingHeight);
+            float[] referenceEdge = GradientMagnitudeLocal(reference, ProcessingWidth, ProcessingHeight);
 
-            float[] curvatureN = RobustNormalize(curvature, 0.985f);
-            float[] reliefN = RobustNormalize(localRelief, 0.985f);
-            float[] residualN = RobustNormalize(localNeutralResidual, 0.985f);
-            float[] mismatchN = RobustNormalize(opposingMismatch, 0.985f);
-            float[] specularN = RobustNormalize(specular, 0.99f);
-            float[] albedoEdgeN = RobustNormalize(albedoEdge, 0.99f);
+            float[] curvatureN = RobustNormalize(curvature, 0.992f);
+            float[] reliefN = RobustNormalize(localRelief, 0.992f);
+            float[] residualN = RobustNormalize(localNeutralResidual, 0.992f);
+            float[] mismatchN = RobustNormalize(opposingMismatch, 0.992f);
+            float[] specularN = RobustNormalize(specular, 0.995f);
+            float[] albedoEdgeN = RobustNormalize(albedoEdge, 0.995f);
+            float[] referenceEdgeN = RobustNormalize(referenceEdge, 0.995f);
 
+            // Defect candidates must behave like LOCAL SURFACE GEOMETRY, not merely
+            // like a printed edge.  A real scratch/dent generally changes strongly
+            // with light direction; ink/artwork tends to remain much more stable.
             float[] defectScore = new float[pixelCount];
-            int border = 18;
+            int border = 24;
             for (int y = 0; y < ProcessingHeight; y++)
             {
                 for (int x = 0; x < ProcessingWidth; x++)
@@ -149,51 +154,99 @@ namespace CollectIQ.Services.Inspection
                         continue;
                     }
 
-                    float r1 = residualTopN[i], r2 = residualRightN[i], r3 = residualBottomN[i], r4 = residualLeftN[i];
+                    float r1 = residualTopN[i];
+                    float r2 = residualRightN[i];
+                    float r3 = residualBottomN[i];
+                    float r4 = residualLeftN[i];
+
+                    float maxResidual = MathF.Max(MathF.Max(r1, r2), MathF.Max(r3, r4));
+                    float minResidual = MathF.Min(MathF.Min(r1, r2), MathF.Min(r3, r4));
+
+                    float strongest = r1;
+                    float secondStrongest = 0.0f;
+                    if (r2 > strongest) { secondStrongest = strongest; strongest = r2; } else { secondStrongest = r2; }
+                    if (r3 > strongest) { secondStrongest = strongest; strongest = r3; } else if (r3 > secondStrongest) { secondStrongest = r3; }
+                    if (r4 > strongest) { secondStrongest = strongest; strongest = r4; } else if (r4 > secondStrongest) { secondStrongest = r4; }
+                    float strongestTwo = (strongest * 0.62f) + (secondStrongest * 0.38f);
+
                     int supportCount = 0;
-                    if (r1 >= 0.30f) supportCount++;
-                    if (r2 >= 0.30f) supportCount++;
-                    if (r3 >= 0.30f) supportCount++;
-                    if (r4 >= 0.30f) supportCount++;
+                    if (r1 >= 0.34f) supportCount++;
+                    if (r2 >= 0.34f) supportCount++;
+                    if (r3 >= 0.34f) supportCount++;
+                    if (r4 >= 0.34f) supportCount++;
 
-                    float max1 = r1, max2 = 0;
-                    if (r2 > max1) { max2 = max1; max1 = r2; } else { max2 = r2; }
-                    if (r3 > max1) { max2 = max1; max1 = r3; } else if (r3 > max2) { max2 = r3; }
-                    if (r4 > max1) { max2 = max1; max1 = r4; } else if (r4 > max2) { max2 = r4; }
-                    float viewEvidence = Math.Clamp((max1 * 0.65f) + (max2 * 0.35f), 0, 1);
-                    float supportBoost = supportCount switch
+                    // Directional variation is key. Registration ghosts and printed
+                    // artwork often produce nearly the same residual in every view;
+                    // a physical ridge/scratch/dent normally responds differently as
+                    // TOP/RIGHT/BOTTOM/LEFT illumination changes.
+                    float directionalVariation = Math.Clamp(
+                        ((maxResidual - minResidual) * 1.55f) +
+                        (mismatchN[i] * 0.45f),
+                        0.0f,
+                        1.0f);
+
+                    float shapeEvidence = Math.Clamp(
+                        (curvatureN[i] * 0.58f) +
+                        (reliefN[i] * 0.27f) +
+                        (mismatchN[i] * 0.15f),
+                        0.0f,
+                        1.0f);
+
+                    float scratchEvidence = Math.Clamp(
+                        (strongestTwo * 0.55f) +
+                        (directionalVariation * 0.30f) +
+                        (curvatureN[i] * 0.15f),
+                        0.0f,
+                        1.0f);
+
+                    float dentEvidence = Math.Clamp(
+                        (shapeEvidence * 0.65f) +
+                        (residualN[i] * 0.20f) +
+                        (directionalVariation * 0.15f),
+                        0.0f,
+                        1.0f);
+
+                    float score = MathF.Max(scratchEvidence, dentEvidence);
+
+                    // Stable edges visible in both the glare-reduced albedo and the
+                    // neutral capture are probably intentional printing/borders.
+                    // Strong directional geometry can rescue a true defect crossing
+                    // artwork, so this is a soft rather than absolute exclusion.
+                    float stableArtworkEdge = MathF.Max(albedoEdgeN[i], referenceEdgeN[i]);
+                    float artworkPenalty = stableArtworkEdge *
+                        (0.78f - (0.48f * directionalVariation));
+
+                    float specularPenalty = specularN[i] *
+                        (0.34f - (0.18f * directionalVariation));
+
+                    // Require either multi-view support or unusually strong geometric
+                    // evidence. This removes isolated foil/glare pixels and most text.
+                    if (supportCount < 2 && shapeEvidence < 0.62f)
                     {
-                        >= 3 => 1.0f,
-                        2 => 0.88f,
-                        1 => 0.55f,
-                        _ => 0.0f
-                    };
+                        score *= 0.28f;
+                    }
+                    else if (supportCount >= 3)
+                    {
+                        score *= 1.08f;
+                    }
 
-                    float score =
-                        (viewEvidence * 0.34f) +
-                        (curvatureN[i] * 0.24f) +
-                        (reliefN[i] * 0.18f) +
-                        (residualN[i] * 0.16f) +
-                        (mismatchN[i] * 0.08f);
-
-                    float artworkPenalty = albedoEdgeN[i] * (supportCount >= 2 ? 0.18f : 0.42f);
-                    float specularPenalty = 0.25f * Math.Clamp(specularN[i], 0, 1);
-                    score *= (0.55f + (0.45f * supportBoost));
-                    score *= (1.0f - artworkPenalty);
-                    score *= (1.0f - specularPenalty);
-                    defectScore[i] = Math.Clamp(score, 0, 1);
+                    score *= Math.Clamp(1.0f - artworkPenalty, 0.15f, 1.0f);
+                    score *= Math.Clamp(1.0f - specularPenalty, 0.35f, 1.0f);
+                    defectScore[i] = Math.Clamp(score, 0.0f, 1.0f);
                 }
             }
 
+            // A very small blur joins adjacent evidence but does not turn printed
+            // outlines into large candidate regions.
             defectScore = BoxBlur(defectScore, ProcessingWidth, ProcessingHeight, 1);
-            float defectThreshold = Math.Max(0.27f, CalculatePercentile(defectScore, 0.983f));
+            float defectThreshold = Math.Max(0.39f, CalculatePercentile(defectScore, 0.992f));
             List<DefectRegion> defectRegions = FindDefectRegions(
                 defectScore,
                 ProcessingWidth,
                 ProcessingHeight,
                 defectThreshold,
                 border,
-                maximumRegions: 12);
+                maximumRegions: 8);
             double anomalyScore = CalculateAnomalyScore(defectScore, defectThreshold);
 
             double registrationScore = registration.OverallQuality;

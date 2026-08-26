@@ -340,19 +340,21 @@ namespace CollectIQ.Services
 
             if (existingVersion < 4)
             {
-                // Version 4 is retained as a compatibility marker only.
-                // Authentication/profile repair must NOT run as a database-startup
-                // migration because user identity changes require a known account.
-                await RecordMigrationAsync(
+                await RunMigrationTransactionAsync(
                     4,
                     AuthenticationIntegrityMigrationName,
-                    "Authentication integrity is repaired only in an authenticated account context.");
+                    async () =>
+                    {
+                        await EnsureAuthenticationIntegrityAsync();
+                    });
                 existingVersion = 4;
             }
 
-            // Database identity is safe and idempotent. Account/profile/credential
-            // rows are deliberately not rewritten during general database startup.
+            // Keep these checks idempotent on every launch. They never drop or
+            // recreate authentication tables. If an older build left a profile
+            // and credential out of sync, CollectIQ repairs the linkage in place.
             await EnsureDatabaseIdentityAsync();
+            await EnsureAuthenticationIntegrityAsync();
         }
 
         /// <summary>
@@ -511,10 +513,11 @@ namespace CollectIQ.Services
                 }
             }
 
-            // Repair orphaned legacy profiles by attaching them to an existing
-            // account with the same normalized email. Never invent a new account
-            // when an existing identity can be recovered.
-            foreach (UserProfile profile in profiles.Where(item => string.IsNullOrWhiteSpace(item.UserAccountId)))
+            // Repair orphaned and legacy profiles by attaching them to an existing
+            // account with the same normalized email. If the account row itself is
+            // missing but the profile still exists, recreate ONLY the missing account
+            // shell and relink it instead of letting the user appear to "disappear".
+            foreach (UserProfile profile in profiles.Where(item => !string.IsNullOrWhiteSpace(item.Email)))
             {
                 string profileEmail = NormalizeEmail(profile.Email);
                 if (string.IsNullOrWhiteSpace(profileEmail))
@@ -523,14 +526,58 @@ namespace CollectIQ.Services
                 }
 
                 UserAccount? matchingAccount = accounts.FirstOrDefault(item =>
+                    (!string.IsNullOrWhiteSpace(profile.UserAccountId) && item.Id == profile.UserAccountId) ||
                     NormalizeEmail(item.EmailNormalized) == profileEmail ||
                     NormalizeEmail(item.Email) == profileEmail);
 
-                if (matchingAccount != null)
+                if (matchingAccount == null)
+                {
+                    matchingAccount = new UserAccount
+                    {
+                        Email = profileEmail,
+                        EmailNormalized = profileEmail,
+                        AccountStatus = AccountStatuses.Active,
+                        IsGuest = string.Equals(profile.Role, UserRoles.Guest, StringComparison.OrdinalIgnoreCase),
+                        LastLoginUtc = profile.LastLoginUtc,
+                        CreatedUtc = profile.CreatedUtc == default ? DateTime.UtcNow : profile.CreatedUtc,
+                        UpdatedUtc = DateTime.UtcNow
+                    };
+
+                    await connection.InsertAsync(matchingAccount);
+                    accounts.Add(matchingAccount);
+                }
+
+                if (profile.UserAccountId != matchingAccount.Id)
                 {
                     profile.UserAccountId = matchingAccount.Id;
                     profile.UpdatedUtc = DateTime.UtcNow;
                     await connection.UpdateAsync(profile);
+                }
+
+                if (!matchingAccount.IsGuest && !string.IsNullOrWhiteSpace(profile.PasswordHash))
+                {
+                    UserCredential? localCredential = credentials.FirstOrDefault(item =>
+                        item.UserAccountId == matchingAccount.Id &&
+                        string.Equals(item.AuthProvider, "Local", StringComparison.OrdinalIgnoreCase));
+
+                    if (localCredential == null)
+                    {
+                        localCredential = new UserCredential
+                        {
+                            UserAccountId = matchingAccount.Id,
+                            AuthProvider = "Local",
+                            PasswordHash = profile.PasswordHash,
+                            PasswordAlgorithm = profile.PasswordHash.StartsWith("PBKDF2$", StringComparison.OrdinalIgnoreCase)
+                                ? "PBKDF2-SHA256-100000"
+                                : "Legacy-SHA256",
+                            LastChangedUtc = DateTime.UtcNow,
+                            CreatedUtc = DateTime.UtcNow,
+                            UpdatedUtc = DateTime.UtcNow
+                        };
+
+                        await connection.InsertAsync(localCredential);
+                        credentials.Add(localCredential);
+                    }
                 }
             }
 
@@ -770,19 +817,7 @@ namespace CollectIQ.Services
 
             entity.UpdatedUtc = now;
 
-            T? existing = await connection!.Table<T>()
-                .Where(item => item.Id == entity.Id)
-                .FirstOrDefaultAsync();
-
-            if (existing == null)
-            {
-                await connection.InsertAsync(entity);
-            }
-            else
-            {
-                entity.CreatedUtc = existing.CreatedUtc;
-                await connection.UpdateAsync(entity);
-            }
+            await connection!.InsertOrReplaceAsync(entity);
         }
 
         /// <summary>
@@ -806,21 +841,27 @@ namespace CollectIQ.Services
         #region User Account and Profile Methods
 
         /// <summary>
-        /// Gets the current authenticated user's profile. Legacy callers must never
-        /// receive an arbitrary first profile when multiple accounts exist.
+        /// Gets the first local user profile. Legacy helper used by older screens.
         /// </summary>
+        /// <returns>The first profile, or null when none exists.</returns>
         public async Task<UserProfile?> GetUserProfileAsync()
         {
             await InitializeAsync();
-            string userAccountId = UserSession.CurrentUserAccountId;
-            if (string.IsNullOrWhiteSpace(userAccountId))
+
+            string? activeUserAccountId = UserSession.CurrentUser?.UserAccountId;
+            if (!string.IsNullOrWhiteSpace(activeUserAccountId))
             {
-                return null;
+                UserProfile? current = await connection!.Table<UserProfile>()
+                    .Where(item => item.UserAccountId == activeUserAccountId)
+                    .FirstOrDefaultAsync();
+
+                if (current != null)
+                {
+                    return current;
+                }
             }
 
-            return await connection!.Table<UserProfile>()
-                .Where(item => item.UserAccountId == userAccountId && !item.IsDeleted)
-                .FirstOrDefaultAsync();
+            return await connection!.Table<UserProfile>().FirstOrDefaultAsync();
         }
 
         /// <summary>
@@ -834,19 +875,31 @@ namespace CollectIQ.Services
 
             string normalizedEmail = NormalizeEmail(email);
 
-            return await connection!.Table<UserProfile>()
-                .Where(u => u.Email == normalizedEmail && !u.IsDeleted)
+            UserProfile? direct = await connection!.Table<UserProfile>()
+                .Where(u => u.Email == normalizedEmail)
                 .FirstOrDefaultAsync();
+
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            List<UserProfile> profiles = await connection.Table<UserProfile>().ToListAsync();
+            return profiles.FirstOrDefault(item =>
+                string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
-        /// Gets the profile linked to one permanent account ID.
+        /// Gets the most recently updated profile linked to one permanent account ID.
         /// </summary>
         public async Task<UserProfile?> GetUserProfileByAccountIdAsync(string userAccountId)
         {
             await InitializeAsync();
+
             if (string.IsNullOrWhiteSpace(userAccountId))
+            {
                 return null;
+            }
 
             List<UserProfile> matches = await connection!.Table<UserProfile>()
                 .Where(item => item.UserAccountId == userAccountId && !item.IsDeleted)
@@ -938,9 +991,19 @@ namespace CollectIQ.Services
 
             string normalizedEmail = NormalizeEmail(email);
 
-            return await connection!.Table<UserAccount>()
-                .Where(u => !u.IsDeleted && (u.EmailNormalized == normalizedEmail || u.Email == normalizedEmail))
+            UserAccount? direct = await connection!.Table<UserAccount>()
+                .Where(u => u.EmailNormalized == normalizedEmail)
                 .FirstOrDefaultAsync();
+
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            List<UserAccount> accounts = await connection.Table<UserAccount>().ToListAsync();
+            return accounts.FirstOrDefault(item =>
+                string.Equals(NormalizeEmail(item.EmailNormalized), normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeEmail(item.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -957,11 +1020,16 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
 
-            account.EmailNormalized = NormalizeEmail(account.EmailNormalized);
+            string canonicalEmail = NormalizeEmail(
+                !string.IsNullOrWhiteSpace(account.EmailNormalized)
+                    ? account.EmailNormalized
+                    : account.Email);
 
-            if (string.IsNullOrWhiteSpace(account.Email) && !string.IsNullOrWhiteSpace(account.EmailNormalized))
+            account.EmailNormalized = canonicalEmail;
+
+            if (string.IsNullOrWhiteSpace(account.Email) && !string.IsNullOrWhiteSpace(canonicalEmail))
             {
-                account.Email = account.EmailNormalized;
+                account.Email = canonicalEmail;
             }
 
             account.UpdatedUtc = DateTime.UtcNow;
@@ -1140,7 +1208,7 @@ namespace CollectIQ.Services
             }
 
             UserProfile? profile = await GetUserProfileByEmailAsync(email);
-            return profile?.PasswordHash;
+            return profile?.PasswordHash ?? profile?.DisplayName;
         }
 
         /// <summary>
@@ -1184,7 +1252,7 @@ namespace CollectIQ.Services
 
             if (string.IsNullOrWhiteSpace(userAccountId))
             {
-                throw new InvalidOperationException("A valid UserAccount.Id is required to create or load a collection.");
+                userAccountId = "local";
             }
 
             CardCollection? collection = await connection!.Table<CardCollection>()
@@ -1193,7 +1261,6 @@ namespace CollectIQ.Services
 
             if (collection != null)
             {
-                await AdoptUnambiguousLegacyCardsAsync(userAccountId, collection.Id);
                 return collection;
             }
 
@@ -1223,7 +1290,8 @@ namespace CollectIQ.Services
             };
 
             await connection.InsertAsync(member);
-            await AdoptUnambiguousLegacyCardsAsync(userAccountId, collection.Id);
+
+            await AssignUnassignedCardsToCollectionAsync(collection.Id);
 
             return collection;
         }
@@ -1270,18 +1338,22 @@ namespace CollectIQ.Services
 
         /// <summary>
         /// Reconnects collections that still reference an older account ID to the
-        /// authenticated canonical account. Cards are NOT rewritten or deleted because
-        /// they already belong to those collections. This method must only be called
-        /// after authentication has proven both IDs represent the same email identity.
+        /// authenticated canonical account. Cards are not rewritten or deleted because
+        /// they already belong to those collections. Call only after authentication has
+        /// proven both IDs represent the same identity.
         /// </summary>
-        public async Task<int> RecoverOwnedDataForAccountAsync(string legacyUserAccountId, string canonicalUserAccountId)
+        public async Task<int> RecoverOwnedDataForAccountAsync(
+            string legacyUserAccountId,
+            string canonicalUserAccountId)
         {
             await InitializeAsync();
 
             if (string.IsNullOrWhiteSpace(legacyUserAccountId) ||
                 string.IsNullOrWhiteSpace(canonicalUserAccountId) ||
                 string.Equals(legacyUserAccountId, canonicalUserAccountId, StringComparison.Ordinal))
+            {
                 return 0;
+            }
 
             int changes = 0;
             List<CardCollection> legacyCollections = await connection!.Table<CardCollection>()
@@ -1385,16 +1457,11 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
 
-            string userAccountId = UserSession.RequireCurrentUserAccountId();
-            CardCollection defaultCollection = await GetOrCreateDefaultCollectionAsync(userAccountId);
-
-            // Parsed/search cards from older code can contain values such as
-            // "Default" rather than a real CardCollection.Id. Never let that
-            // bypass ownership. Use it only when it resolves to a collection the
-            // active account can write to; otherwise use this user's default.
-            if (!await CanCurrentUserWriteCollectionAsync(card.CollectionId, userAccountId))
+            if (string.IsNullOrWhiteSpace(card.CollectionId))
             {
-                card.CollectionId = defaultCollection.Id;
+                string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
+                CardCollection collection = await GetOrCreateDefaultCollectionAsync(ownerUserAccountId);
+                card.CollectionId = collection.Id;
             }
 
             card.CreatedUtc = card.CreatedUtc == default ? DateTime.UtcNow : card.CreatedUtc;
@@ -1413,29 +1480,20 @@ namespace CollectIQ.Services
 
             try
             {
-                string userAccountId = UserSession.RequireCurrentUserAccountId();
-                List<CardCollection> collections = await GetCollectionsForUserAsync(userAccountId);
-                HashSet<string> allowedCollectionIds = collections
-                    .Select(item => item.Id)
-                    .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .ToHashSet(StringComparer.Ordinal);
-
-                if (allowedCollectionIds.Count == 0)
-                {
-                    return new List<Card>();
-                }
-
                 List<Card> cards = await connection!.Table<Card>()
                     .Where(c => !c.IsDeleted)
                     .OrderByDescending(c => c.CreatedUtc)
                     .ToListAsync();
 
-                return cards.Where(card => allowedCollectionIds.Contains(card.CollectionId)).ToList();
-            }
-            catch (InvalidOperationException)
-            {
-                // A signed-out page must never receive another account's cards.
-                return new List<Card>();
+                HashSet<string>? visibleCollectionIds = await GetVisibleCollectionIdsForCurrentUserAsync();
+                if (visibleCollectionIds == null || visibleCollectionIds.Count == 0)
+                {
+                    return cards;
+                }
+
+                return cards
+                    .Where(card => !string.IsNullOrWhiteSpace(card.CollectionId) && visibleCollectionIds.Contains(card.CollectionId))
+                    .ToList();
             }
             catch (Exception ex)
             {
@@ -1457,20 +1515,17 @@ namespace CollectIQ.Services
             }
 
             await InitializeAsync();
-            string userAccountId = UserSession.RequireCurrentUserAccountId();
 
-            Card? card = await connection!.Table<Card>()
-                .Where(item => item.Id == cardId && !item.IsDeleted)
-                .FirstOrDefaultAsync();
-
-            if (card == null || !await CanCurrentUserWriteCollectionAsync(card.CollectionId, userAccountId))
+            try
             {
+                await connection!.ExecuteAsync("DELETE FROM CardImage WHERE CardId = ?", cardId);
+                return await connection.ExecuteAsync("DELETE FROM Card WHERE Id = ?", cardId);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] DeleteCardAsync failed: " + ex.Message);
                 return 0;
             }
-
-            card.IsDeleted = true;
-            card.UpdatedUtc = DateTime.UtcNow;
-            return await connection.UpdateAsync(card);
         }
 
         /// <summary>
@@ -1486,102 +1541,84 @@ namespace CollectIQ.Services
             }
 
             await InitializeAsync();
-            string userAccountId = UserSession.RequireCurrentUserAccountId();
 
-            Card? existing = await connection!.Table<Card>()
-                .Where(item => item.Id == card.Id && !item.IsDeleted)
-                .FirstOrDefaultAsync();
-
-            if (existing == null || !await CanCurrentUserWriteCollectionAsync(existing.CollectionId, userAccountId))
+            if (string.IsNullOrWhiteSpace(card.CollectionId))
             {
-                return 0;
+                string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
+                CardCollection collection = await GetOrCreateDefaultCollectionAsync(ownerUserAccountId);
+                card.CollectionId = collection.Id;
             }
 
-            // A card edit cannot silently move a card into another user's collection.
-            if (!await CanCurrentUserWriteCollectionAsync(card.CollectionId, userAccountId))
-            {
-                card.CollectionId = existing.CollectionId;
-            }
-
-            card.CreatedUtc = existing.CreatedUtc;
             card.UpdatedUtc = DateTime.UtcNow;
-            return await connection.UpdateAsync(card);
-        }
-
-        private async Task<bool> CanCurrentUserWriteCollectionAsync(string? collectionId, string userAccountId)
-        {
-            if (string.IsNullOrWhiteSpace(collectionId) || string.IsNullOrWhiteSpace(userAccountId))
-            {
-                return false;
-            }
-
-            CardCollection? collection = await connection!.Table<CardCollection>()
-                .Where(item => item.Id == collectionId && !item.IsDeleted)
-                .FirstOrDefaultAsync();
-
-            if (collection == null)
-            {
-                return false;
-            }
-
-            if (string.Equals(collection.OwnerUserAccountId, userAccountId, StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            CollectionMember? membership = await connection.Table<CollectionMember>()
-                .Where(item => item.CollectionId == collectionId &&
-                               item.UserAccountId == userAccountId &&
-                               !item.IsDeleted)
-                .FirstOrDefaultAsync();
-
-            return membership?.CanAddCards == true || membership?.CanEditCards == true || membership?.CanDeleteCards == true;
+            return await connection!.UpdateAsync(card);
         }
 
         /// <summary>
-        /// Recovers cards created by older builds that used the shared "local"/
-        /// "Default" bucket. Recovery only runs when exactly one non-guest account
-        /// exists, making ownership unambiguous. With multiple real accounts, no data
-        /// is moved automatically.
+        /// Assigns existing unassigned cards to the default collection.
         /// </summary>
-        private async Task AdoptUnambiguousLegacyCardsAsync(string userAccountId, string targetCollectionId)
+        /// <param name="collectionId">The collection ID.</param>
+        private async Task AssignUnassignedCardsToCollectionAsync(string collectionId)
         {
-            UserAccount? targetAccount = await connection!.Table<UserAccount>()
-                .Where(item => item.Id == userAccountId)
-                .FirstOrDefaultAsync();
-
-            if (targetAccount == null || targetAccount.IsGuest)
+            try
             {
-                return;
+                List<Card> unassignedCards = await connection!.Table<Card>()
+                    .Where(c => c.CollectionId == null || c.CollectionId == string.Empty)
+                    .ToListAsync();
+
+                foreach (Card card in unassignedCards)
+                {
+                    card.CollectionId = collectionId;
+                    card.UpdatedUtc = DateTime.UtcNow;
+                    await connection.UpdateAsync(card);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] AssignUnassignedCardsToCollectionAsync failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the preferred owner account for newly created local cards.
+        /// When a signed-in user exists, new cards must go into that account's
+        /// default collection instead of the shared legacy "local" bucket.
+        /// </summary>
+        private static Task<string> GetPreferredOwnerUserAccountIdAsync()
+        {
+            string? activeUserAccountId = UserSession.CurrentUser?.UserAccountId;
+            if (!string.IsNullOrWhiteSpace(activeUserAccountId))
+            {
+                return Task.FromResult(activeUserAccountId);
             }
 
-            List<UserAccount> accounts = await connection.Table<UserAccount>()
-                .Where(item => !item.IsDeleted && !item.IsGuest)
-                .ToListAsync();
+            return Task.FromResult("local");
+        }
 
-            if (accounts.Count != 1 || accounts[0].Id != userAccountId)
+        /// <summary>
+        /// Gets the collection IDs visible to the current signed-in profile.
+        /// If no session is available, null is returned so existing developer
+        /// tooling can still inspect every card in the local database.
+        /// </summary>
+        private async Task<HashSet<string>?> GetVisibleCollectionIdsForCurrentUserAsync()
+        {
+            string? activeUserAccountId = UserSession.CurrentUser?.UserAccountId;
+            if (string.IsNullOrWhiteSpace(activeUserAccountId))
             {
-                return;
+                return null;
             }
 
-            List<CardCollection> legacyCollections = await connection.Table<CardCollection>()
-                .Where(item => item.OwnerUserAccountId == "local" && !item.IsDeleted)
-                .ToListAsync();
-            HashSet<string> legacyCollectionIds = legacyCollections.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-
-            List<Card> cards = await connection.Table<Card>()
-                .Where(item => !item.IsDeleted)
-                .ToListAsync();
-
-            foreach (Card legacyCard in cards.Where(item =>
-                string.IsNullOrWhiteSpace(item.CollectionId) ||
-                string.Equals(item.CollectionId, "Default", StringComparison.OrdinalIgnoreCase) ||
-                legacyCollectionIds.Contains(item.CollectionId)))
+            List<CardCollection> collections = await GetCollectionsForUserAsync(activeUserAccountId);
+            if (collections.Count == 0)
             {
-                legacyCard.CollectionId = targetCollectionId;
-                legacyCard.UpdatedUtc = DateTime.UtcNow;
-                await connection.UpdateAsync(legacyCard);
+                CardCollection defaultCollection = await GetOrCreateDefaultCollectionAsync(activeUserAccountId);
+                collections.Add(defaultCollection);
             }
+
+            return new HashSet<string>(
+                collections
+                    .Where(collection => !string.IsNullOrWhiteSpace(collection.Id))
+                    .Select(collection => collection.Id),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         #endregion

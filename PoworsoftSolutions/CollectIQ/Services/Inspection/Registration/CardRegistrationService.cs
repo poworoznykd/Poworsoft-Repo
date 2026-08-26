@@ -187,8 +187,12 @@ namespace CollectIQ.Services.Inspection.Registration
                 await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
             NormalizeInspectionOrientation(source);
 
-            CardGeometryResult geometry =
-                geometryService.DetectCardNearPrior(source, normalizedReferenceCorners);
+            // IMPORTANT: Surface must use the EXACT SAME outer-card detector as
+            // Centering. Do not bias the directional images toward the reference
+            // corners; moving glare can make that prior pull the geometry away from
+            // the true physical perimeter. Each capture independently calls
+            // DetectCard(source), exactly as Centering does.
+            CardGeometryResult geometry = geometryService.DetectCard(source);
 
             if (!geometry.Success || geometry.Corners.Length != 4)
             {
@@ -220,17 +224,11 @@ namespace CollectIQ.Services.Inspection.Registration
 
         private static void NormalizeInspectionOrientation(SixLabors.ImageSharp.Image<Rgba32> source)
         {
+            // IMPORTANT: use the exact same image-orientation preprocessing as the
+            // Centering workflow that is now proven on the device.  Do not add a
+            // second width/height based rotation here; that was turning otherwise
+            // correct Surface captures 180 degrees after the perspective warp.
             source.Mutate(context => context.AutoOrient());
-
-            // Never rotate based on card artwork, glare, contour width, or a "best match".
-            // EXIF is authoritative. Only if the decoded Android sensor buffer itself is
-            // landscape do we apply the single deterministic sensor-to-portrait rotation.
-            // Every capture follows the identical rule, so directional frames cannot
-            // randomly alternate between portrait and landscape.
-            if (source.Width > source.Height)
-            {
-                source.Mutate(context => context.Rotate(RotateMode.Rotate90));
-            }
         }
 
         private static SixLabors.ImageSharp.Image<Rgba32> WarpToCanonical(
@@ -269,11 +267,81 @@ namespace CollectIQ.Services.Inspection.Registration
         }
 
         /// <summary>
-        /// External-light capture requires the card and phone to remain fixed. After
-        /// the reference homography has been reused, residual registration should be
-        /// limited to small X/Y framing jitter only. Allowing rotation and scale here
-        /// caused glare to pull otherwise correct frames by 4-5% and 30-42 pixels.
+        /// <summary>
+        /// Legacy constrained similarity search retained for diagnostics only.
+        /// Surface registration no longer calls this method. Once the exact same
+        /// physical-corner detector as Centering has rectified each image, only
+        /// translation is permitted so the photometric frames cannot be distorted.
         /// </summary>
+        private static SimilarityMatch FindBestConstrainedSimilarity(float[] reference, float[] moving)
+        {
+            const int factor = 4;
+            int width = CanonicalWidth / factor;
+            int height = CanonicalHeight / factor;
+
+            float[] referenceSmall = Downsample(reference, CanonicalWidth, CanonicalHeight, factor);
+            float[] movingSmall = Downsample(moving, CanonicalWidth, CanonicalHeight, factor);
+            float[] referenceEdges = GradientMagnitude(referenceSmall, width, height);
+            float[] movingEdges = GradientMagnitude(movingSmall, width, height);
+
+            SimilarityMatch best = new()
+            {
+                Score = double.NegativeInfinity,
+                Scale = 1.0,
+                AngleDegrees = 0.0
+            };
+
+            // At this point perspective normalization is already complete.  We only
+            // permit corrections small enough to represent corner-fit / hand jitter.
+            double[] angles = { -0.50, -0.25, 0.0, 0.25, 0.50 };
+            double[] scales = { 0.997, 1.000, 1.003 };
+            int maximumShiftSmall = Math.Max(2, 16 / factor);
+
+            foreach (double angle in angles)
+            {
+                foreach (double scale in scales)
+                {
+                    for (int dy = -maximumShiftSmall; dy <= maximumShiftSmall; dy++)
+                    {
+                        for (int dx = -maximumShiftSmall; dx <= maximumShiftSmall; dx++)
+                        {
+                            double score = CorrelateTransformed(
+                                referenceEdges,
+                                movingEdges,
+                                width,
+                                height,
+                                angle,
+                                scale,
+                                dx,
+                                dy);
+
+                            // Prefer the smallest correction when correlation is tied.
+                            double correctionPenalty =
+                                (Math.Abs(angle) * 0.0015) +
+                                (Math.Abs(scale - 1.0) * 0.30) +
+                                ((Math.Abs(dx) + Math.Abs(dy)) * 0.00045);
+                            double penalizedScore = score - correctionPenalty;
+
+                            if (penalizedScore > best.Score)
+                            {
+                                best = new SimilarityMatch
+                                {
+                                    Score = penalizedScore,
+                                    AngleDegrees = angle,
+                                    Scale = scale,
+                                    OffsetX = dx * factor,
+                                    OffsetY = dy * factor
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            best.Confidence = Math.Clamp((best.Score + 1.0) * 0.5, 0.0, 1.0);
+            return best;
+        }
+
         private static SimilarityMatch FindBestTranslation(float[] reference, float[] moving)
         {
             const int factor = 3;
