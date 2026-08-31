@@ -30,6 +30,7 @@ using CollectIQ.Controls;
 using CollectIQ.Models;
 using CollectIQ.Models.SportsCardsPro;
 using CollectIQ.Services;
+using CollectIQ.Services.Session;
 using CollectIQ.Utilities;
 using CollectIQ.ViewModels;
 using FreakyKit.Utils;
@@ -517,19 +518,85 @@ namespace CollectIQ.Views
          */
         private async Task SaveCardInternalAsync()
         {
-            if (viewModel?.SelectedCard == null)
+            Card? card = viewModel?.SelectedCard;
+            if (card == null)
             {
-                return;
+                throw new InvalidOperationException("There is no card to save.");
             }
 
-            if (viewModel.SelectedCard.Id != null)
+            await database.InitializeAsync();
+            SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
+
+            // BaseModel creates a GUID before the card has ever been inserted.
+            // Therefore Id != null is not proof that a SQLite row exists.
+            Card? existing = await connection.Table<Card>()
+                .Where(c => c.Id == card.Id)
+                .FirstOrDefaultAsync();
+
+            if (existing == null)
             {
-                await database.UpdateCardAsync(viewModel.SelectedCard);
+                if (string.IsNullOrWhiteSpace(card.CollectionId))
+                {
+                    string? userAccountId = UserSession.CurrentUser?.UserAccountId;
+                    if (string.IsNullOrWhiteSpace(userAccountId))
+                    {
+                        throw new InvalidOperationException(
+                            "No signed-in user account is active, so CollectIQ cannot safely choose a collection for this card.");
+                    }
+
+                    CardCollection defaultCollection =
+                        await database.GetOrCreateDefaultCollectionAsync(userAccountId);
+                    card.CollectionId = defaultCollection.Id;
+                }
+
+                int inserted = await database.AddCardAsync(card);
+                if (inserted <= 0)
+                {
+                    throw new InvalidOperationException("SQLite reported that zero card rows were inserted.");
+                }
+
+                isNewCard = false;
             }
             else
             {
-                await database.AddCardAsync(viewModel.SelectedCard);
-                isNewCard = false;
+                if (string.IsNullOrWhiteSpace(card.CollectionId))
+                {
+                    card.CollectionId = existing.CollectionId;
+                }
+
+                int updated = await database.UpdateCardAsync(card);
+                if (updated <= 0)
+                {
+                    throw new InvalidOperationException("SQLite reported that zero card rows were updated.");
+                }
+            }
+
+            // Do not show a success message unless the exact saved row can actually
+            // be read back and is attached to a real collection.
+            Card? verified = await connection.Table<Card>()
+                .Where(c => c.Id == card.Id && !c.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (verified == null)
+            {
+                throw new InvalidOperationException(
+                    "The save call completed, but the card could not be read back from SQLite.");
+            }
+
+            if (string.IsNullOrWhiteSpace(verified.CollectionId))
+            {
+                throw new InvalidOperationException(
+                    "The card exists in SQLite but is not assigned to a collection.");
+            }
+
+            CardCollection? verifiedCollection = await connection.Table<CardCollection>()
+                .Where(c => c.Id == verified.CollectionId && !c.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (verifiedCollection == null)
+            {
+                throw new InvalidOperationException(
+                    "The card was saved, but its collection does not exist or is deleted.");
             }
         }
 
@@ -1028,19 +1095,50 @@ namespace CollectIQ.Views
                 }
 
                 // ------------------------------------------------------------
-                // 3) No saved reel yet. Open the manager anyway.
-                //    Manual links must never depend on a YouTube API search.
+                // 3) We have no stored highlights; search YouTube.
                 // ------------------------------------------------------------
-                HighlightReel emptyReel = new HighlightReel
+                string playerName = card.Player.FullName;
+
+                if (string.IsNullOrWhiteSpace(playerName))
                 {
-                    Clips = new List<HighlightClip>()
-                };
+                    playerName = player.FullName;
+                }
 
-                card.Highlights = emptyReel;
-                player.HighlightReel = emptyReel;
-                card.Player = player;
+                if (string.IsNullOrWhiteSpace(playerName))
+                {
+                    await DisplayAlert(
+                        "Highlights",
+                        "Please fill in the Player/Name field before searching for highlights.",
+                        "OK");
+                    return;
+                }
 
-                await Navigation.PushAsync(new HighlightPlayerPage(card, emptyReel, 0));
+                string searchQuery = $"{playerName} career highlights";
+
+                HighlightService highlightService = new HighlightService();
+                HighlightReel foundReel =
+                    await highlightService.FindHighlightReelAsync(searchQuery);
+
+                if (foundReel == null || foundReel.Clips == null || foundReel.Clips.Count == 0)
+                {
+                    await DisplayAlert(
+                        "Highlights",
+                        "Sorry, no suitable highlight reel could be found for this card.",
+                        "OK");
+                    return;
+                }
+
+                // Attach the reel to the Player and Card domain models.
+                player.HighlightReel = foundReel;
+                card.Player = player;          // Updates PlayerJson
+
+                card.Highlights = foundReel;   // Updates HighlightJson
+
+                // Persist using shared save logic (no navigation or alert).
+                await SaveCardInternalAsync();
+
+                // Navigate to our CollectIQ-styled highlight player page.
+                await Navigation.PushAsync(new HighlightPlayerPage(card, foundReel, 0));
             }
             catch (Exception ex)
             {

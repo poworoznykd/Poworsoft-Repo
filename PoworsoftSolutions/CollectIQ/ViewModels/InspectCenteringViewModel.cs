@@ -4,6 +4,7 @@ using CollectIQ.Services.Inspection.Geometry;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
 using System.Collections.Generic;
+using System.Linq;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -24,9 +25,13 @@ namespace CollectIQ.Views
         private string? selectedImagePath;
         private string? rawDisplayPath;
         private string? canonicalImagePath;
+        private string? orientedFullImagePath;
+        private CardPoint[]? detectedOuterCorners;
         private string? overlayDisplayPath;
         private string? outputDirectory;
         private ImageSource? cardImageSource;
+        private ImageSource? measurementImageSource;
+        private bool hasMeasurementImage;
         private string centeringSummary = "Capture or load a clear front card photo and tap Auto Analyze.";
         private string horizontalCenteringText = "Not analyzed";
         private string verticalCenteringText = "Not analyzed";
@@ -64,6 +69,18 @@ namespace CollectIQ.Views
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public ImageSource? CardImageSource { get => cardImageSource; set => SetProperty(ref cardImageSource, value); }
+
+        public ImageSource? MeasurementImageSource
+        {
+            get => measurementImageSource;
+            private set => SetProperty(ref measurementImageSource, value);
+        }
+
+        public bool HasMeasurementImage
+        {
+            get => hasMeasurementImage;
+            private set => SetProperty(ref hasMeasurementImage, value);
+        }
         public string CenteringSummary { get => centeringSummary; set => SetProperty(ref centeringSummary, value); }
         public string HorizontalCenteringText { get => horizontalCenteringText; set => SetProperty(ref horizontalCenteringText, value); }
         public string VerticalCenteringText { get => verticalCenteringText; set => SetProperty(ref verticalCenteringText, value); }
@@ -168,7 +185,11 @@ namespace CollectIQ.Views
             selectedImagePath = localPath;
             rawDisplayPath = localPath;
             canonicalImagePath = null;
+            orientedFullImagePath = null;
+            detectedOuterCorners = null;
             overlayDisplayPath = null;
+            MeasurementImageSource = null;
+            HasMeasurementImage = false;
             CardImageSource = ImageSource.FromFile(localPath);
             HasAnalysis = false;
             IsManualMode = false;
@@ -215,15 +236,33 @@ namespace CollectIQ.Views
                 CardGeometryResult geometry = geometryService.DetectCard(source);
                 if (!geometry.Success || geometry.Corners.Length != 4)
                 {
-                    throw new InvalidOperationException("CollectIQ could not detect the physical outside edges of the card. Use a full front photo with the entire card visible on a solid background.");
+                    throw new InvalidOperationException("CollectIQ could not detect the four physical outside card corners. Keep the entire card and some background visible on all four sides.");
                 }
 
+                // Freeze the exact four physical corners returned by the same detector
+                // that produced the known-good Centering behavior.
+                detectedOuterCorners = geometry.Corners.ToArray();
+
+                // Save the FULL oriented capture for the result UI. The rectified card
+                // below is measurement-only and is never substituted for this full image.
+                orientedFullImagePath = Path.Combine(outputDirectory, "full_oriented_capture.png");
+                await using (FileStream orientedStream = new(orientedFullImagePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await source.SaveAsync(orientedStream, new PngEncoder());
+                }
+                rawDisplayPath = orientedFullImagePath;
+
+                // Perspective normalization exists only to make the four physical card
+                // sides rectangular for measurement. It does not control UI zoom.
                 using ImageSharpImage canonical = WarpToCanonical(source, geometry.Corners);
-                canonicalImagePath = Path.Combine(outputDirectory, "canonical.png");
+                canonicalImagePath = Path.Combine(outputDirectory, "canonical_measurement_only.png");
                 await using (FileStream canonicalStream = new(canonicalImagePath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     await canonical.SaveAsync(canonicalStream, new PngEncoder());
                 }
+
+                MeasurementImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasMeasurementImage = true;
 
                 float[] gray = ExtractLuminance(canonical);
                 baseMeasurement = EstimateCentering(gray);
@@ -237,7 +276,7 @@ namespace CollectIQ.Views
                 await RebuildOverlayAsync();
                 HasAnalysis = true;
                 IsManualMode = false;
-                StatusMessage = $"Analysis complete. Inner frame detected with {currentMeasurement.Confidence:0}% confidence.";
+                StatusMessage = $"Analysis complete. Full photo preserved; perspective rectification was used only for measurement. Inner frame confidence {currentMeasurement.Confidence:0}%.";
                 UpdateDisplayedMeasurements();
             }
             catch (Exception ex)
@@ -354,16 +393,26 @@ namespace CollectIQ.Views
 
         private async Task RebuildOverlayAsync()
         {
-            if (string.IsNullOrWhiteSpace(canonicalImagePath) || !File.Exists(canonicalImagePath) || string.IsNullOrWhiteSpace(outputDirectory))
+            if (string.IsNullOrWhiteSpace(orientedFullImagePath) ||
+                !File.Exists(orientedFullImagePath) ||
+                detectedOuterCorners == null ||
+                detectedOuterCorners.Length != 4 ||
+                string.IsNullOrWhiteSpace(outputDirectory))
+            {
                 return;
+            }
 
             long version = Interlocked.Increment(ref overlayRenderVersion);
-            using ImageSharpImage canonical = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(canonicalImagePath);
-            string nextOverlayPath = Path.Combine(outputDirectory, $"centering_overlay_{version:000000}.png");
-            await SaveCenteringOverlayAsync(canonical, currentMeasurement, nextOverlayPath);
+            using ImageSharpImage fullPhoto = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(orientedFullImagePath);
+            string nextOverlayPath = Path.Combine(outputDirectory, $"centering_full_photo_overlay_{version:000000}.png");
 
-            // Only the newest requested redraw is allowed to become visible. This prevents
-            // quick one-pixel taps from racing each other and apparently not moving the line.
+            await SaveCenteringOverlayOnFullPhotoAsync(
+                fullPhoto,
+                detectedOuterCorners,
+                currentMeasurement,
+                nextOverlayPath);
+
+            // Only the newest requested redraw is allowed to become visible.
             if (version == Interlocked.Read(ref overlayRenderVersion))
             {
                 overlayDisplayPath = nextOverlayPath;
@@ -535,34 +584,115 @@ namespace CollectIQ.Views
             return gray;
         }
 
-        private static async Task SaveCenteringOverlayAsync(ImageSharpImage canonical, CenteringMeasurement m, string path)
+        private static async Task SaveCenteringOverlayOnFullPhotoAsync(
+            ImageSharpImage fullPhoto,
+            IReadOnlyList<CardPoint> outerCorners,
+            CenteringMeasurement m,
+            string path)
         {
-            // Do not draw the physical card edge flush against the Image control boundary.
-            // A generous dark inspection margin makes all four true outer edges visible after capture.
-            // This is display-only padding; it does not alter centering measurements.
-            const int padding = 72;
-            using ImageSharpImage overlay = new(
-                CanonicalWidth + (padding * 2),
-                CanonicalHeight + (padding * 2),
-                new Rgba32(5, 8, 20, 255));
-            overlay.Mutate(context => context.DrawImage(canonical, new SixLabors.ImageSharp.Point(padding, padding), 1.0f));
+            using ImageSharpImage overlay = fullPhoto.Clone();
 
-            int cardLeft = padding;
-            int cardTop = padding;
-            int cardRight = padding + CanonicalWidth - 1;
-            int cardBottom = padding + CanonicalHeight - 1;
-            DrawRectangle(overlay, cardLeft, cardTop, cardRight, cardBottom, new Rgba32(57, 255, 20), 2);
+            // The outer green quadrilateral is the physical card detected in the
+            // original/full capture. Nothing is cropped or zoomed for display.
+            Rgba32 outerColor = new(57, 255, 20, 255);
+            DrawPolygon(overlay, outerCorners, outerColor, 5);
 
-            int innerLeft = padding + m.LeftInset;
-            int innerTop = padding + m.TopInset;
-            int innerRight = padding + CanonicalWidth - m.RightInset - 1;
-            int innerBottom = padding + CanonicalHeight - m.BottomInset - 1;
-            DrawRectangle(overlay, innerLeft, innerTop, innerRight, innerBottom, new Rgba32(255, 221, 0), 3);
-            DrawLine(overlay, padding + (CanonicalWidth / 2), cardTop, padding + (CanonicalWidth / 2), cardBottom, new Rgba32(0, 225, 255, 180));
-            DrawLine(overlay, cardLeft, padding + (CanonicalHeight / 2), cardRight, padding + (CanonicalHeight / 2), new Rgba32(0, 225, 255, 180));
+            // Map the measurement-only normalized coordinates back into the original
+            // photo so the yellow centering frame is shown in the correct physical
+            // location without replacing the user's capture with a card crop.
+            CardPoint[] canonicalCorners =
+            {
+                new(0, 0),
+                new(CanonicalWidth - 1, 0),
+                new(CanonicalWidth - 1, CanonicalHeight - 1),
+                new(0, CanonicalHeight - 1)
+            };
+
+            double[] canonicalToSource = SolveHomography(canonicalCorners, outerCorners);
+
+            float innerLeft = m.LeftInset;
+            float innerTop = m.TopInset;
+            float innerRight = CanonicalWidth - m.RightInset - 1;
+            float innerBottom = CanonicalHeight - m.BottomInset - 1;
+
+            CardPoint[] innerCanonical =
+            {
+                new(innerLeft, innerTop),
+                new(innerRight, innerTop),
+                new(innerRight, innerBottom),
+                new(innerLeft, innerBottom)
+            };
+
+            CardPoint[] innerSource = innerCanonical
+                .Select(p => MapProjectivePoint(canonicalToSource, p.X, p.Y))
+                .ToArray();
+
+            DrawPolygon(overlay, innerSource, new Rgba32(255, 221, 0, 255), 5);
+
+            // Cyan center axes are also mapped back onto the full photo.
+            CardPoint centerTop = MapProjectivePoint(canonicalToSource, CanonicalWidth / 2.0f, 0);
+            CardPoint centerBottom = MapProjectivePoint(canonicalToSource, CanonicalWidth / 2.0f, CanonicalHeight - 1);
+            CardPoint centerLeft = MapProjectivePoint(canonicalToSource, 0, CanonicalHeight / 2.0f);
+            CardPoint centerRight = MapProjectivePoint(canonicalToSource, CanonicalWidth - 1, CanonicalHeight / 2.0f);
+
+            DrawLine(
+                overlay,
+                (int)Math.Round(centerTop.X),
+                (int)Math.Round(centerTop.Y),
+                (int)Math.Round(centerBottom.X),
+                (int)Math.Round(centerBottom.Y),
+                new Rgba32(0, 225, 255, 210));
+
+            DrawLine(
+                overlay,
+                (int)Math.Round(centerLeft.X),
+                (int)Math.Round(centerLeft.Y),
+                (int)Math.Round(centerRight.X),
+                (int)Math.Round(centerRight.Y),
+                new Rgba32(0, 225, 255, 210));
 
             await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
             await overlay.SaveAsync(stream, new PngEncoder());
+        }
+
+        private static CardPoint MapProjectivePoint(double[] matrix, float x, float y)
+        {
+            MapProjective(matrix, x, y, out float mappedX, out float mappedY);
+            return new CardPoint(mappedX, mappedY);
+        }
+
+        private static void DrawPolygon(
+            ImageSharpImage image,
+            IReadOnlyList<CardPoint> points,
+            Rgba32 color,
+            int thickness)
+        {
+            if (points.Count < 2)
+                return;
+
+            for (int i = 0; i < points.Count; i++)
+            {
+                CardPoint a = points[i];
+                CardPoint b = points[(i + 1) % points.Count];
+
+                for (int t = -(thickness / 2); t <= thickness / 2; t++)
+                {
+                    DrawLine(
+                        image,
+                        (int)Math.Round(a.X) + t,
+                        (int)Math.Round(a.Y),
+                        (int)Math.Round(b.X) + t,
+                        (int)Math.Round(b.Y),
+                        color);
+                    DrawLine(
+                        image,
+                        (int)Math.Round(a.X),
+                        (int)Math.Round(a.Y) + t,
+                        (int)Math.Round(b.X),
+                        (int)Math.Round(b.Y) + t,
+                        color);
+                }
+            }
         }
 
         private static void DrawRectangle(ImageSharpImage image, int x1, int y1, int x2, int y2, Rgba32 color, int thickness)

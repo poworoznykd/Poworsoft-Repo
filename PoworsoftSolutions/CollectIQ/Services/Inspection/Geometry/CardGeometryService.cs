@@ -66,10 +66,7 @@ namespace CollectIQ.Services.Inspection.Geometry
         {
             try
             {
-                float scale = Math.Min(
-                    1.0f,
-                    DetectionMaximumDimension / (float)Math.Max(source.Width, source.Height));
-
+                float scale = Math.Min(1.0f, DetectionMaximumDimension / (float)Math.Max(source.Width, source.Height));
                 int detectionWidth = Math.Max(180, (int)Math.Round(source.Width * scale));
                 int detectionHeight = Math.Max(180, (int)Math.Round(source.Height * scale));
 
@@ -82,204 +79,246 @@ namespace CollectIQ.Services.Inspection.Geometry
                     }));
 
                 using Mat bgr = CreateBgrMat(detectionImage);
-
-                // FIRST choice for CollectIQ inspection: exploit the capture contract.
-                // The user places ONE complete card on a plain, contrasting background.
-                // Model that background from the image rim, segment the foreground card,
-                // then fit the four physical OUTER sides of that foreground silhouette.
-                // Printed borders/artwork cannot win because they are inside the foreground.
-                if (TryDetectCardFromBackgroundContrast(
-                    bgr,
-                    detectionWidth,
-                    detectionHeight,
-                    normalizedPriorCorners,
-                    out CardPoint[] backgroundCorners,
-                    out double backgroundConfidence))
-                {
-                    CardPoint[] backgroundFullResolution = backgroundCorners
-                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
-                        .ToArray();
-
-                    return new CardGeometryResult
-                    {
-                        Success = true,
-                        Corners = backgroundFullResolution,
-                        Confidence = backgroundConfidence,
-                        SourceWidth = source.Width,
-                        SourceHeight = source.Height
-                    };
-                }
-
-                // Second choice: use long Hough edge segments to recover the four
-                // OUTERMOST physical card sides. This is independent of artwork/printed borders.
-                if (TryDetectCardFromOuterLines(
-                    bgr,
-                    detectionWidth,
-                    detectionHeight,
-                    normalizedPriorCorners,
-                    out CardPoint[] lineCorners,
-                    out double lineConfidence))
-                {
-                    CardPoint[] lineFullResolution = lineCorners
-                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
-                        .ToArray();
-
-                    return new CardGeometryResult
-                    {
-                        Success = true,
-                        Corners = lineFullResolution,
-                        Confidence = lineConfidence,
-                        SourceWidth = source.Width,
-                        SourceHeight = source.Height
-                    };
-                }
-
-                // Second choice: find the strongest card-shaped closed contour directly
-                // from edges. This remains useful when a side is too broken for Hough.
-                if (TryDetectCardFromEdges(
-                    bgr,
-                    detectionWidth,
-                    detectionHeight,
-                    normalizedPriorCorners,
-                    out CardPoint[] edgeCorners,
-                    out double edgeConfidence))
-                {
-                    CardPoint[] edgeFullResolution = edgeCorners
-                        .Select(point => new CardPoint(point.X / scale, point.Y / scale))
-                        .ToArray();
-
-                    return new CardGeometryResult
-                    {
-                        Success = true,
-                        Corners = edgeFullResolution,
-                        Confidence = edgeConfidence,
-                        SourceWidth = source.Width,
-                        SourceHeight = source.Height
-                    };
-                }
-
-                // Fallback: retain the existing GrabCut implementation for difficult
-                // backgrounds or cards whose physical perimeter is unusually weak.
-                using Mat grabMask = CreateGrabCutSeed(
-                    detectionWidth,
-                    detectionHeight,
-                    normalizedPriorCorners);
-                using Mat backgroundModel = new(1, 65, MatType.CV_64FC1, Scalar.All(0));
-                using Mat foregroundModel = new(1, 65, MatType.CV_64FC1, Scalar.All(0));
-
-                Cv2.GrabCut(
-                    bgr,
-                    grabMask,
-                    new CvRect(),
-                    backgroundModel,
-                    foregroundModel,
-                    6,
-                    GrabCutModes.InitWithMask);
-
-                using Mat foregroundMask = BuildBinaryForegroundMask(grabMask);
-                using Mat cleanedMask = CleanForegroundMask(foregroundMask);
-
-                Cv2.FindContours(
-                    cleanedMask,
-                    out CvPoint[][] contours,
-                    out HierarchyIndex[] _,
-                    RetrievalModes.External,
-                    ContourApproximationModes.ApproxSimple);
-
-                CvPoint[]? cardContour = SelectCardContour(
-                    contours,
-                    detectionWidth,
-                    detectionHeight,
-                    normalizedPriorCorners);
-
-                if (cardContour is null)
-                {
+                if (!TryDetectRectangleByDirectionalScan(bgr, detectionWidth, detectionHeight, out CardPoint[] corners, out double confidence))
                     return Failed(source);
-                }
-
-                CvPoint[]? quadrilateral = ApproximateFourCorners(cardContour);
-                CardPoint[] corners;
-
-                if (quadrilateral is not null)
-                {
-                    corners = quadrilateral
-                        .Select(point => new CardPoint(point.X, point.Y))
-                        .ToArray();
-                }
-                else if (!TryFitFourSideIntersections(cardContour, out corners))
-                {
-                    return Failed(source);
-                }
-
-                if (!TryOrderCardCornersForPortrait(corners, out CardPoint[] ordered))
-                {
-                    return Failed(source);
-                }
-
-                if (!ValidateQuadrilateral(ordered, detectionWidth, detectionHeight))
-                {
-                    return Failed(source);
-                }
-
-                double contourArea = Math.Abs(Cv2.ContourArea(cardContour));
-                double imageArea = detectionWidth * (double)detectionHeight;
-                double areaFraction = contourArea / Math.Max(imageArea, 1.0);
-                double geometryConfidence = CalculateGeometryConfidence(
-                    ordered,
-                    areaFraction,
-                    normalizedPriorCorners,
-                    detectionWidth,
-                    detectionHeight);
-
-                CardPoint[] fullResolution = ordered
-                    .Select(point => new CardPoint(point.X / scale, point.Y / scale))
-                    .ToArray();
 
                 return new CardGeometryResult
                 {
                     Success = true,
-                    Corners = fullResolution,
-                    Confidence = geometryConfidence,
+                    Corners = corners.Select(pt => new CardPoint(pt.X / scale, pt.Y / scale)).ToArray(),
+                    Confidence = confidence,
                     SourceWidth = source.Width,
                     SourceHeight = source.Height
                 };
             }
-            catch (OpenCvSharpException)
-            {
-                return Failed(source);
-            }
-            catch (DllNotFoundException)
-            {
-                return Failed(source);
-            }
-            catch (TypeInitializationException)
+            catch
             {
                 return Failed(source);
             }
         }
 
+        private static bool TryDetectRectangleByDirectionalScan(
+            Mat bgr,
+            int width,
+            int height,
+            out CardPoint[] ordered,
+            out double confidence)
+        {
+            ordered = Array.Empty<CardPoint>();
+            confidence = 0.0;
 
-        /// <summary>
-        /// Detects the physical outside card perimeter from an edge image.
-        /// This deliberately prefers a large, convex, trading-card-shaped
-        /// quadrilateral and ignores internal printed borders/artwork.
-        /// </summary>
-        /// <summary>
-        /// Fits the four physical perimeter lines from long edge segments and intersects
-        /// them. The winning rectangle must be upright, convex, trading-card-shaped and
-        /// substantial in the frame. This is intentionally biased toward the OUTERMOST
-        /// plausible top/bottom/left/right sides so printed borders cannot win.
-        /// </summary>
-        /// <summary>
-        /// Primary detector for the real CollectIQ capture contract: one card, fully visible,
-        /// on a reasonably uniform contrasting background. The outside image rim is sampled
-        /// as BACKGROUND. Pixels sufficiently different from that rim become foreground.
-        /// The largest central card-shaped foreground contour is then converted to four
-        /// fitted physical side lines and mathematical corner intersections.
-        ///
-        /// This makes the actual card/background transition more important than artwork,
-        /// foil, text, printed borders, signatures, glare inside the card, etc.
-        /// </summary>
+            using Mat gray = new();
+            using Mat blurred = new();
+            using Mat sx16 = new();
+            using Mat sy16 = new();
+            using Mat sx = new();
+            using Mat sy = new();
+            using Mat bx = new();
+            using Mat by = new();
+
+            Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
+            Cv2.GaussianBlur(gray, blurred, new CvSize(5, 5), 1.0);
+            Cv2.Sobel(blurred, sx16, MatType.CV_16S, 1, 0, 3);
+            Cv2.Sobel(blurred, sy16, MatType.CV_16S, 0, 1, 3);
+            Cv2.ConvertScaleAbs(sx16, sx);
+            Cv2.ConvertScaleAbs(sy16, sy);
+
+            double tx = Math.Max(38.0, Cv2.Threshold(sx, bx, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu));
+            double ty = Math.Max(38.0, Cv2.Threshold(sy, by, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu));
+            Cv2.Threshold(sx, bx, tx, 255, ThresholdTypes.Binary);
+            Cv2.Threshold(sy, by, ty, 255, ThresholdTypes.Binary);
+
+            using Mat hk = Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(9, 1));
+            using Mat vk = Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(1, 9));
+            Cv2.MorphologyEx(by, by, MorphTypes.Close, hk, iterations: 1);
+            Cv2.MorphologyEx(bx, bx, MorphTypes.Close, vk, iterations: 1);
+
+            List<ScanPoint> topRaw = ScanHorizontalSide(by, width, height, true);
+            List<ScanPoint> bottomRaw = ScanHorizontalSide(by, width, height, false);
+            List<ScanPoint> leftRaw = ScanVerticalSide(bx, width, height, true);
+            List<ScanPoint> rightRaw = ScanVerticalSide(bx, width, height, false);
+
+            if (!TrySelectDominantBand(topRaw, true, height, out List<ScanPoint> topPoints) ||
+                !TrySelectDominantBand(bottomRaw, true, height, out List<ScanPoint> bottomPoints) ||
+                !TrySelectDominantBand(leftRaw, false, width, out List<ScanPoint> leftPoints) ||
+                !TrySelectDominantBand(rightRaw, false, width, out List<ScanPoint> rightPoints))
+                return false;
+
+            if (!TryFitLine(topPoints, true, out ScanLine top) ||
+                !TryFitLine(bottomPoints, true, out ScanLine bottom) ||
+                !TryFitLine(leftPoints, false, out ScanLine left) ||
+                !TryFitLine(rightPoints, false, out ScanLine right))
+                return false;
+
+            double cx = (width - 1) * 0.5;
+            double cy = (height - 1) * 0.5;
+            if (top.Evaluate(cx) >= bottom.Evaluate(cx) || left.Evaluate(cy) >= right.Evaluate(cy))
+                return false;
+
+            CardPoint tl = IntersectHorizontalVertical(top, left);
+            CardPoint tr = IntersectHorizontalVertical(top, right);
+            CardPoint br = IntersectHorizontalVertical(bottom, right);
+            CardPoint bl = IntersectHorizontalVertical(bottom, left);
+            CardPoint[] c = { tl, tr, br, bl };
+            if (!ValidateScannedCard(c, width, height))
+                return false;
+
+            double ratio = ((Distance(tl, tr) + Distance(bl, br)) * 0.5) /
+                           Math.Max((Distance(tl, bl) + Distance(tr, br)) * 0.5, 1.0);
+            double ratioScore = Math.Clamp(1.0 - (Math.Abs(ratio - ExpectedCardRatio) / 0.12), 0.0, 1.0);
+            double support = Math.Clamp((topPoints.Count + bottomPoints.Count + leftPoints.Count + rightPoints.Count) /
+                                        Math.Max((width + height) / 3.0, 1.0), 0.0, 1.0);
+            ordered = c;
+            confidence = Math.Clamp(0.72 + ratioScore * 0.18 + support * 0.10, 0.72, 0.995);
+            return true;
+        }
+
+        private static List<ScanPoint> ScanHorizontalSide(Mat map, int width, int height, bool fromTop)
+        {
+            List<ScanPoint> points = new();
+            int step = Math.Max(2, width / 320);
+            int x0 = Math.Max(8, (int)(width * 0.06));
+            int x1 = Math.Min(width - 9, (int)(width * 0.94));
+            int y0 = Math.Max(5, (int)(height * 0.03));
+            int y1 = Math.Min(height - 6, (int)(height * 0.97));
+            for (int x = x0; x <= x1; x += step)
+            {
+                if (fromTop)
+                {
+                    for (int y = y0; y <= (int)(height * 0.58); y++)
+                        if (HasHorizontalSupport(map, x, y, width)) { points.Add(new ScanPoint(x, y)); break; }
+                }
+                else
+                {
+                    for (int y = y1; y >= (int)(height * 0.42); y--)
+                        if (HasHorizontalSupport(map, x, y, width)) { points.Add(new ScanPoint(x, y)); break; }
+                }
+            }
+            return points;
+        }
+
+        private static List<ScanPoint> ScanVerticalSide(Mat map, int width, int height, bool fromLeft)
+        {
+            List<ScanPoint> points = new();
+            int step = Math.Max(2, height / 420);
+            int y0 = Math.Max(8, (int)(height * 0.06));
+            int y1 = Math.Min(height - 9, (int)(height * 0.94));
+            int x0 = Math.Max(5, (int)(width * 0.03));
+            int x1 = Math.Min(width - 6, (int)(width * 0.97));
+            for (int y = y0; y <= y1; y += step)
+            {
+                if (fromLeft)
+                {
+                    for (int x = x0; x <= (int)(width * 0.58); x++)
+                        if (HasVerticalSupport(map, x, y, height)) { points.Add(new ScanPoint(x, y)); break; }
+                }
+                else
+                {
+                    for (int x = x1; x >= (int)(width * 0.42); x--)
+                        if (HasVerticalSupport(map, x, y, height)) { points.Add(new ScanPoint(x, y)); break; }
+                }
+            }
+            return points;
+        }
+
+        private static bool HasHorizontalSupport(Mat map, int x, int y, int width)
+        {
+            int hits = 0;
+            for (int dx = -5; dx <= 5; dx++)
+                if (map.At<byte>(y, Math.Clamp(x + dx, 0, width - 1)) != 0) hits++;
+            return hits >= 6;
+        }
+
+        private static bool HasVerticalSupport(Mat map, int x, int y, int height)
+        {
+            int hits = 0;
+            for (int dy = -5; dy <= 5; dy++)
+                if (map.At<byte>(Math.Clamp(y + dy, 0, height - 1), x) != 0) hits++;
+            return hits >= 6;
+        }
+
+        private static bool TrySelectDominantBand(List<ScanPoint> raw, bool useY, int axisLength, out List<ScanPoint> selected)
+        {
+            selected = new();
+            if (raw.Count < 18) return false;
+            int binSize = Math.Max(4, axisLength / 150);
+            Dictionary<int, int> bins = new();
+            foreach (ScanPoint p in raw)
+            {
+                int v = (int)Math.Round(useY ? p.Y : p.X);
+                int b = v / binSize;
+                bins[b] = bins.TryGetValue(b, out int n) ? n + 1 : 1;
+            }
+            int best = bins.OrderByDescending(k => k.Value).First().Key;
+            double center = (best + 0.5) * binSize;
+            double tol = Math.Max(10.0, axisLength * 0.025);
+            selected = raw.Where(p => Math.Abs((useY ? p.Y : p.X) - center) <= tol).ToList();
+            return selected.Count >= Math.Max(14, raw.Count / 5);
+        }
+
+        private static bool TryFitLine(List<ScanPoint> source, bool horizontal, out ScanLine line)
+        {
+            line = default;
+            List<ScanPoint> points = source.ToList();
+            if (points.Count < 12) return false;
+            for (int iter = 0; iter < 3; iter++)
+            {
+                double ma = horizontal ? points.Average(p => p.X) : points.Average(p => p.Y);
+                double mb = horizontal ? points.Average(p => p.Y) : points.Average(p => p.X);
+                double num = 0, den = 0;
+                foreach (ScanPoint p in points)
+                {
+                    double a = horizontal ? p.X : p.Y;
+                    double b = horizontal ? p.Y : p.X;
+                    num += (a - ma) * (b - mb);
+                    den += (a - ma) * (a - ma);
+                }
+                if (den < 1e-6) return false;
+                double m = num / den;
+                double q = mb - m * ma;
+                double[] r = points.Select(p => Math.Abs((horizontal ? p.Y : p.X) - (m * (horizontal ? p.X : p.Y) + q))).OrderBy(v => v).ToArray();
+                double med = r[r.Length / 2];
+                double tol = Math.Max(2.5, med * 2.8 + 1.5);
+                List<ScanPoint> f = points.Where(p => Math.Abs((horizontal ? p.Y : p.X) - (m * (horizontal ? p.X : p.Y) + q)) <= tol).ToList();
+                line = new ScanLine(m, q);
+                if (f.Count == points.Count || f.Count < 12) break;
+                points = f;
+            }
+            return points.Count >= 12;
+        }
+
+        private static CardPoint IntersectHorizontalVertical(ScanLine h, ScanLine v)
+        {
+            double d = 1.0 - v.Slope * h.Slope;
+            if (Math.Abs(d) < 1e-7) d = d < 0 ? -1e-7 : 1e-7;
+            double x = (v.Slope * h.Intercept + v.Intercept) / d;
+            double y = h.Slope * x + h.Intercept;
+            return new CardPoint((float)x, (float)y);
+        }
+
+        private static bool ValidateScannedCard(CardPoint[] c, int width, int height)
+        {
+            double margin = Math.Max(width, height) * 0.025;
+            if (c.Length != 4 || c.Any(p => p.X < margin || p.Y < margin || p.X > width - margin || p.Y > height - margin)) return false;
+            double top = Distance(c[0], c[1]), right = Distance(c[1], c[2]), bottom = Distance(c[3], c[2]), left = Distance(c[0], c[3]);
+            double mw = (top + bottom) * 0.5, mh = (left + right) * 0.5;
+            if (mw < width * 0.20 || mh < height * 0.28) return false;
+            double ratio = mw / Math.Max(mh, 1.0);
+            if (ratio < 0.60 || ratio > 0.83) return false;
+            if (Math.Max(top, bottom) / Math.Max(Math.Min(top, bottom), 1.0) > 1.30) return false;
+            if (Math.Max(left, right) / Math.Max(Math.Min(left, right), 1.0) > 1.30) return false;
+            double area = 0;
+            for (int i = 0; i < 4; i++) { CardPoint a = c[i], b = c[(i + 1) % 4]; area += a.X * b.Y - b.X * a.Y; }
+            double fraction = Math.Abs(area) * 0.5 / Math.Max(width * (double)height, 1.0);
+            return fraction >= 0.10 && fraction <= 0.78;
+        }
+
+        private readonly record struct ScanPoint(double X, double Y);
+        private readonly record struct ScanLine(double Slope, double Intercept)
+        {
+            public double Evaluate(double axis) => Slope * axis + Intercept;
+        }
+
         private static bool TryDetectCardFromBackgroundContrast(
             Mat bgr,
             int width,
@@ -1272,6 +1311,305 @@ namespace CollectIQ.Services.Inspection.Geometry
                 .ToArray();
         }
 
+
+        /// <summary>
+        /// Refines an already plausible card quadrilateral onto the actual physical
+        /// card/background transition. The initial detector tells us approximately
+        /// where the card is; this stage prevents a foreground shadow, printed border,
+        /// or mask halo from becoming one of the final four sides.
+        ///
+        /// For each side independently we search only a narrow band around the proposed
+        /// side. A true physical edge should satisfy all three conditions along most of
+        /// its length:
+        /// 1) a strong image gradient,
+        /// 2) pixels OUTSIDE the edge resemble the image-rim background,
+        /// 3) pixels INSIDE the edge differ from that background.
+        /// Rounded corners are excluded from scoring. The four refined infinite lines
+        /// are intersected to produce the final physical corners.
+        /// </summary>
+        private static bool TryRefineToPhysicalOuterEdges(
+            Mat bgr,
+            IReadOnlyList<CardPoint> initial,
+            int width,
+            int height,
+            out CardPoint[] refined)
+        {
+            refined = Array.Empty<CardPoint>();
+            if (initial.Count != 4 || width < 80 || height < 120)
+                return false;
+
+            if (!TryOrderCardCornersForPortrait(initial, out CardPoint[] ordered) ||
+                !ValidateQuadrilateral(ordered, width, height))
+                return false;
+
+            using Mat gray = new();
+            using Mat gradX = new();
+            using Mat gradY = new();
+            using Mat magnitude = new();
+            Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
+            Cv2.GaussianBlur(gray, gray, new CvSize(3, 3), 0.7);
+            Cv2.Sobel(gray, gradX, MatType.CV_32F, 1, 0, 3);
+            Cv2.Sobel(gray, gradY, MatType.CV_32F, 0, 1, 3);
+            Cv2.Magnitude(gradX, gradY, magnitude);
+
+            Scalar backgroundMean = EstimateRimMeanBgr(bgr, width, height);
+            CardPoint centroid = new(
+                (float)ordered.Average(p => p.X),
+                (float)ordered.Average(p => p.Y));
+
+            FittedLine[] sides = new FittedLine[4];
+            for (int i = 0; i < 4; i++)
+            {
+                CardPoint a = ordered[i];
+                CardPoint b = ordered[(i + 1) % 4];
+                if (!TryRefineOnePhysicalSide(
+                    bgr,
+                    magnitude,
+                    backgroundMean,
+                    a,
+                    b,
+                    centroid,
+                    width,
+                    height,
+                    out sides[i]))
+                {
+                    return false;
+                }
+            }
+
+            if (!TryIntersect(sides[0], sides[3], out CardPoint tl) ||
+                !TryIntersect(sides[0], sides[1], out CardPoint tr) ||
+                !TryIntersect(sides[2], sides[1], out CardPoint br) ||
+                !TryIntersect(sides[2], sides[3], out CardPoint bl))
+                return false;
+
+            CardPoint[] candidate = { tl, tr, br, bl };
+            if (!ValidateQuadrilateral(candidate, width, height) ||
+                !HasStrongPhysicalEdgeSupport(bgr, magnitude, backgroundMean, candidate, width, height))
+                return false;
+
+            // The refinement is deliberately local. Reject any solution that moved a
+            // corner implausibly far from the already plausible initial card candidate.
+            double diagonal = Math.Sqrt((width * (double)width) + (height * (double)height));
+            double maximumCornerMove = diagonal * 0.075;
+            for (int i = 0; i < 4; i++)
+            {
+                if (Distance(candidate[i], ordered[i]) > maximumCornerMove)
+                    return false;
+            }
+
+            refined = candidate;
+            return true;
+        }
+
+        private static bool TryRefineOnePhysicalSide(
+            Mat bgr,
+            Mat gradient,
+            Scalar backgroundMean,
+            CardPoint a,
+            CardPoint b,
+            CardPoint centroid,
+            int width,
+            int height,
+            out FittedLine refinedLine)
+        {
+            refinedLine = default;
+            double dx = b.X - a.X;
+            double dy = b.Y - a.Y;
+            double length = Math.Sqrt((dx * dx) + (dy * dy));
+            if (length < 30.0)
+                return false;
+
+            double tx = dx / length;
+            double ty = dy / length;
+            double nx = -ty;
+            double ny = tx;
+            double midX = (a.X + b.X) * 0.5;
+            double midY = (a.Y + b.Y) * 0.5;
+
+            // Make normal point OUTWARD, away from polygon centroid.
+            double toCenterX = centroid.X - midX;
+            double toCenterY = centroid.Y - midY;
+            if ((nx * toCenterX) + (ny * toCenterY) > 0)
+            {
+                nx = -nx;
+                ny = -ny;
+            }
+
+            int searchRadius = (int)Math.Clamp(Math.Round(length * 0.075), 7.0, 42.0);
+            double bestScore = double.NegativeInfinity;
+            int bestOffset = 0;
+            int sampleCount = Math.Clamp((int)Math.Round(length / 6.0), 42, 110);
+
+            for (int offset = -searchRadius; offset <= searchRadius; offset++)
+            {
+                double score = 0.0;
+                int valid = 0;
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    double t = 0.13 + (0.74 * i / Math.Max(sampleCount - 1.0, 1.0));
+                    double x = a.X + (dx * t) + (nx * offset);
+                    double y = a.Y + (dy * t) + (ny * offset);
+
+                    int px = (int)Math.Round(x);
+                    int py = (int)Math.Round(y);
+                    if (px < 7 || py < 7 || px >= width - 7 || py >= height - 7)
+                        continue;
+
+                    float g = gradient.At<float>(py, px);
+                    double outsideDistance = ColorDistanceToBackground(
+                        bgr,
+                        x + (nx * 5.0),
+                        y + (ny * 5.0),
+                        backgroundMean,
+                        width,
+                        height);
+                    double insideDistance = ColorDistanceToBackground(
+                        bgr,
+                        x - (nx * 5.0),
+                        y - (ny * 5.0),
+                        backgroundMean,
+                        width,
+                        height);
+
+                    // Physical boundary: high gradient, outside looks background-like,
+                    // inside looks card-like. Clamp contrast contribution so one shiny
+                    // sample cannot dominate the whole side.
+                    double transition = Math.Clamp(insideDistance - outsideDistance, -80.0, 140.0);
+                    double outsideBonus = Math.Clamp(65.0 - outsideDistance, -35.0, 65.0);
+                    score += g + (transition * 0.75) + (outsideBonus * 0.30);
+                    valid++;
+                }
+
+                if (valid < sampleCount * 0.72)
+                    continue;
+
+                score /= valid;
+                score -= Math.Abs(offset) * 0.10; // conservative local preference
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestOffset = offset;
+                }
+            }
+
+            if (!double.IsFinite(bestScore))
+                return false;
+
+            refinedLine = new FittedLine(
+                midX + (nx * bestOffset),
+                midY + (ny * bestOffset),
+                tx,
+                ty);
+            return true;
+        }
+
+        private static Scalar EstimateRimMeanBgr(Mat bgr, int width, int height)
+        {
+            int rimX = Math.Max(4, (int)Math.Round(width * 0.045));
+            int rimY = Math.Max(4, (int)Math.Round(height * 0.045));
+            double b = 0, g = 0, r = 0;
+            long count = 0;
+
+            for (int y = 0; y < height; y += 3)
+            {
+                for (int x = 0; x < width; x += 3)
+                {
+                    if (x >= rimX && x < width - rimX && y >= rimY && y < height - rimY)
+                        continue;
+                    Vec3b p = bgr.At<Vec3b>(y, x);
+                    b += p.Item0;
+                    g += p.Item1;
+                    r += p.Item2;
+                    count++;
+                }
+            }
+
+            if (count == 0)
+                return new Scalar(0, 0, 0);
+            return new Scalar(b / count, g / count, r / count);
+        }
+
+        private static double ColorDistanceToBackground(
+            Mat bgr,
+            double x,
+            double y,
+            Scalar backgroundMean,
+            int width,
+            int height)
+        {
+            int px = Math.Clamp((int)Math.Round(x), 0, width - 1);
+            int py = Math.Clamp((int)Math.Round(y), 0, height - 1);
+            Vec3b p = bgr.At<Vec3b>(py, px);
+            double db = p.Item0 - backgroundMean.Val0;
+            double dg = p.Item1 - backgroundMean.Val1;
+            double dr = p.Item2 - backgroundMean.Val2;
+            return Math.Sqrt((db * db) + (dg * dg) + (dr * dr));
+        }
+
+        private static bool HasStrongPhysicalEdgeSupport(
+            Mat bgr,
+            Mat gradient,
+            Scalar backgroundMean,
+            IReadOnlyList<CardPoint> corners,
+            int width,
+            int height)
+        {
+            CardPoint centroid = new(
+                (float)corners.Average(p => p.X),
+                (float)corners.Average(p => p.Y));
+
+            int supportedSides = 0;
+            for (int side = 0; side < 4; side++)
+            {
+                CardPoint a = corners[side];
+                CardPoint b = corners[(side + 1) % 4];
+                double dx = b.X - a.X;
+                double dy = b.Y - a.Y;
+                double len = Math.Sqrt((dx * dx) + (dy * dy));
+                if (len < 20) continue;
+                double nx = -(dy / len);
+                double ny = dx / len;
+                double mx = (a.X + b.X) * 0.5;
+                double my = (a.Y + b.Y) * 0.5;
+                if ((nx * (centroid.X - mx)) + (ny * (centroid.Y - my)) > 0)
+                {
+                    nx = -nx;
+                    ny = -ny;
+                }
+
+                double gradSum = 0;
+                double transitionSum = 0;
+                int valid = 0;
+                const int samples = 48;
+                for (int i = 0; i < samples; i++)
+                {
+                    double t = 0.14 + (0.72 * i / (samples - 1.0));
+                    double x = a.X + dx * t;
+                    double y = a.Y + dy * t;
+                    int px = (int)Math.Round(x);
+                    int py = (int)Math.Round(y);
+                    if (px < 6 || py < 6 || px >= width - 6 || py >= height - 6)
+                        continue;
+                    gradSum += gradient.At<float>(py, px);
+                    double outside = ColorDistanceToBackground(bgr, x + nx * 5.0, y + ny * 5.0, backgroundMean, width, height);
+                    double inside = ColorDistanceToBackground(bgr, x - nx * 5.0, y - ny * 5.0, backgroundMean, width, height);
+                    transitionSum += inside - outside;
+                    valid++;
+                }
+
+                if (valid >= 32)
+                {
+                    double avgGradient = gradSum / valid;
+                    double avgTransition = transitionSum / valid;
+                    if (avgGradient >= 24.0 && avgTransition >= 4.0)
+                        supportedSides++;
+                }
+            }
+
+            return supportedSides >= 3;
+        }
+
         private static bool ValidateQuadrilateral(
             IReadOnlyList<CardPoint> corners,
             int width,
@@ -1312,7 +1650,17 @@ namespace CollectIQ.Services.Inspection.Geometry
             }
 
             double ratio = meanWidth / meanHeight;
-            if (ratio < 0.48 || ratio > 0.94)
+            // Centering capture is approximately overhead. A standard 2.5 x 3.5 card
+            // has ratio ~0.714. Keep enough perspective tolerance, but reject the very
+            // broad range that previously allowed obvious false rectangles to pass.
+            if (ratio < 0.56 || ratio > 0.86)
+            {
+                return false;
+            }
+
+            double widthAgreement = Math.Min(top, bottom) / Math.Max(Math.Max(top, bottom), 1.0);
+            double heightAgreement = Math.Min(left, right) / Math.Max(Math.Max(left, right), 1.0);
+            if (widthAgreement < 0.72 || heightAgreement < 0.72)
             {
                 return false;
             }

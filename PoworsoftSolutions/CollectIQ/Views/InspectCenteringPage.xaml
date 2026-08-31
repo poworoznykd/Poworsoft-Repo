@@ -64,6 +64,64 @@
                 <Label x:Name="CaptureInstructionLabel" Text="Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare." TextColor="#C4B5FD" FontSize="12" LineBreakMode="WordWrap" />
                 <Button Text="LOAD EXISTING PHOTO" Clicked="OnLoadPhotoClicked" CornerRadius="18" BackgroundColor="#312E81" TextColor="#F9FAFB" FontSize="12" />
 
+                <Border IsVisible="{Binding HasMeasurementImage}"
+                        Stroke="#0E7490"
+                        StrokeThickness="2"
+                        Background="#071827"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="MEASUREMENT TRANSFORM"
+                                       TextColor="#67E8F9"
+                                       FontSize="13"
+                                       FontAttributes="Bold" />
+                                <Label Text="This is the flattened card CollectIQ actually uses for centering measurements. The full captured photo above remains unchanged."
+                                       TextColor="#94A3B8"
+                                       FontSize="10"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1"
+                                    Text="RESET ZOOM"
+                                    Clicked="OnResetMeasurementZoomClicked"
+                                    CornerRadius="14"
+                                    Padding="10,5"
+                                    BackgroundColor="#164E63"
+                                    TextColor="White"
+                                    FontSize="10" />
+                        </Grid>
+
+                        <Border Stroke="#164E63"
+                                StrokeThickness="1"
+                                Background="Black"
+                                StrokeShape="RoundRectangle 12"
+                                Padding="4"
+                                HeightRequest="460">
+                            <Grid>
+                                <Image x:Name="CenteringMeasurementImage"
+                                       Source="{Binding MeasurementImageSource}"
+                                       Aspect="AspectFit"
+                                       HorizontalOptions="Fill"
+                                       VerticalOptions="Fill">
+                                    <Image.GestureRecognizers>
+                                        <PinchGestureRecognizer PinchUpdated="OnMeasurementPinchUpdated" />
+                                        <PanGestureRecognizer PanUpdated="OnMeasurementPanUpdated" />
+                                        <TapGestureRecognizer NumberOfTapsRequired="2"
+                                                              Tapped="OnResetMeasurementZoomTapped" />
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Grid>
+                        </Border>
+
+                        <Label Text="Pinch to zoom up to 8× • drag while zoomed • double-tap to reset. This changes only the display, never the measurement."
+                               TextColor="#A5F3FC"
+                               FontSize="10"
+                               HorizontalTextAlignment="Center"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
                 <Border Stroke="#1F2937" Background="#0B1120" StrokeShape="RoundRectangle 16" Padding="12">
                     <VerticalStackLayout Spacing="8">
                         <Label Text="RESULT" TextColor="#A5B4FC" FontSize="12" FontAttributes="Bold" />

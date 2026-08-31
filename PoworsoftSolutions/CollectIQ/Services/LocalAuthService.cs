@@ -35,6 +35,7 @@ namespace CollectIQ.Services
         private const int PasswordIterations = 100000;
         private const int SaltByteCount = 32;
         private const int HashByteCount = 32;
+        private const string CredentialBackupPrefix = "collectiq_local_credential_backup_";
 
         private readonly IDatabase database;
         private readonly ISocialAuthService socialAuthService;
@@ -125,6 +126,7 @@ namespace CollectIQ.Services
 
             await database.UpsertUserProfileAsync(profile);
             await VerifyPersistedLocalAuthenticationAsync(account.Id, password, passwordHash);
+            await SaveCredentialBackupAsync(normalizedEmail, account.Id, passwordHash);
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
 
             // Registration creates durable account/profile/credential data but does
@@ -209,12 +211,14 @@ namespace CollectIQ.Services
             if (account == null)
             {
                 await RecordFailedLoginAsync(string.Empty, normalizedEmail, "Account not found.");
+                await WriteAuthDiagnosticAsync("LoginAsync FAIL", normalizedEmail, "Account not found.");
                 return false;
             }
 
             if (!string.Equals(account.AccountStatus, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
             {
                 await RecordFailedLoginAsync(account.Id, normalizedEmail, "Account is not active.");
+                await WriteAuthDiagnosticAsync("LoginAsync FAIL", normalizedEmail, $"Account {account.Id} is not active.");
                 return false;
             }
 
@@ -225,10 +229,54 @@ namespace CollectIQ.Services
 
             string? storedHash = credential?.PasswordHash ?? legacyCredential?.PasswordHash ?? profile?.PasswordHash;
 
+            // Durable second copy: a successful local login/registration stores the
+            // password HASH (never the plain password) in Android/iOS SecureStorage.
+            // If an old patch/build ever loses only the SQLite credential row, restore
+            // it from this secure backup without changing the account or collections.
             if (string.IsNullOrWhiteSpace(storedHash))
             {
-                await RecordFailedLoginAsync(account.Id, normalizedEmail, "Password hash missing.");
-                return false;
+                storedHash = await TryGetCredentialBackupAsync(normalizedEmail);
+            }
+
+            if (string.IsNullOrWhiteSpace(storedHash))
+            {
+                // One-time local-only rescue for databases already damaged before the
+                // secure backup existed. This is intentionally narrow: an exact-email,
+                // non-guest profile/account must already exist and ALL password material
+                // must be missing. The password entered now becomes the replacement local
+                // credential for this SAME UserAccount.Id. Cloud auth will replace this
+                // device-local rescue flow later.
+                bool exactExistingIdentity =
+                    profile != null &&
+                    !account.IsGuest &&
+                    string.Equals(NormalizeEmail(profile.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase);
+
+                if (!exactExistingIdentity)
+                {
+                    await RecordFailedLoginAsync(account.Id, normalizedEmail, "Password hash missing.");
+                    return false;
+                }
+
+                storedHash = CreatePasswordHash(password);
+                credential = new UserCredential
+                {
+                    UserAccountId = account.Id,
+                    AuthProvider = AuthProvider.Local.ToString(),
+                    PasswordHash = storedHash,
+                    PasswordAlgorithm = "PBKDF2-SHA256-100000",
+                    LastChangedUtc = DateTime.UtcNow,
+                    CreatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow
+                };
+
+                await database.UpsertUserCredentialAsync(credential);
+                profile.PasswordHash = storedHash;
+                profile.UserAccountId = account.Id;
+                await database.UpsertUserProfileAsync(profile);
+                await SaveCredentialBackupAsync(normalizedEmail, account.Id, storedHash);
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[CollectIQ AUTH] Rebuilt missing local credential for existing account {account.Id}; no user/collection/card rows were recreated.");
             }
 
             bool passwordMatches = VerifyPassword(password, storedHash);
@@ -236,6 +284,7 @@ namespace CollectIQ.Services
             if (!passwordMatches)
             {
                 await RecordFailedLoginAsync(account.Id, normalizedEmail, "Invalid password.");
+                await WriteAuthDiagnosticAsync("LoginAsync FAIL", normalizedEmail, $"Password did not verify for account {account.Id}.");
                 return false;
             }
 
@@ -309,6 +358,7 @@ namespace CollectIQ.Services
             }
             await database.UpsertUserProfileAsync(profile);
             await VerifyPersistedLocalAuthenticationAsync(account.Id, password, credential?.PasswordHash ?? storedHash);
+            await SaveCredentialBackupAsync(normalizedEmail, account.Id, credential?.PasswordHash ?? storedHash);
 
             await database.GetOrCreateDefaultCollectionAsync(account.Id);
             await StoreSessionAsync(normalizedEmail, account.Id, AuthProvider.Local);
@@ -324,6 +374,7 @@ namespace CollectIQ.Services
                 LoginUtc = DateTime.UtcNow
             });
 
+            await WriteAuthDiagnosticAsync("LoginAsync SUCCESS", normalizedEmail, $"Authenticated account {account.Id} and restored profile {profile.Id}.");
             return true;
         }
 
@@ -736,6 +787,7 @@ namespace CollectIQ.Services
         private async Task<UserProfile?> ResolveCurrentSessionProfileAsync()
         {
             await database.InitializeAsync();
+            await WriteAuthDiagnosticAsync("ResolveCurrentSessionProfile START", null, "Attempting to restore the current SecureStorage session.");
             SQLite.SQLiteAsyncConnection connection = await database.GetConnectionAsync();
 
             string? accountId = await SecureStorage.GetAsync(SessionUserAccountIdKey);
@@ -850,13 +902,75 @@ namespace CollectIQ.Services
         }
 
         /// <summary>
+        /// Writes a diagnostic snapshot without ever allowing diagnostics to
+        /// interfere with authentication.
+        /// </summary>
+        private async Task WriteAuthDiagnosticAsync(string stage, string? requestedEmail, string? detail)
+        {
+            try
+            {
+                await AccountDiagnosticLogger.WriteSnapshotAsync(database, stage, requestedEmail, detail);
+            }
+            catch
+            {
+                // Never fail auth because the diagnostic file could not be written.
+            }
+        }
+
+        /// <summary>
         /// Normalizes an email address.
         /// </summary>
         /// <param name="email">The email address.</param>
         /// <returns>The normalized email address.</returns>
+        private static string GetCredentialBackupKey(string normalizedEmail)
+        {
+            byte[] emailBytes = System.Text.Encoding.UTF8.GetBytes(NormalizeEmail(normalizedEmail));
+            string digest = Convert.ToHexString(SHA256.HashData(emailBytes));
+            return CredentialBackupPrefix + digest;
+        }
+
+        private static async Task SaveCredentialBackupAsync(
+            string normalizedEmail,
+            string userAccountId,
+            string? passwordHash)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedEmail) ||
+                string.IsNullOrWhiteSpace(userAccountId) ||
+                string.IsNullOrWhiteSpace(passwordHash))
+            {
+                return;
+            }
+
+            string payload = $"{userAccountId}|{passwordHash}";
+            await SecureStorage.SetAsync(GetCredentialBackupKey(normalizedEmail), payload);
+        }
+
+        private static async Task<string?> TryGetCredentialBackupAsync(string normalizedEmail)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedEmail))
+            {
+                return null;
+            }
+
+            string? payload = await SecureStorage.GetAsync(GetCredentialBackupKey(normalizedEmail));
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return null;
+            }
+
+            int separator = payload.IndexOf('|');
+            if (separator < 0 || separator >= payload.Length - 1)
+            {
+                return null;
+            }
+
+            string storedHash = payload[(separator + 1)..];
+            return string.IsNullOrWhiteSpace(storedHash) ? null : storedHash;
+        }
+
         /// <summary>
         /// Clears only volatile/secure session pointers. It never deletes accounts,
-        /// profiles, credentials, collections, or cards from SQLite.
+        /// profiles, credentials, collections, cards, or credential backups.
         /// </summary>
         private static void ClearSessionState()
         {

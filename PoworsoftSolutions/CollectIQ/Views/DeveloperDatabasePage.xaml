@@ -7,146 +7,135 @@
     Title="Database">
 
     <Grid RowDefinitions="Auto,*">
-
-        <Border
-            Grid.Row="0"
-            Style="{StaticResource AuroraGlassBorder}"
-            Margin="16,16,16,8"
-            Padding="10">
+        <Border Grid.Row="0" Style="{StaticResource AuroraGlassBorder}" Margin="16,16,16,8" Padding="10">
             <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
-                <Border
-                    Stroke="#334155"
-                    StrokeThickness="1"
-                    Background="#0F172A"
-                    StrokeShape="RoundRectangle 14"
-                    HeightRequest="36"
-                    WidthRequest="44"
-                    Padding="0">
+                <Border Stroke="#334155" StrokeThickness="1" Background="#0F172A" StrokeShape="RoundRectangle 14" HeightRequest="36" WidthRequest="44" Padding="0">
                     <Grid>
-                        <Label
-                            Text="←"
-                            FontSize="18"
-                            TextColor="#E2E8F0"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center" />
+                        <Label Text="←" FontSize="18" TextColor="#E2E8F0" HorizontalOptions="Center" VerticalOptions="Center" />
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnBackClicked" />
                         </Grid.GestureRecognizers>
                     </Grid>
                 </Border>
-
                 <VerticalStackLayout Grid.Column="1" Spacing="0" Padding="10,0,0,0">
-                    <Label
-                        Text="CollectIQ Database"
-                        FontSize="18"
-                        FontAttributes="Bold"
-                        TextColor="#E2E8F0" />
-                    <Label
-                        Text="Local SQLite developer view"
-                        FontSize="11"
-                        TextColor="#94A3B8" />
+                    <Label Text="CollectIQ Database" FontSize="18" FontAttributes="Bold" TextColor="#E2E8F0" />
+                    <Label Text="Local SQLite diagnostics, identity and export" FontSize="11" TextColor="#94A3B8" />
                 </VerticalStackLayout>
             </Grid>
         </Border>
 
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Padding="16" Spacing="16">
-
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                     <VerticalStackLayout Spacing="10">
-                        <Label
-                            Text="Database Location"
-                            FontSize="14"
-                            FontAttributes="Bold"
-                            TextColor="#E2E8F0" />
-
-                        <Label
-                            x:Name="DatabasePathLabel"
-                            Text="Loading..."
-                            FontSize="11"
-                            TextColor="#CBD5E1"
-                            LineBreakMode="WordWrap" />
-
-                        <HorizontalStackLayout Spacing="10">
-                            <Button
-                                Text="Copy Path"
-                                BackgroundColor="#0F172A"
-                                TextColor="#E2E8F0"
-                                CornerRadius="14"
-                                HeightRequest="42"
-                                Clicked="OnCopyPathClicked" />
-
-                            <Button
-                                Text="Refresh"
-                                BackgroundColor="#0F172A"
-                                TextColor="#E2E8F0"
-                                CornerRadius="14"
-                                HeightRequest="42"
-                                Clicked="OnRefreshClicked" />
-                        </HorizontalStackLayout>
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
-                    <VerticalStackLayout Spacing="10">
-                        <Label
-                            Text="Quick Counts"
-                            FontSize="14"
-                            FontAttributes="Bold"
-                            TextColor="#E2E8F0" />
-
-                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
-                            <Label Grid.Row="0" Grid.Column="0" Text="Users" TextColor="#94A3B8" FontSize="12" />
-                            <Label Grid.Row="0" Grid.Column="1" x:Name="UsersCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
-
-                            <Label Grid.Row="1" Grid.Column="0" Text="Profiles" TextColor="#94A3B8" FontSize="12" />
-                            <Label Grid.Row="1" Grid.Column="1" x:Name="ProfilesCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
-
-                            <Label Grid.Row="2" Grid.Column="0" Text="Collections" TextColor="#94A3B8" FontSize="12" />
-                            <Label Grid.Row="2" Grid.Column="1" x:Name="CollectionsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
-
-                            <Label Grid.Row="3" Grid.Column="0" Text="Cards" TextColor="#94A3B8" FontSize="12" />
-                            <Label Grid.Row="3" Grid.Column="1" x:Name="CardsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="Database Identity" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label x:Name="DatabaseIdentityLabel" Text="Loading..." FontSize="11" TextColor="#86EFAC" LineBreakMode="WordWrap" />
+                        <Label x:Name="IdentityStatusLabel" Text="" FontSize="11" TextColor="#FBBF24" LineBreakMode="WordWrap" />
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                            <Label Text="Schema version" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Column="1" x:Name="SchemaVersionLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="1" Text="Database size" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="1" Grid.Column="1" x:Name="DatabaseSizeLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="2" Text="Safety backups" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="2" Grid.Column="1" x:Name="BackupCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
 
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                     <VerticalStackLayout Spacing="10">
-                        <Label
-                            Text="Tables"
-                            FontSize="14"
-                            FontAttributes="Bold"
-                            TextColor="#E2E8F0" />
+                        <Label Text="Database Location" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label x:Name="DatabasePathLabel" Text="Loading..." FontSize="11" TextColor="#CBD5E1" LineBreakMode="WordWrap" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Button Text="Copy Path" BackgroundColor="#0F172A" TextColor="#E2E8F0" CornerRadius="14" HeightRequest="42" Clicked="OnCopyPathClicked" />
+                            <Button Grid.Column="1" Text="Refresh" BackgroundColor="#0F172A" TextColor="#E2E8F0" CornerRadius="14" HeightRequest="42" Clicked="OnRefreshClicked" />
+                        </Grid>
+                        <Button Text="Export / Share SQLite Database" BackgroundColor="#155E75" TextColor="White" CornerRadius="14" HeightRequest="46" Clicked="OnExportDatabaseClicked" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Button Text="Generate Auth Trace" BackgroundColor="#4C1D95" TextColor="White" CornerRadius="14" HeightRequest="44" Clicked="OnGenerateAuthTraceClicked" />
+                            <Button Grid.Column="1" Text="Share Auth Trace" BackgroundColor="#6D28D9" TextColor="White" CornerRadius="14" HeightRequest="44" Clicked="OnShareAuthTraceClicked" />
+                        </Grid>
+                        <Label x:Name="AuthTracePathLabel" Text="Auth trace: not generated yet." FontSize="9" TextColor="#C4B5FD" LineBreakMode="WordWrap" />
+                        <Label Text="Export creates a consistent SQLite copy you can transfer to this PC and open with DB Browser for SQLite or SQLiteStudio. The auth trace is a readable .txt snapshot of account/profile/credential/session linkage; it never contains plaintext passwords." FontSize="10" TextColor="#94A3B8" LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
 
-                        <CollectionView x:Name="TablesCollectionView" HeightRequest="360">
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Quick Counts" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                            <Label Grid.Row="0" Text="Users" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="0" Grid.Column="1" x:Name="UsersCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="1" Text="Profiles" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="1" Grid.Column="1" x:Name="ProfilesCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="2" Text="Credentials" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="2" Grid.Column="1" x:Name="CredentialsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="3" Text="Collections" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="3" Grid.Column="1" x:Name="CollectionsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                            <Label Grid.Row="4" Text="Cards" TextColor="#94A3B8" FontSize="12" />
+                            <Label Grid.Row="4" Grid.Column="1" x:Name="CardsCountLabel" Text="0" TextColor="#E2E8F0" FontSize="12" FontAttributes="Bold" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Local Login Recovery" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label Text="Your database currently has user/profile rows but no local credential rows. Use this developer recovery tool to recreate the password credential for an existing account without creating a new user or changing collection ownership." FontSize="10" TextColor="#FBBF24" LineBreakMode="WordWrap" />
+                        <Label Text="Step 1 — choose the EXISTING account that should be repaired. The list shows the stored email/display name and how many collections that account owns." FontSize="10" TextColor="#CBD5E1" LineBreakMode="WordWrap" />
+                        <Picker x:Name="RecoveryAccountPicker"
+                                Title="Select existing account"
+                                TitleColor="#94A3B8"
+                                TextColor="#E2E8F0"
+                                BackgroundColor="#0F172A"
+                                SelectedIndexChanged="OnRecoveryAccountSelected" />
+                        <Label x:Name="SelectedRecoveryAccountLabel" Text="No account selected." FontSize="10" TextColor="#86EFAC" LineBreakMode="WordWrap" />
+                        <Label Text="Step 2 — assign the email and password that this existing account should use." FontSize="10" TextColor="#CBD5E1" LineBreakMode="WordWrap" />
+                        <Entry x:Name="RecoveryEmailEntry" Placeholder="Email to assign to selected account" Keyboard="Email" TextColor="#E2E8F0" PlaceholderColor="#64748B" BackgroundColor="#0F172A" />
+                        <Entry x:Name="RecoveryPasswordEntry" Placeholder="New local password" IsPassword="True" TextColor="#E2E8F0" PlaceholderColor="#64748B" BackgroundColor="#0F172A" />
+                        <Button Text="Repair Selected Existing Account" BackgroundColor="#7C2D12" TextColor="White" CornerRadius="14" HeightRequest="46" Clicked="OnRepairLocalLoginClicked" />
+                        <Label Text="This preserves the selected UserAccount ID. Collections/cards owned by that ID remain attached to it; the repair only restores the account email/profile link and missing local credential." FontSize="10" TextColor="#94A3B8" LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Accounts &amp; Login Diagnostics" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label Text="Passwords are never stored as readable text. This shows whether a local credential exists, the hashing algorithm, provider, IDs, ownership and profile linkage. Use Local Login Recovery above to assign a new password to an existing account." FontSize="10" TextColor="#FBBF24" LineBreakMode="WordWrap" />
+                        <CollectionView x:Name="AccountsCollectionView" HeightRequest="420">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="0,8" ColumnDefinitions="*,Auto">
-                                        <Label
-                                            Grid.Column="0"
-                                            Text="{Binding Name}"
-                                            FontSize="12"
-                                            TextColor="#CBD5E1" />
-                                        <Label
-                                            Grid.Column="1"
-                                            Text="{Binding RowCount}"
-                                            FontSize="12"
-                                            FontAttributes="Bold"
-                                            TextColor="#22C55E" />
-                                    </Grid>
+                                    <Border Stroke="#334155" StrokeThickness="1" Background="#0F172A" StrokeShape="RoundRectangle 12" Padding="10" Margin="0,0,0,8">
+                                        <VerticalStackLayout Spacing="3">
+                                            <Label Text="{Binding DisplayName}" FontSize="13" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                            <Label Text="{Binding Email}" FontSize="11" TextColor="#67E8F9" />
+                                            <Label Text="{Binding AccountIdText}" FontSize="9" TextColor="#94A3B8" LineBreakMode="WordWrap" />
+                                            <Label Text="{Binding ProfileIdText}" FontSize="9" TextColor="#94A3B8" LineBreakMode="WordWrap" />
+                                            <Label Text="{Binding CredentialText}" FontSize="10" TextColor="#86EFAC" LineBreakMode="WordWrap" />
+                                            <Label Text="{Binding OwnershipText}" FontSize="10" TextColor="#CBD5E1" />
+                                        </VerticalStackLayout>
+                                    </Border>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </VerticalStackLayout>
                 </Border>
 
-                <Label
-                    Text="For a full database view, copy the path and use ADB to pull collectiq.db3 from the device, then open it with DB Browser for SQLite."
-                    FontSize="11"
-                    TextColor="#64748B"
-                    LineBreakMode="WordWrap" />
-
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Tables" FontSize="14" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <CollectionView x:Name="TablesCollectionView" HeightRequest="360">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,8" ColumnDefinitions="*,Auto">
+                                        <Label Text="{Binding Name}" FontSize="12" TextColor="#CBD5E1" />
+                                        <Label Grid.Column="1" Text="{Binding RowCount}" FontSize="12" FontAttributes="Bold" TextColor="#22C55E" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

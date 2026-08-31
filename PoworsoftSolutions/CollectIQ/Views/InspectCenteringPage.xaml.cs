@@ -13,6 +13,16 @@ namespace CollectIQ.Views
         private bool showingCapturedImage;
         private CancellationTokenSource? cameraStartCancellationTokenSource;
 
+        private double measurementScale = 1.0;
+        private double measurementScaleAtGestureStart = 1.0;
+        private double measurementTranslationX;
+        private double measurementTranslationY;
+        private double measurementPanStartX;
+        private double measurementPanStartY;
+
+        private Image? MeasurementImageControl =>
+            this.FindByName<Image>("CenteringMeasurementImage");
+
         public InspectCenteringPage()
         {
             InitializeComponent();
@@ -231,11 +241,116 @@ namespace CollectIQ.Views
 
         private void ShowCapturedImage()
         {
+            ResetMeasurementViewer();
             CenteringCameraView.IsVisible = false;
             CenteringCameraGuide.IsVisible = false;
             CenteringResultImage.IsVisible = true;
             CameraStatusLabel.IsVisible = false;
             RestartCameraButton.IsVisible = false;
         }
+
+        private void OnMeasurementPinchUpdated(object sender, PinchGestureUpdatedEventArgs e)
+        {
+            Image? image = MeasurementImageControl;
+            if (image == null)
+                return;
+
+            switch (e.Status)
+            {
+                case GestureStatus.Started:
+                    measurementScaleAtGestureStart = measurementScale;
+                    break;
+
+                case GestureStatus.Running:
+                    measurementScale = Math.Clamp(measurementScaleAtGestureStart * e.Scale, 1.0, 8.0);
+                    image.Scale = measurementScale;
+
+                    if (measurementScale <= 1.001)
+                    {
+                        measurementTranslationX = 0;
+                        measurementTranslationY = 0;
+                        image.TranslationX = 0;
+                        image.TranslationY = 0;
+                    }
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    ClampMeasurementTranslation();
+                    break;
+            }
+        }
+
+        private void OnMeasurementPanUpdated(object sender, PanUpdatedEventArgs e)
+        {
+            if (MeasurementImageControl == null || measurementScale <= 1.001)
+                return;
+
+            switch (e.StatusType)
+            {
+                case GestureStatus.Started:
+                    measurementPanStartX = measurementTranslationX;
+                    measurementPanStartY = measurementTranslationY;
+                    break;
+
+                case GestureStatus.Running:
+                    measurementTranslationX = measurementPanStartX + e.TotalX;
+                    measurementTranslationY = measurementPanStartY + e.TotalY;
+                    ClampMeasurementTranslation();
+                    break;
+
+                case GestureStatus.Completed:
+                case GestureStatus.Canceled:
+                    ClampMeasurementTranslation();
+                    break;
+            }
+        }
+
+        private void ClampMeasurementTranslation()
+        {
+            Image? image = MeasurementImageControl;
+            if (image == null)
+                return;
+
+            if (measurementScale <= 1.001)
+            {
+                measurementTranslationX = 0;
+                measurementTranslationY = 0;
+            }
+            else
+            {
+                double maxX = Math.Max(0, (image.Width * (measurementScale - 1.0)) / 2.0);
+                double maxY = Math.Max(0, (image.Height * (measurementScale - 1.0)) / 2.0);
+
+                measurementTranslationX = Math.Clamp(measurementTranslationX, -maxX, maxX);
+                measurementTranslationY = Math.Clamp(measurementTranslationY, -maxY, maxY);
+            }
+
+            image.TranslationX = measurementTranslationX;
+            image.TranslationY = measurementTranslationY;
+        }
+
+        private void OnResetMeasurementZoomClicked(object sender, EventArgs e) => ResetMeasurementViewer();
+
+        private void OnResetMeasurementZoomTapped(object sender, TappedEventArgs e) => ResetMeasurementViewer();
+
+        private void ResetMeasurementViewer()
+        {
+            measurementScale = 1.0;
+            measurementScaleAtGestureStart = 1.0;
+            measurementTranslationX = 0;
+            measurementTranslationY = 0;
+            measurementPanStartX = 0;
+            measurementPanStartY = 0;
+
+            Image? image = MeasurementImageControl;
+            if (image != null)
+            {
+                image.Scale = 1.0;
+                image.TranslationX = 0;
+                image.TranslationY = 0;
+            }
+        }
+
     }
 }

@@ -30,6 +30,8 @@ namespace CollectIQ.Services
         private const string DatabaseIdentityMigrationName = "20260823_DatabaseIdentityAndDiagnostics";
         private const string AuthenticationIntegrityMigrationName = "20260823_AuthenticationIntegrityAndCredentialDurability";
         private const int MaximumAutomaticBackups = 12;
+        private const string DurableBackupDirectoryName = "DurableData";
+        private const string DurableBackupFileName = "collectiq-last-known-good.db3";
         private SQLiteAsyncConnection? connection;
         private bool isInitialized;
         private readonly SemaphoreSlim initializeLock = new SemaphoreSlim(1, 1);
@@ -59,6 +61,7 @@ namespace CollectIQ.Services
                 }
 
                 Debug.WriteLine($"[CollectIQ DB] Path: {dbPath}");
+                TryRestoreDurableBackupIfPrimaryMissingOrTruncated(dbPath);
 
                 // CRITICAL DATA-SAFETY RULE:
                 // If a database already exists, take a byte-for-byte safety snapshot
@@ -961,7 +964,11 @@ namespace CollectIQ.Services
             {
                 await connection.InsertAsync(profile);
             }
-        }
+        
+            UserProfile? verifiedProfile = await connection!.Table<UserProfile>().Where(x => x.Id == profile.Id).FirstOrDefaultAsync();
+            if (verifiedProfile == null) throw new InvalidOperationException($"User profile {profile.Id} was not persisted to SQLite.");
+            await CreateDurableDataSnapshotAsync();
+}
 
         /// <summary>
         /// Gets a user account by email address.
@@ -1057,7 +1064,11 @@ namespace CollectIQ.Services
             }
 
             return account;
-        }
+        
+            UserAccount? verifiedAccount = await connection!.Table<UserAccount>().Where(x => x.Id == account.Id).FirstOrDefaultAsync();
+            if (verifiedAccount == null) throw new InvalidOperationException($"User account {account.Id} was not persisted to SQLite.");
+            await CreateDurableDataSnapshotAsync();
+}
 
         /// <summary>
         /// Gets a local password credential for an account.
@@ -1119,7 +1130,11 @@ namespace CollectIQ.Services
             {
                 await connection.InsertAsync(credential);
             }
-        }
+        
+            UserCredential? verifiedCredential = await connection!.Table<UserCredential>().Where(x => x.Id == credential.Id).FirstOrDefaultAsync();
+            if (verifiedCredential == null) throw new InvalidOperationException($"Credential {credential.Id} was not persisted to SQLite.");
+            await CreateDurableDataSnapshotAsync();
+}
 
         /// <summary>
         /// Stores a password hash for backward-compatible callers.
@@ -1457,17 +1472,14 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
 
-            if (string.IsNullOrWhiteSpace(card.CollectionId))
-            {
-                string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
-                CardCollection collection = await GetOrCreateDefaultCollectionAsync(ownerUserAccountId);
-                card.CollectionId = collection.Id;
-            }
+            await EnsureValidCardCollectionAsync(card);
 
             card.CreatedUtc = card.CreatedUtc == default ? DateTime.UtcNow : card.CreatedUtc;
             card.UpdatedUtc = DateTime.UtcNow;
 
-            return await connection!.InsertAsync(card);
+            int result = await connection!.InsertAsync(card);
+            await VerifyCardPersistedAndSnapshotAsync(card.Id);
+            return result;
         }
 
         /// <summary>
@@ -1542,15 +1554,12 @@ namespace CollectIQ.Services
 
             await InitializeAsync();
 
-            if (string.IsNullOrWhiteSpace(card.CollectionId))
-            {
-                string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
-                CardCollection collection = await GetOrCreateDefaultCollectionAsync(ownerUserAccountId);
-                card.CollectionId = collection.Id;
-            }
+            await EnsureValidCardCollectionAsync(card);
 
             card.UpdatedUtc = DateTime.UtcNow;
-            return await connection!.UpdateAsync(card);
+            int result = await connection!.UpdateAsync(card);
+            await VerifyCardPersistedAndSnapshotAsync(card.Id);
+            return result;
         }
 
         /// <summary>
@@ -1576,6 +1585,61 @@ namespace CollectIQ.Services
             {
                 Debug.WriteLine("[CollectIQ DB] AssignUnassignedCardsToCollectionAsync failed: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Ensures a card points to a real, non-deleted collection before SQLite
+        /// INSERT/UPDATE. Search results and older cards can carry stale collection
+        /// IDs after account/database repairs. A stale ID must never be trusted just
+        /// because it is non-empty.
+        /// </summary>
+        private async Task EnsureValidCardCollectionAsync(Card card)
+        {
+            if (card == null)
+            {
+                throw new ArgumentNullException(nameof(card));
+            }
+
+            await InitializeAsync();
+
+            CardCollection? assignedCollection = null;
+
+            if (!string.IsNullOrWhiteSpace(card.CollectionId))
+            {
+                assignedCollection = await connection!.Table<CardCollection>()
+                    .Where(c => c.Id == card.CollectionId && !c.IsDeleted)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (assignedCollection != null)
+            {
+                return;
+            }
+
+            string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
+
+            // A signed-in card should be repaired onto that account's real default
+            // collection. If no session exists, the existing legacy "local" behavior
+            // remains available for developer/offline tooling.
+            CardCollection defaultCollection =
+                await GetOrCreateDefaultCollectionAsync(ownerUserAccountId);
+
+            // Verify the collection row exists before assigning it to the card.
+            CardCollection? verifiedDefault = await connection!.Table<CardCollection>()
+                .Where(c => c.Id == defaultCollection.Id && !c.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (verifiedDefault == null)
+            {
+                throw new InvalidOperationException(
+                    $"CollectIQ could not create or locate a valid default collection for account '{ownerUserAccountId}'.");
+            }
+
+            card.CollectionId = verifiedDefault.Id;
+
+            Debug.WriteLine(
+                $"[CollectIQ DB] Repaired stale/missing card collection. " +
+                $"Card={card.Id}, Collection={verifiedDefault.Id}, Owner={ownerUserAccountId}");
         }
 
         /// <summary>
@@ -1630,6 +1694,55 @@ namespace CollectIQ.Services
         /// </summary>
         /// <param name="email">The email address.</param>
         /// <returns>The normalized email address.</returns>
+        private string GetDurableBackupPath()
+        {
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DurableBackupDirectoryName);
+            Directory.CreateDirectory(directory);
+            return Path.Combine(directory, DurableBackupFileName);
+        }
+
+        private void TryRestoreDurableBackupIfPrimaryMissingOrTruncated(string dbPath)
+        {
+            try
+            {
+                string backupPath = GetDurableBackupPath();
+                if (!File.Exists(backupPath) || new FileInfo(backupPath).Length < 4096) return;
+                bool badPrimary = !File.Exists(dbPath) || new FileInfo(dbPath).Length < 4096;
+                if (!badPrimary) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+                File.Copy(backupPath, dbPath, true);
+                Debug.WriteLine($"[CollectIQ DB] Restored durable database from {backupPath}");
+            }
+            catch (Exception ex) { Debug.WriteLine("[CollectIQ DB] Durable restore failed: " + ex); }
+        }
+
+        private async Task VerifyCardPersistedAndSnapshotAsync(string cardId)
+        {
+            Card? card = await connection!.Table<Card>().Where(x => x.Id == cardId && !x.IsDeleted).FirstOrDefaultAsync();
+            if (card == null) throw new InvalidOperationException($"Card {cardId} was not persisted to SQLite.");
+            if (string.IsNullOrWhiteSpace(card.CollectionId)) throw new InvalidOperationException($"Card {cardId} has no collection after save.");
+            CardCollection? collection = await connection.Table<CardCollection>().Where(x => x.Id == card.CollectionId && !x.IsDeleted).FirstOrDefaultAsync();
+            if (collection == null) throw new InvalidOperationException($"Saved card {cardId} points to a missing collection.");
+            await CreateDurableDataSnapshotAsync();
+        }
+
+        private async Task CreateDurableDataSnapshotAsync()
+        {
+            try
+            {
+                if (connection == null) return;
+                try { await connection.ExecuteAsync("PRAGMA wal_checkpoint(FULL);"); } catch { }
+                string source = GetDatabasePath();
+                if (!File.Exists(source) || new FileInfo(source).Length < 4096) return;
+                string backup = GetDurableBackupPath();
+                string temp = backup + ".tmp";
+                File.Copy(source, temp, true);
+                if (File.Exists(backup)) File.Delete(backup);
+                File.Move(temp, backup);
+            }
+            catch (Exception ex) { Debug.WriteLine("[CollectIQ DB] Durable snapshot failed: " + ex); }
+        }
+
         private static string NormalizeEmail(string? email)
         {
             return (email ?? string.Empty).Trim().ToLowerInvariant();
