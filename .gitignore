@@ -430,3 +430,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 PoworsoftSolutions/CollectIQ.zip
+*.csproj.user
