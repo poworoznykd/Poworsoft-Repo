@@ -100,6 +100,7 @@
                                TextColor="#E0F5FF" />
 
                         <Entry
+                            HandlerChanged="AuthEntry_HandlerChanged"
                             Grid.Row="1"
                             Placeholder="you@example.com"
                             PlaceholderColor="#7A8CA0"
@@ -124,6 +125,7 @@
       Margin="0,2,0,0">
 
                             <Entry
+                            HandlerChanged="AuthEntry_HandlerChanged"
                                 Grid.Column="0"
                                 Text="{Binding Password}"
                                 Placeholder="Password"
@@ -184,6 +186,7 @@
                                Margin="0,6,0,0" />
 
                         <Entry
+                            HandlerChanged="AuthEntry_HandlerChanged"
                             Grid.Row="8"
                             Placeholder="Re-enter password"
                             PlaceholderColor="#7A8CA0"

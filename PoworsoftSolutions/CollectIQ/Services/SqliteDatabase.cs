@@ -24,11 +24,18 @@ namespace CollectIQ.Services
     /// </summary>
     public sealed class SqliteDatabase : IDatabase
     {
-        private const int CurrentDatabaseVersion = 4;
+        private const int CurrentDatabaseVersion = 5;
         private const string InitialMigrationName = "20260608_InitialCollectIQFoundation";
         private const string DatabaseSafetyMigrationName = "20260823_NonDestructiveDatabaseUpgradeSafety";
         private const string DatabaseIdentityMigrationName = "20260823_DatabaseIdentityAndDiagnostics";
         private const string AuthenticationIntegrityMigrationName = "20260823_AuthenticationIntegrityAndCredentialDurability";
+        private const string OfflineFirstPersistenceMigrationName = "20260910_SQLiteOfflineFirstPersistence";
+        private const string SyncStatusPending = "Pending";
+        private const string SyncStatusFailed = "Failed";
+        private const string SyncStatusCompleted = "Completed";
+        private const string SyncOperationUpsert = "Upsert";
+        private const string SyncOperationDelete = "Delete";
+        private const string DurablePreviousBackupFileName = "collectiq-previous-good.db3";
         private const int MaximumAutomaticBackups = 12;
         private const string DurableBackupDirectoryName = "DurableData";
         private const string DurableBackupFileName = "collectiq-last-known-good.db3";
@@ -52,6 +59,7 @@ namespace CollectIQ.Services
 
             string? safetyBackupDirectory = null;
             string dbPath = GetDatabasePath();
+            string initializationStage = "starting";
 
             try
             {
@@ -60,6 +68,7 @@ namespace CollectIQ.Services
                     return;
                 }
 
+                initializationStage = "checking durable recovery copy";
                 Debug.WriteLine($"[CollectIQ DB] Path: {dbPath}");
                 TryRestoreDurableBackupIfPrimaryMissingOrTruncated(dbPath);
 
@@ -70,19 +79,26 @@ namespace CollectIQ.Services
                 // rows cannot disappear simply because SQLite had not checkpointed yet.
                 if (File.Exists(dbPath) && new FileInfo(dbPath).Length > 0)
                 {
+                    initializationStage = "creating pre-update safety backup";
                     safetyBackupDirectory = await CreateSafetyBackupAsync(
                         dbPath,
                         $"before_schema_v{CurrentDatabaseVersion}");
                 }
 
+                initializationStage = "opening SQLite database";
                 connection = new SQLiteAsyncConnection(dbPath);
-                await connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
 
+                initializationStage = "configuring SQLite durability";
+                await ConfigureSqliteDurabilityAsync();
+
+                initializationStage = "checking SQLite integrity before migration";
                 await EnsureDatabaseHealthyAsync("before migration");
 
                 // Migration history must exist before we evaluate versions.
+                initializationStage = "ensuring migration history table";
                 await connection.CreateTableAsync<SchemaMigrationHistory>();
 
+                initializationStage = "reading installed schema version";
                 int existingVersion = await GetAppliedDatabaseVersionAsync();
                 Debug.WriteLine($"[CollectIQ DB] Existing schema version: {existingVersion}");
 
@@ -90,15 +106,28 @@ namespace CollectIQ.Services
                 // it creates missing tables/columns rather than dropping user tables.
                 // Because a full safety backup now exists first, even a failed library
                 // migration cannot cost the user their collection.
+                initializationStage = "ensuring database tables";
                 await CreateTablesAsync();
 
+                initializationStage = $"applying migrations from version {existingVersion} to {CurrentDatabaseVersion}";
                 await ApplyMigrationsAsync(existingVersion);
+
+                initializationStage = "seeding roles and plans";
                 await SeedRolesAndPlansAsync();
+
+                initializationStage = "checking SQLite integrity after migration";
                 await EnsureDatabaseHealthyAsync("after migration");
 
+                initializationStage = "recording SQLite user_version";
                 await connection.ExecuteAsync($"PRAGMA user_version = {CurrentDatabaseVersion};");
+
+                initializationStage = "pruning old safety backups";
                 await PruneOldSafetyBackupsAsync();
 
+                initializationStage = "creating durable post-update snapshot";
+                await CreateDurableDataSnapshotAsync();
+
+                initializationStage = "complete";
                 isInitialized = true;
             }
             catch (Exception ex)
@@ -139,17 +168,15 @@ namespace CollectIQ.Services
                             new AggregateException(ex, restoreEx));
                     }
                 }
-                else if (File.Exists(dbPath))
-                {
-                    // This was a brand-new database, so there was no user data to restore.
-                    // Remove the incomplete file so the next launch can create it cleanly.
-                    TryDeleteFile(dbPath);
-                    TryDeleteFile(dbPath + "-wal");
-                    TryDeleteFile(dbPath + "-shm");
-                }
+                // No safety snapshot means there was nothing to restore. Preserve
+                // the failed database file for diagnosis; never delete it automatically.
 
                 throw new InvalidOperationException(
-                    "CollectIQ could not apply the local database update. Your pre-update database was preserved/restored, so the app stopped instead of risking your collection data.",
+                    "CollectIQ could not apply the local database update. " +
+                    "Your pre-update database was preserved/restored, so the app stopped instead of risking your collection data. " +
+                    $"Stage: {initializationStage}. " +
+                    $"Error type: {ex.GetType().Name}. " +
+                    $"SQLite error: {ex.Message}",
                     ex);
             }
             finally
@@ -177,6 +204,37 @@ namespace CollectIQ.Services
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "collectiq.db3");
+        }
+
+        /// <summary>
+        /// Kept as a compatibility hook for backup/export callers.
+        /// CollectIQ no longer forces WAL mode at startup, so no WAL checkpoint
+        /// is required for the normal rollback-journal database configuration.
+        /// </summary>
+        private Task RunWalCheckpointAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Applies the single SQLite connection option CollectIQ requires.
+        ///
+        /// Keep startup configuration deliberately minimal. In particular, do not
+        /// execute row-returning PRAGMA statements through ExecuteAsync because
+        /// sqlite-net can surface SQLITE_ROW as the misleading SQLiteException
+        /// message "not an error".
+        /// </summary>
+        private async Task ConfigureSqliteDurabilityAsync()
+        {
+            if (connection == null)
+            {
+                throw new InvalidOperationException("SQLite connection is not available.");
+            }
+
+            // PRAGMA foreign_keys is connection-scoped. Set it once after opening
+            // the connection. There is no need to change journal mode, synchronous
+            // mode, or busy_timeout for CollectIQ's local-first persistence model.
+            await connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
         }
 
         /// <summary>
@@ -216,6 +274,73 @@ namespace CollectIQ.Services
             await connection.CreateTableAsync<SyncQueueItem>();
             await connection.CreateTableAsync<AuditHistory>();
             await connection.CreateTableAsync<SchemaMigrationHistory>();
+        }
+
+        /// <summary>
+        /// Adds the offline-sync fields to an existing SyncQueueItem table without
+        /// deleting, copying, or recreating any queued data.
+        /// </summary>
+        private async Task EnsureSyncQueueSchemaAsync()
+        {
+            await connection!.CreateTableAsync<SyncQueueItem>();
+
+            List<TableInfoRow> columns = await connection
+                .QueryAsync<TableInfoRow>("PRAGMA table_info('SyncQueueItem');");
+
+            await AddTableColumnIfMissingAsync(
+                columns,
+                "SyncQueueItem",
+                "UserAccountId",
+                "ALTER TABLE SyncQueueItem ADD COLUMN UserAccountId TEXT NOT NULL DEFAULT '';");
+
+            await AddTableColumnIfMissingAsync(
+                columns,
+                "SyncQueueItem",
+                "NextAttemptUtc",
+                "ALTER TABLE SyncQueueItem ADD COLUMN NextAttemptUtc INTEGER;");
+
+            await AddTableColumnIfMissingAsync(
+                columns,
+                "SyncQueueItem",
+                "LastError",
+                "ALTER TABLE SyncQueueItem ADD COLUMN LastError TEXT NOT NULL DEFAULT '';");
+
+            await AddTableColumnIfMissingAsync(
+                columns,
+                "SyncQueueItem",
+                "CompletedUtc",
+                "ALTER TABLE SyncQueueItem ADD COLUMN CompletedUtc INTEGER;");
+        }
+
+        /// <summary>
+        /// Adds one missing column to an existing table. This is intentionally
+        /// additive: existing rows remain in place and the table is never rebuilt.
+        /// </summary>
+        private async Task AddTableColumnIfMissingAsync(
+            List<TableInfoRow> columns,
+            string tableName,
+            string columnName,
+            string sql)
+        {
+            bool exists = columns.Any(column =>
+                string.Equals(
+                    column.name,
+                    columnName,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (exists)
+            {
+                return;
+            }
+
+            Debug.WriteLine(
+                $"[CollectIQ DB] Adding missing {tableName} column: {columnName}");
+
+            await connection!.ExecuteAsync(sql);
+
+            // Keep this in-memory schema list current so subsequent checks in the
+            // same migration cannot accidentally try to add the same column twice.
+            columns.Add(new TableInfoRow { name = columnName });
         }
 
         /// <summary>
@@ -351,6 +476,31 @@ namespace CollectIQ.Services
                         await EnsureAuthenticationIntegrityAsync();
                     });
                 existingVersion = 4;
+            }
+
+            if (existingVersion < 5)
+            {
+                await RunMigrationTransactionAsync(
+                    5,
+                    OfflineFirstPersistenceMigrationName,
+                    async () =>
+                    {
+                        // SyncQueueItem already exists in older CollectIQ databases.
+                        // sqlite-net CreateTableAsync() creates missing tables but does
+                        // NOT add new properties to an existing table. Upgrade it
+                        // explicitly and non-destructively before creating indexes.
+                        await EnsureSyncQueueSchemaAsync();
+
+                        await connection!.ExecuteAsync(
+                            "CREATE INDEX IF NOT EXISTS IX_SyncQueue_Status_NextAttempt " +
+                            "ON SyncQueueItem(Status, NextAttemptUtc);");
+
+                        await connection.ExecuteAsync(
+                            "CREATE INDEX IF NOT EXISTS IX_SyncQueue_Account_Entity " +
+                            "ON SyncQueueItem(UserAccountId, EntityType, EntityId);");
+                    });
+
+                existingVersion = 5;
             }
 
             // Keep these checks idempotent on every launch. They never drop or
@@ -965,10 +1115,24 @@ namespace CollectIQ.Services
                 await connection.InsertAsync(profile);
             }
         
-            UserProfile? verifiedProfile = await connection!.Table<UserProfile>().Where(x => x.Id == profile.Id).FirstOrDefaultAsync();
-            if (verifiedProfile == null) throw new InvalidOperationException($"User profile {profile.Id} was not persisted to SQLite.");
+            UserProfile? verifiedProfile = await connection!.Table<UserProfile>()
+                .Where(item => item.Id == profile.Id)
+                .FirstOrDefaultAsync();
+
+            if (verifiedProfile == null)
+            {
+                throw new InvalidOperationException(
+                    $"User profile {profile.Id} was not persisted to SQLite.");
+            }
+
+            await QueueSyncChangeAsync(
+                nameof(UserProfile),
+                profile.Id,
+                SyncOperationUpsert,
+                profile.UserAccountId);
+
             await CreateDurableDataSnapshotAsync();
-}
+        }
 
         /// <summary>
         /// Gets a user account by email address.
@@ -1063,12 +1227,19 @@ namespace CollectIQ.Services
                 await connection.InsertAsync(account);
             }
 
-            return account;
-        
-            UserAccount? verifiedAccount = await connection!.Table<UserAccount>().Where(x => x.Id == account.Id).FirstOrDefaultAsync();
-            if (verifiedAccount == null) throw new InvalidOperationException($"User account {account.Id} was not persisted to SQLite.");
+            UserAccount? verifiedAccount = await connection!.Table<UserAccount>()
+                .Where(item => item.Id == account.Id)
+                .FirstOrDefaultAsync();
+
+            if (verifiedAccount == null)
+            {
+                throw new InvalidOperationException(
+                    $"User account {account.Id} was not persisted to SQLite.");
+            }
+
             await CreateDurableDataSnapshotAsync();
-}
+            return account;
+        }
 
         /// <summary>
         /// Gets a local password credential for an account.
@@ -1131,10 +1302,19 @@ namespace CollectIQ.Services
                 await connection.InsertAsync(credential);
             }
         
-            UserCredential? verifiedCredential = await connection!.Table<UserCredential>().Where(x => x.Id == credential.Id).FirstOrDefaultAsync();
-            if (verifiedCredential == null) throw new InvalidOperationException($"Credential {credential.Id} was not persisted to SQLite.");
+            UserCredential? verifiedCredential = await connection!.Table<UserCredential>()
+                .Where(item => item.Id == credential.Id)
+                .FirstOrDefaultAsync();
+
+            if (verifiedCredential == null)
+            {
+                throw new InvalidOperationException(
+                    $"Credential {credential.Id} was not persisted to SQLite.");
+            }
+
+            // Credentials are never added to the generic data-sync outbox.
             await CreateDurableDataSnapshotAsync();
-}
+        }
 
         /// <summary>
         /// Stores a password hash for backward-compatible callers.
@@ -1223,7 +1403,7 @@ namespace CollectIQ.Services
             }
 
             UserProfile? profile = await GetUserProfileByEmailAsync(email);
-            return profile?.PasswordHash ?? profile?.DisplayName;
+            return profile?.PasswordHash;
         }
 
         /// <summary>
@@ -1267,7 +1447,13 @@ namespace CollectIQ.Services
 
             if (string.IsNullOrWhiteSpace(userAccountId))
             {
-                userAccountId = "local";
+                userAccountId = UserSession.CurrentUser?.UserAccountId ?? string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(userAccountId))
+            {
+                throw new InvalidOperationException(
+                    "A UserAccount.Id is required before CollectIQ can create a collection.");
             }
 
             CardCollection? collection = await connection!.Table<CardCollection>()
@@ -1308,7 +1494,24 @@ namespace CollectIQ.Services
 
             await AssignUnassignedCardsToCollectionAsync(collection.Id);
 
-            return collection;
+            CardCollection? verifiedCollection = await connection.Table<CardCollection>()
+                .Where(item => item.Id == collection.Id && !item.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (verifiedCollection == null)
+            {
+                throw new InvalidOperationException(
+                    $"Default collection {collection.Id} was not persisted.");
+            }
+
+            await QueueSyncChangeAsync(
+                nameof(CardCollection),
+                collection.Id,
+                SyncOperationUpsert,
+                userAccountId);
+
+            await CreateDurableDataSnapshotAsync();
+            return verifiedCollection;
         }
 
         /// <summary>
@@ -1423,8 +1626,39 @@ namespace CollectIQ.Services
             }
 
             await InitializeAsync();
+
+            if (string.IsNullOrWhiteSpace(collection.OwnerUserAccountId))
+            {
+                collection.OwnerUserAccountId =
+                    UserSession.CurrentUser?.UserAccountId ?? string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(collection.OwnerUserAccountId))
+            {
+                throw new InvalidOperationException(
+                    "A collection must have a permanent owner UserAccount.Id.");
+            }
+
             collection.UpdatedUtc = DateTime.UtcNow;
             await connection!.InsertOrReplaceAsync(collection);
+
+            CardCollection? verifiedCollection = await connection.Table<CardCollection>()
+                .Where(item => item.Id == collection.Id)
+                .FirstOrDefaultAsync();
+
+            if (verifiedCollection == null)
+            {
+                throw new InvalidOperationException(
+                    $"Collection {collection.Id} was not persisted.");
+            }
+
+            await QueueSyncChangeAsync(
+                nameof(CardCollection),
+                collection.Id,
+                SyncOperationUpsert,
+                collection.OwnerUserAccountId);
+
+            await CreateDurableDataSnapshotAsync();
         }
 
         /// <summary>
@@ -1452,6 +1686,14 @@ namespace CollectIQ.Services
             collection.IsDeleted = true;
             collection.UpdatedUtc = DateTime.UtcNow;
             await connection.UpdateAsync(collection);
+
+            await QueueSyncChangeAsync(
+                nameof(CardCollection),
+                collection.Id,
+                SyncOperationDelete,
+                collection.OwnerUserAccountId);
+
+            await CreateDurableDataSnapshotAsync();
         }
 
         #endregion
@@ -1478,6 +1720,19 @@ namespace CollectIQ.Services
             card.UpdatedUtc = DateTime.UtcNow;
 
             int result = await connection!.InsertAsync(card);
+
+            if (result <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"SQLite did not insert card {card.Id}.");
+            }
+
+            await QueueSyncChangeAsync(
+                nameof(Card),
+                card.Id,
+                SyncOperationUpsert,
+                UserSession.CurrentUser?.UserAccountId);
+
             await VerifyCardPersistedAndSnapshotAsync(card.Id);
             return result;
         }
@@ -1530,8 +1785,30 @@ namespace CollectIQ.Services
 
             try
             {
-                await connection!.ExecuteAsync("DELETE FROM CardImage WHERE CardId = ?", cardId);
-                return await connection.ExecuteAsync("DELETE FROM Card WHERE Id = ?", cardId);
+                Card? card = await connection!.Table<Card>()
+                    .Where(item => item.Id == cardId)
+                    .FirstOrDefaultAsync();
+
+                if (card == null)
+                {
+                    return 0;
+                }
+
+                // Offline-first delete. Keep a tombstone locally so the deletion
+                // can synchronize later and can still be diagnosed/recovered.
+                card.IsDeleted = true;
+                card.UpdatedUtc = DateTime.UtcNow;
+
+                int result = await connection.UpdateAsync(card);
+
+                await QueueSyncChangeAsync(
+                    nameof(Card),
+                    card.Id,
+                    SyncOperationDelete,
+                    UserSession.CurrentUser?.UserAccountId);
+
+                await CreateDurableDataSnapshotAsync();
+                return result;
             }
             catch (Exception ex)
             {
@@ -1558,6 +1835,19 @@ namespace CollectIQ.Services
 
             card.UpdatedUtc = DateTime.UtcNow;
             int result = await connection!.UpdateAsync(card);
+
+            if (result <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"SQLite did not update card {card.Id}.");
+            }
+
+            await QueueSyncChangeAsync(
+                nameof(Card),
+                card.Id,
+                SyncOperationUpsert,
+                UserSession.CurrentUser?.UserAccountId);
+
             await VerifyCardPersistedAndSnapshotAsync(card.Id);
             return result;
         }
@@ -1613,7 +1903,37 @@ namespace CollectIQ.Services
 
             if (assignedCollection != null)
             {
-                return;
+                string? activeUserAccountId = UserSession.CurrentUser?.UserAccountId;
+
+                if (string.IsNullOrWhiteSpace(activeUserAccountId))
+                {
+                    return;
+                }
+
+                bool ownsCollection =
+                    string.Equals(
+                        assignedCollection.OwnerUserAccountId,
+                        activeUserAccountId,
+                        StringComparison.Ordinal);
+
+                CollectionMember? member = ownsCollection
+                    ? null
+                    : await connection!.Table<CollectionMember>()
+                        .Where(item =>
+                            item.CollectionId == assignedCollection.Id &&
+                            item.UserAccountId == activeUserAccountId &&
+                            item.CanAddCards &&
+                            !item.IsDeleted)
+                        .FirstOrDefaultAsync();
+
+                if (ownsCollection || member != null)
+                {
+                    return;
+                }
+
+                // Existing ID belongs to a collection this user cannot write to.
+                // Treat it as stale for this save and repair below.
+                assignedCollection = null;
             }
 
             string ownerUserAccountId = await GetPreferredOwnerUserAccountIdAsync();
@@ -1650,12 +1970,14 @@ namespace CollectIQ.Services
         private static Task<string> GetPreferredOwnerUserAccountIdAsync()
         {
             string? activeUserAccountId = UserSession.CurrentUser?.UserAccountId;
-            if (!string.IsNullOrWhiteSpace(activeUserAccountId))
+
+            if (string.IsNullOrWhiteSpace(activeUserAccountId))
             {
-                return Task.FromResult(activeUserAccountId);
+                throw new InvalidOperationException(
+                    "CollectIQ cannot save collection data without an active UserAccount.Id.");
             }
 
-            return Task.FromResult("local");
+            return Task.FromResult(activeUserAccountId);
         }
 
         /// <summary>
@@ -1685,6 +2007,217 @@ namespace CollectIQ.Services
                 StringComparer.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Runs a full SQLite integrity check without changing data.
+        /// </summary>
+        public async Task<bool> ValidateDatabaseAsync()
+        {
+            await InitializeAsync();
+
+            try
+            {
+                string result = await connection!.ExecuteScalarAsync<string>(
+                    "PRAGMA integrity_check;");
+
+                return string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] ValidateDatabaseAsync failed: " + ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Creates a checkpointed portable SQLite file for desktop inspection.
+        /// </summary>
+        public async Task<string> CreatePortableDatabaseExportAsync()
+        {
+            await InitializeAsync();
+            await RunWalCheckpointAsync();
+
+            string directory = Path.Combine(
+                FileSystem.CacheDirectory,
+                "DatabaseExports");
+
+            Directory.CreateDirectory(directory);
+
+            string exportPath = Path.Combine(
+                directory,
+                $"collectiq-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db3");
+
+            File.Copy(GetDatabasePath(), exportPath, overwrite: true);
+            return exportPath;
+        }
+
+        /// <summary>
+        /// Creates an explicit migration-style safety backup on demand.
+        /// </summary>
+        public async Task<string> CreateManualDatabaseBackupAsync(string reason = "manual")
+        {
+            await InitializeAsync();
+
+            try
+            {
+                await RunWalCheckpointAsync();
+            }
+            catch
+            {
+                // The backup routine also captures WAL/SHM if checkpointing fails.
+            }
+
+            return await CreateSafetyBackupAsync(
+                GetDatabasePath(),
+                string.IsNullOrWhiteSpace(reason) ? "manual" : reason);
+        }
+
+        /// <summary>
+        /// Returns local changes that are ready for a future cloud transport.
+        /// </summary>
+        public async Task<List<SyncQueueItem>> GetPendingSyncItemsAsync(int maximumItems = 100)
+        {
+            await InitializeAsync();
+
+            maximumItems = Math.Clamp(maximumItems, 1, 500);
+            DateTime now = DateTime.UtcNow;
+
+            List<SyncQueueItem> rows = await connection!.Table<SyncQueueItem>()
+                .Where(item =>
+                    !item.IsDeleted &&
+                    (item.Status == SyncStatusPending || item.Status == SyncStatusFailed))
+                .OrderBy(item => item.CreatedUtc)
+                .ToListAsync();
+
+            return rows
+                .Where(item => item.NextAttemptUtc == null || item.NextAttemptUtc <= now)
+                .Take(maximumItems)
+                .ToList();
+        }
+
+        public async Task MarkSyncItemSucceededAsync(string syncQueueItemId)
+        {
+            await InitializeAsync();
+
+            SyncQueueItem? item = await connection!.Table<SyncQueueItem>()
+                .Where(row => row.Id == syncQueueItemId)
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+            {
+                return;
+            }
+
+            item.Status = SyncStatusCompleted;
+            item.CompletedUtc = DateTime.UtcNow;
+            item.LastAttemptUtc = DateTime.UtcNow;
+            item.NextAttemptUtc = null;
+            item.LastError = string.Empty;
+            item.UpdatedUtc = DateTime.UtcNow;
+
+            await connection.UpdateAsync(item);
+            await CreateDurableDataSnapshotAsync();
+        }
+
+        public async Task MarkSyncItemFailedAsync(
+            string syncQueueItemId,
+            string errorMessage)
+        {
+            await InitializeAsync();
+
+            SyncQueueItem? item = await connection!.Table<SyncQueueItem>()
+                .Where(row => row.Id == syncQueueItemId)
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+            {
+                return;
+            }
+
+            item.RetryCount++;
+            item.Status = SyncStatusFailed;
+            item.LastAttemptUtc = DateTime.UtcNow;
+            item.LastError = (errorMessage ?? string.Empty).Trim();
+
+            double minutes = Math.Min(
+                Math.Pow(2, Math.Min(item.RetryCount, 8)),
+                240);
+
+            item.NextAttemptUtc = DateTime.UtcNow.AddMinutes(minutes);
+            item.UpdatedUtc = DateTime.UtcNow;
+
+            await connection.UpdateAsync(item);
+            await CreateDurableDataSnapshotAsync();
+        }
+
+        /// <summary>
+        /// Coalesces unsynchronized changes for the same entity. Only identity and
+        /// operation are queued; credentials/password hashes are never serialized.
+        /// </summary>
+        private async Task QueueSyncChangeAsync(
+            string entityType,
+            string entityId,
+            string operation,
+            string? userAccountId)
+        {
+            if (connection == null ||
+                string.IsNullOrWhiteSpace(entityType) ||
+                string.IsNullOrWhiteSpace(entityId) ||
+                string.IsNullOrWhiteSpace(userAccountId))
+            {
+                return;
+            }
+
+            try
+            {
+                SyncQueueItem? pending = await connection.Table<SyncQueueItem>()
+                    .Where(item =>
+                        item.EntityType == entityType &&
+                        item.EntityId == entityId &&
+                        item.UserAccountId == userAccountId &&
+                        !item.IsDeleted &&
+                        item.Status != SyncStatusCompleted)
+                    .OrderByDescending(item => item.UpdatedUtc)
+                    .FirstOrDefaultAsync();
+
+                if (pending == null)
+                {
+                    pending = new SyncQueueItem
+                    {
+                        UserAccountId = userAccountId,
+                        EntityType = entityType,
+                        EntityId = entityId,
+                        Operation = operation,
+                        PayloadJson = string.Empty,
+                        Status = SyncStatusPending,
+                        RetryCount = 0,
+                        CreatedUtc = DateTime.UtcNow,
+                        UpdatedUtc = DateTime.UtcNow
+                    };
+
+                    await connection.InsertAsync(pending);
+                    return;
+                }
+
+                pending.Operation = operation;
+                pending.Status = SyncStatusPending;
+                pending.RetryCount = 0;
+                pending.LastAttemptUtc = null;
+                pending.NextAttemptUtc = null;
+                pending.LastError = string.Empty;
+                pending.CompletedUtc = null;
+                pending.UpdatedUtc = DateTime.UtcNow;
+
+                await connection.UpdateAsync(pending);
+            }
+            catch (Exception ex)
+            {
+                // The local write has already succeeded. Never undo a local save
+                // because the future-cloud outbox had a temporary problem.
+                Debug.WriteLine(
+                    $"[CollectIQ DB] Sync queue write failed for {entityType}/{entityId}: {ex}");
+            }
+        }
+
         #endregion
 
         #region Helpers
@@ -1705,15 +2238,42 @@ namespace CollectIQ.Services
         {
             try
             {
-                string backupPath = GetDurableBackupPath();
-                if (!File.Exists(backupPath) || new FileInfo(backupPath).Length < 4096) return;
-                bool badPrimary = !File.Exists(dbPath) || new FileInfo(dbPath).Length < 4096;
-                if (!badPrimary) return;
+                bool badPrimary =
+                    !File.Exists(dbPath) ||
+                    new FileInfo(dbPath).Length < 4096;
+
+                if (!badPrimary)
+                {
+                    return;
+                }
+
+                string latest = GetDurableBackupPath();
+                string previous = Path.Combine(
+                    Path.GetDirectoryName(latest)!,
+                    DurablePreviousBackupFileName);
+
+                string? candidate =
+                    File.Exists(latest) && new FileInfo(latest).Length >= 4096
+                        ? latest
+                        : File.Exists(previous) && new FileInfo(previous).Length >= 4096
+                            ? previous
+                            : null;
+
+                if (candidate == null)
+                {
+                    return;
+                }
+
                 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-                File.Copy(backupPath, dbPath, true);
-                Debug.WriteLine($"[CollectIQ DB] Restored durable database from {backupPath}");
+                File.Copy(candidate, dbPath, overwrite: true);
+
+                Debug.WriteLine(
+                    $"[CollectIQ DB] Restored durable database from {candidate}");
             }
-            catch (Exception ex) { Debug.WriteLine("[CollectIQ DB] Durable restore failed: " + ex); }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] Durable restore failed: " + ex);
+            }
         }
 
         private async Task VerifyCardPersistedAndSnapshotAsync(string cardId)
@@ -1730,17 +2290,66 @@ namespace CollectIQ.Services
         {
             try
             {
-                if (connection == null) return;
-                try { await connection.ExecuteAsync("PRAGMA wal_checkpoint(FULL);"); } catch { }
+                if (connection == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await RunWalCheckpointAsync();
+                }
+                catch
+                {
+                    // A sidecar-aware migration backup still exists as another layer.
+                }
+
                 string source = GetDatabasePath();
-                if (!File.Exists(source) || new FileInfo(source).Length < 4096) return;
-                string backup = GetDurableBackupPath();
-                string temp = backup + ".tmp";
-                File.Copy(source, temp, true);
-                if (File.Exists(backup)) File.Delete(backup);
-                File.Move(temp, backup);
+                if (!File.Exists(source) || new FileInfo(source).Length < 4096)
+                {
+                    return;
+                }
+
+                string latest = GetDurableBackupPath();
+                string previous = Path.Combine(
+                    Path.GetDirectoryName(latest)!,
+                    DurablePreviousBackupFileName);
+                string temp = latest + ".tmp";
+
+                File.Copy(source, temp, overwrite: true);
+
+                SQLiteAsyncConnection verifier = new SQLiteAsyncConnection(temp);
+                string result;
+
+                try
+                {
+                    result = await verifier.ExecuteScalarAsync<string>(
+                        "PRAGMA quick_check;");
+                }
+                finally
+                {
+                    await verifier.CloseAsync();
+                }
+
+                if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryDeleteFile(temp);
+                    throw new InvalidOperationException(
+                        "New durable SQLite snapshot failed quick_check.");
+                }
+
+                if (File.Exists(latest) && new FileInfo(latest).Length >= 4096)
+                {
+                    File.Copy(latest, previous, overwrite: true);
+                }
+
+                File.Copy(temp, latest, overwrite: true);
+                TryDeleteFile(temp);
             }
-            catch (Exception ex) { Debug.WriteLine("[CollectIQ DB] Durable snapshot failed: " + ex); }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[CollectIQ DB] Durable snapshot failed: " + ex);
+            }
         }
 
         private static string NormalizeEmail(string? email)

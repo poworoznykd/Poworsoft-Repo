@@ -51,6 +51,14 @@ namespace CollectIQ.Interfaces
         Task UpsertCollectionAsync(CardCollection collection);
         Task DeleteCollectionAsync(string collectionId);
 
+        // Offline-first database maintenance and synchronization outbox.
+        Task<bool> ValidateDatabaseAsync();
+        Task<string> CreatePortableDatabaseExportAsync();
+        Task<string> CreateManualDatabaseBackupAsync(string reason = "manual");
+        Task<List<SyncQueueItem>> GetPendingSyncItemsAsync(int maximumItems = 100);
+        Task MarkSyncItemSucceededAsync(string syncQueueItemId);
+        Task MarkSyncItemFailedAsync(string syncQueueItemId, string errorMessage);
+
         // Card collection operations
         Task<int> AddCardAsync(Card card);
         Task<int> UpdateCardAsync(Card card);

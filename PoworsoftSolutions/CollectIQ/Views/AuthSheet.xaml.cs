@@ -55,6 +55,33 @@ namespace CollectIQ.Views
         #region Event Handlers
 
         /// <summary>
+        /// Keeps the authentication fields dark while making the Android text
+        /// caret visible. This changes only the native cursor tint.
+        /// </summary>
+        private void AuthEntry_HandlerChanged(object? sender, EventArgs e)
+        {
+#if ANDROID
+            if (sender is not Entry entry ||
+                entry.Handler?.PlatformView is not Android.Widget.EditText editText)
+            {
+                return;
+            }
+
+            if (OperatingSystem.IsAndroidVersionAtLeast(29))
+            {
+                Android.Graphics.Drawables.Drawable? cursor =
+                    editText.TextCursorDrawable;
+
+                if (cursor != null)
+                {
+                    cursor.SetTint(Android.Graphics.Color.White);
+                    editText.TextCursorDrawable = cursor;
+                }
+            }
+#endif
+        }
+
+        /// <summary>
         /// Handles the Google sign-in button click.
         /// </summary>
         /// <param name="sender">The button that raised the event.</param>
