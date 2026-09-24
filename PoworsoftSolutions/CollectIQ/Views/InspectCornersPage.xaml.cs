@@ -82,10 +82,18 @@ namespace CollectIQ.Views
 
         private async Task AnalyzeAsync(string path)
         {
+            await InspectionDiagnosticLogger.StartRunAsync(
+                "Corners",
+                $"Input={path}");
+
             BusyIndicator.IsVisible=true;BusyIndicator.IsRunning=true;SummaryLabel.Text="Finding the physical card with the Centering detector and analyzing the four corners…";
             try
             {
-                CardBoundaryInspectionResult r=await inspectionService.AnalyzeAsync(path);
+                CardBoundaryInspectionResult r = await InspectionExecution.RunAsync(
+                    "Corners",
+                    "Boundary analysis",
+                    cancellationToken => inspectionService.AnalyzeAsync(path, cancellationToken),
+                    TimeSpan.FromSeconds(50));
                 showingResult=true;ShowResult();CaptureButton.Text="↻ RETAKE";CaptureButton.IsEnabled=true;
                 Score1.Text=Format(r.TopLeft); Score2.Text=Format(r.TopRight); Score3.Text=Format(r.BottomLeft); Score4.Text=Format(r.BottomRight); ResultImage.Source=ImageSource.FromFile(r.NormalizedImagePath);
                 AnalysisImage.Source=ImageSource.FromFile(r.CornerOverlayPath);
@@ -99,8 +107,28 @@ namespace CollectIQ.Views
                 BottomRightExplanationLabel.Text=r.BottomRightExplanation;
                 SummaryLabel.Text=$"Physical card detected at {r.DetectionConfidence:0}% confidence. The full card remains visible above; use the magnified closeups to inspect each highlighted candidate.";
             }
-            catch(Exception ex) { SummaryLabel.Text=ex.Message;showingResult=false;ShowCamera();await RestartCameraAsync(); }
-            finally { BusyIndicator.IsVisible=false;BusyIndicator.IsRunning=false; }
+            catch(Exception ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Corners",
+                    "ANALYSIS FAILED",
+                    exception: ex);
+
+                SummaryLabel.Text = ex is TimeoutException
+                    ? ex.Message + " The camera has been restored so you can retake the photo."
+                    : ex.Message;
+
+                showingResult=false;
+                ShowCamera();
+                await RestartCameraAsync();
+            }
+            finally
+            {
+                BusyIndicator.IsVisible=false;
+                BusyIndicator.IsRunning=false;
+                CaptureButton.IsEnabled=true;
+                await InspectionDiagnosticLogger.WriteAsync("Corners", "BUSY STATE RELEASED");
+            }
         }
 
         private static string Format(RegionScore s)=>$"{s.DamageScore:0}/100 • {s.Label}";

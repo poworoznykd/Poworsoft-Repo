@@ -25,11 +25,25 @@ namespace CollectIQ.Services.Inspection
             if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
                 throw new InvalidOperationException("Capture or load a card image first.");
 
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "LOAD IMAGE", imagePath);
+
             using ImageSharpImage source = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(imagePath, cancellationToken);
             source.Mutate(x => x.AutoOrient());
 
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Boundary",
+                "DETECT CARD START",
+                $"{source.Width}x{source.Height}");
+
             // EXACT same physical-card detector used by the working Centering workflow.
             CardGeometryResult geometry = geometryService.DetectCard(source);
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Boundary",
+                "DETECT CARD COMPLETE",
+                $"Success={geometry.Success}; Confidence={geometry.Confidence:0.000}");
             if (!geometry.Success || geometry.Corners.Length != 4)
                 throw new InvalidOperationException("CollectIQ could not find all four physical outer card corners. Keep the entire card visible on a plain contrasting background and retake it.");
 
@@ -48,6 +62,9 @@ namespace CollectIQ.Services.Inspection
             {
                 await SaveAsync(padded, normalizedPath, cancellationToken);
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "SCORING START");
 
             float[] gray = ExtractLuminance(canonical);
             float[] chroma = ExtractChroma(canonical);
@@ -105,6 +122,8 @@ namespace CollectIQ.Services.Inspection
             string rightClose = await SaveEdgeCloseupAsync(canonical, outputDirectory, "edge_right", EdgeSide.Right, edgeBand, cornerSize, rightHot, cancellationToken);
             string bottomClose = await SaveEdgeCloseupAsync(canonical, outputDirectory, "edge_bottom", EdgeSide.Bottom, edgeBand, cornerSize, bottomHot, cancellationToken);
             string leftClose = await SaveEdgeCloseupAsync(canonical, outputDirectory, "edge_left", EdgeSide.Left, edgeBand, cornerSize, leftHot, cancellationToken);
+
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "ANALYSIS COMPLETE");
 
             return new CardBoundaryInspectionResult
             {

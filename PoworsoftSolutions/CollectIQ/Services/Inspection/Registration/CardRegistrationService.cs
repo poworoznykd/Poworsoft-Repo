@@ -1,6 +1,7 @@
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection.Geometry;
 using CollectIQ.Models.Inspection.Registration;
+using CollectIQ.Services.Inspection;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -144,7 +145,12 @@ namespace CollectIQ.Services.Inspection.Registration
             using SixLabors.ImageSharp.Image<Rgba32> source = await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
             NormalizeInspectionOrientation(source);
 
-            CardGeometryResult geometry = geometryService.DetectCard(source);
+            CardGeometryResult geometry = await InspectionExecution.RunCpuAsync(
+                "SurfaceRegistration",
+                $"Detect card / {key}",
+                () => geometryService.DetectCard(source),
+                TimeSpan.FromSeconds(25),
+                cancellationToken);
             if (!geometry.Success || geometry.Corners.Length != 4)
             {
                 throw new InvalidOperationException(
@@ -187,8 +193,12 @@ namespace CollectIQ.Services.Inspection.Registration
                 await ImageSharpImage.LoadAsync<Rgba32>(path, cancellationToken);
             NormalizeInspectionOrientation(source);
 
-            CardGeometryResult geometry =
-                geometryService.DetectCardNearPrior(source, normalizedReferenceCorners);
+            CardGeometryResult geometry = await InspectionExecution.RunCpuAsync(
+                "SurfaceRegistration",
+                $"Detect card near reference / {key}",
+                () => geometryService.DetectCardNearPrior(source, normalizedReferenceCorners),
+                TimeSpan.FromSeconds(25),
+                cancellationToken);
 
             if (!geometry.Success || geometry.Corners.Length != 4)
             {

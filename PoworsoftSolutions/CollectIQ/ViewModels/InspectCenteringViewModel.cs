@@ -1,5 +1,6 @@
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection.Geometry;
+using CollectIQ.Services.Inspection;
 using CollectIQ.Services.Inspection.Geometry;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
@@ -20,7 +21,13 @@ namespace CollectIQ.Views
         private const int CanonicalWidth = 750;
         private const int CanonicalHeight = 1050;
 
+        // The original capture stays untouched on disk. Result/overlay rendering
+        // does not need a multi-megapixel bitmap, so use a bounded full-frame
+        // preview to avoid long PNG encodes and Android memory churn.
+        private const int DisplayMaximumDimension = 1800;
+
         private readonly ICardGeometryService geometryService;
+        private readonly ICardNormalizationService normalizationService;
 
         private string? selectedImagePath;
         private string? rawDisplayPath;
@@ -30,9 +37,26 @@ namespace CollectIQ.Views
         private string? overlayDisplayPath;
         private string? outputDirectory;
         private ImageSource? cardImageSource;
+        private ImageSource? originalImageSource;
+        private ImageSource? cardLockImageSource;
+        private ImageSource? trueFormImageSource;
         private ImageSource? measurementImageSource;
+        private bool hasOriginalImage;
+        private ImageSource? edgeImageSource;
+        private ImageSource? rectangleImageSource;
+        private bool hasRectangleImage;
+        private ImageSource? manualPreviewImageSource;
+        private bool hasEdgeImage;
+        private bool hasCardLockImage;
+        private bool hasTrueFormImage;
+        private bool needsManualOuterCard;
+        private double manualOuterLeft = 0.07;
+        private double manualOuterRight = 0.93;
+        private double manualOuterTop = 0.05;
+        private double manualOuterBottom = 0.95;
+        private string analysisStageText = "Waiting for a card photo.";
         private bool hasMeasurementImage;
-        private string centeringSummary = "Capture or load a clear front card photo and tap Auto Analyze.";
+        private string centeringSummary = "Capture or load a clear front card photo. Analysis starts automatically.";
         private string horizontalCenteringText = "Not analyzed";
         private string verticalCenteringText = "Not analyzed";
         private string recommendation = "Use a full front photo on a solid background so the card edges are easy to detect.";
@@ -48,6 +72,10 @@ namespace CollectIQ.Views
         private double rightAdjust;
         private double topAdjust;
         private double bottomAdjust;
+        private double outerLeftAdjust;
+        private double outerRightAdjust;
+        private double outerTopAdjust;
+        private double outerBottomAdjust;
         private long overlayRenderVersion;
 
         private CenteringMeasurement baseMeasurement = new();
@@ -56,8 +84,16 @@ namespace CollectIQ.Views
         public InspectCenteringViewModel() : this(new CardGeometryService()) { }
 
         public InspectCenteringViewModel(ICardGeometryService geometryService)
+            : this(geometryService, new CardNormalizationService(geometryService))
+        {
+        }
+
+        public InspectCenteringViewModel(
+            ICardGeometryService geometryService,
+            ICardNormalizationService normalizationService)
         {
             this.geometryService = geometryService;
+            this.normalizationService = normalizationService;
             CapturePhotoCommand = new Command(async () => await ExecuteCapturePhotoAsync(), () => !IsBusy);
             PickImageCommand = new Command(async () => await ExecutePickImageAsync(), () => !IsBusy);
             AnalyzeCommand = new Command(async () => await ExecuteAnalyzeAsync(), () => !IsBusy);
@@ -69,6 +105,149 @@ namespace CollectIQ.Views
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public ImageSource? CardImageSource { get => cardImageSource; set => SetProperty(ref cardImageSource, value); }
+
+        /// <summary>
+        /// The untouched camera/picker image shown to the user for comparison.
+        /// </summary>
+        public ImageSource? OriginalImageSource
+        {
+            get => originalImageSource;
+            private set => SetProperty(ref originalImageSource, value);
+        }
+
+        /// <summary>
+        /// TrueForm View: CollectIQ's perspective-corrected, standardized 5:7 card.
+        /// </summary>
+        /// <summary>
+        /// Card Lock View: the source image with the detected physical-card
+        /// boundary and corners overlaid.
+        /// </summary>
+        public ImageSource? EdgeImageSource
+        {
+            get => edgeImageSource;
+            private set => SetProperty(ref edgeImageSource, value);
+        }
+
+        public bool HasEdgeImage
+        {
+            get => hasEdgeImage;
+            private set => SetProperty(ref hasEdgeImage, value);
+        }
+
+        public ImageSource? RectangleImageSource
+        {
+            get => rectangleImageSource;
+            private set => SetProperty(ref rectangleImageSource, value);
+        }
+
+        public bool HasRectangleImage
+        {
+            get => hasRectangleImage;
+            private set => SetProperty(ref hasRectangleImage, value);
+        }
+
+        public ImageSource? ManualPreviewImageSource
+        {
+            get => manualPreviewImageSource;
+            private set => SetProperty(ref manualPreviewImageSource, value);
+        }
+
+        public ImageSource? CardLockImageSource
+        {
+            get => cardLockImageSource;
+            private set => SetProperty(ref cardLockImageSource, value);
+        }
+
+        public ImageSource? TrueFormImageSource
+        {
+            get => trueFormImageSource;
+            private set => SetProperty(ref trueFormImageSource, value);
+        }
+
+        public bool HasOriginalImage
+        {
+            get => hasOriginalImage;
+            private set => SetProperty(ref hasOriginalImage, value);
+        }
+
+        public bool HasCardLockImage
+        {
+            get => hasCardLockImage;
+            private set => SetProperty(ref hasCardLockImage, value);
+        }
+
+        public bool HasTrueFormImage
+        {
+            get => hasTrueFormImage;
+            private set => SetProperty(ref hasTrueFormImage, value);
+        }
+
+        public bool NeedsManualOuterCard
+        {
+            get => needsManualOuterCard;
+            private set => SetProperty(ref needsManualOuterCard, value);
+        }
+
+        public double ManualOuterLeft => manualOuterLeft;
+        public double ManualOuterRight => manualOuterRight;
+        public double ManualOuterTop => manualOuterTop;
+        public double ManualOuterBottom => manualOuterBottom;
+
+        public void SetManualOuterGuide(string guideName, double normalizedPosition)
+        {
+            normalizedPosition = Math.Clamp(normalizedPosition, 0.0, 1.0);
+            const double minimumGap = 0.04;
+
+            switch (guideName)
+            {
+                case "Left":
+                    manualOuterLeft = Math.Clamp(
+                        normalizedPosition,
+                        0.0,
+                        manualOuterRight - minimumGap);
+                    OnPropertyChanged(nameof(ManualOuterLeft));
+                    break;
+
+                case "Right":
+                    manualOuterRight = Math.Clamp(
+                        normalizedPosition,
+                        manualOuterLeft + minimumGap,
+                        1.0);
+                    OnPropertyChanged(nameof(ManualOuterRight));
+                    break;
+
+                case "Top":
+                    manualOuterTop = Math.Clamp(
+                        normalizedPosition,
+                        0.0,
+                        manualOuterBottom - minimumGap);
+                    OnPropertyChanged(nameof(ManualOuterTop));
+                    break;
+
+                case "Bottom":
+                    manualOuterBottom = Math.Clamp(
+                        normalizedPosition,
+                        manualOuterTop + minimumGap,
+                        1.0);
+                    OnPropertyChanged(nameof(ManualOuterBottom));
+                    break;
+            }
+        }
+
+        public double GetManualOuterGuide(string guideName) => guideName switch
+        {
+            "Left" => manualOuterLeft,
+            "Right" => manualOuterRight,
+            "Top" => manualOuterTop,
+            "Bottom" => manualOuterBottom,
+            _ => 0.0
+        };
+
+        public string AnalysisStageText
+        {
+            get => analysisStageText;
+            private set => SetProperty(ref analysisStageText, value);
+        }
 
         public ImageSource? MeasurementImageSource
         {
@@ -90,12 +269,42 @@ namespace CollectIQ.Views
         public double Tolerance { get => tolerance; set { if (SetProperty(ref tolerance, value) && HasAnalysis) UpdateRecommendation(); } }
         public bool HasAnalysis { get => hasAnalysis; set { if (SetProperty(ref hasAnalysis, value)) RaiseCanExecutes(); } }
         public bool IsBusy { get => isBusy; set { if (SetProperty(ref isBusy, value)) RaiseCanExecutes(); } }
-        public bool IsManualMode { get => isManualMode; set => SetProperty(ref isManualMode, value); }
+        public bool IsManualMode
+        {
+            get => isManualMode;
+            set
+            {
+                if (SetProperty(ref isManualMode, value))
+                {
+                    RaiseCanExecutes();
+                    OnPropertyChanged(nameof(ManualGuideStateText));
+                }
+            }
+        }
+
+        public string ManualGuideStateText =>
+            IsManualMode ? "LOCK MANUAL GUIDES" : "ADJUST CENTERING";
         public double ConfidencePercent { get => confidencePercent; set => SetProperty(ref confidencePercent, value); }
         public double LeftAdjust { get => leftAdjust; set { if (SetProperty(ref leftAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
         public double RightAdjust { get => rightAdjust; set { if (SetProperty(ref rightAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
         public double TopAdjust { get => topAdjust; set { if (SetProperty(ref topAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
         public double BottomAdjust { get => bottomAdjust; set { if (SetProperty(ref bottomAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
+        public double OuterLeftAdjust { get => outerLeftAdjust; set { if (SetProperty(ref outerLeftAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
+        public double OuterRightAdjust { get => outerRightAdjust; set { if (SetProperty(ref outerRightAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
+        public double OuterTopAdjust { get => outerTopAdjust; set { if (SetProperty(ref outerTopAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
+        public double OuterBottomAdjust { get => outerBottomAdjust; set { if (SetProperty(ref outerBottomAdjust, value) && HasAnalysis && IsManualMode) ApplyManualAdjustments(); } }
+
+        public int CanonicalWidthPixels => CanonicalWidth;
+        public int CanonicalHeightPixels => CanonicalHeight;
+
+        public int OuterLeftGuidePixel => currentMeasurement.OuterLeft;
+        public int OuterRightGuidePixel => currentMeasurement.OuterRight;
+        public int OuterTopGuidePixel => currentMeasurement.OuterTop;
+        public int OuterBottomGuidePixel => currentMeasurement.OuterBottom;
+        public int InnerLeftGuidePixel => currentMeasurement.InnerLeft;
+        public int InnerRightGuidePixel => currentMeasurement.InnerRight;
+        public int InnerTopGuidePixel => currentMeasurement.InnerTop;
+        public int InnerBottomGuidePixel => currentMeasurement.InnerBottom;
 
         public ICommand CapturePhotoCommand { get; }
         public ICommand PickImageCommand { get; }
@@ -125,7 +334,7 @@ namespace CollectIQ.Views
                 });
                 if (photo == null) return;
                 await LoadPickedFileAsync(photo, "captured_front");
-                StatusMessage = "Photo captured. Tap Auto Analyze to detect the card and estimate centering.";
+                StatusMessage = "Photo captured. Automatic card detection is starting…";
             }
             catch (Exception ex)
             {
@@ -144,7 +353,7 @@ namespace CollectIQ.Views
                 });
                 if (photo == null) return;
                 await LoadPickedFileAsync(photo, "picked_front");
-                StatusMessage = "Image loaded. Tap Auto Analyze to detect the card and estimate centering.";
+                StatusMessage = "Image loaded. Automatic card detection is starting…";
             }
             catch (Exception ex)
             {
@@ -177,7 +386,7 @@ namespace CollectIQ.Views
                 throw new FileNotFoundException("The centering capture could not be found.", localPath);
 
             LoadLocalImage(localPath);
-            StatusMessage = "Photo captured. Tap Auto Analyze to detect the card and estimate centering.";
+            StatusMessage = "Photo captured. Automatic card detection is starting…";
         }
 
         private void LoadLocalImage(string localPath)
@@ -191,13 +400,34 @@ namespace CollectIQ.Views
             MeasurementImageSource = null;
             HasMeasurementImage = false;
             CardImageSource = ImageSource.FromFile(localPath);
+            OriginalImageSource = ImageSource.FromFile(localPath);
+            ManualPreviewImageSource = OriginalImageSource;
+            EdgeImageSource = null;
+            HasEdgeImage = false;
+            RectangleImageSource = null;
+            HasRectangleImage = false;
+            HasOriginalImage = true;
+            CardLockImageSource = null;
+            HasCardLockImage = false;
+            TrueFormImageSource = null;
+            HasTrueFormImage = false;
+            NeedsManualOuterCard = false;
+            manualOuterLeft = 0.07;
+            manualOuterRight = 0.93;
+            manualOuterTop = 0.05;
+            manualOuterBottom = 0.95;
+            OnPropertyChanged(nameof(ManualOuterLeft));
+            OnPropertyChanged(nameof(ManualOuterRight));
+            OnPropertyChanged(nameof(ManualOuterTop));
+            OnPropertyChanged(nameof(ManualOuterBottom));
+            AnalysisStageText = "Photo ready. Automatic analysis is starting…";
             HasAnalysis = false;
             IsManualMode = false;
             ConfidencePercent = 0;
-            CenteringSummary = "Ready to analyze.";
+            CenteringSummary = "Ready for automatic analysis.";
             HorizontalCenteringText = "Not analyzed";
             VerticalCenteringText = "Not analyzed";
-            Recommendation = "Tap Auto Analyze to find the card edges and estimate centering.";
+            Recommendation = "Automatic analysis begins immediately after capture or image selection.";
             ResetAdjustments();
         }
 
@@ -208,7 +438,9 @@ namespace CollectIQ.Views
 
         private async Task ExecuteAnalyzeAsync()
         {
-            if (IsBusy) return;
+            if (IsBusy)
+                return;
+
             if (string.IsNullOrWhiteSpace(selectedImagePath) || !File.Exists(selectedImagePath))
             {
                 StatusMessage = "Capture or load a photo first.";
@@ -216,74 +448,294 @@ namespace CollectIQ.Views
             }
 
             IsBusy = true;
+            HasAnalysis = false;
+            ConfidencePercent = 0;
+
+            string inputPath = selectedImagePath;
+            outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "Centering",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+
+            Directory.CreateDirectory(outputDirectory);
+
+            await InspectionDiagnosticLogger.StartRunAsync("Centering", $"Input={inputPath}");
+
             try
             {
-                StatusMessage = "Detecting card edges and measuring centering...";
-                outputDirectory = Path.Combine(FileSystem.AppDataDirectory, "Centering", DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
-                Directory.CreateDirectory(outputDirectory);
+                StatusMessage = "Automatic centering started.";
+                AnalysisStageText = "Loading captured image…";
 
-                using ImageSharpImage source = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(selectedImagePath);
-                source.Mutate(x => x.AutoOrient());
-                // Inspection is designed for an upright phone/card. Some Android camera
-                // providers return a landscape pixel buffer even when the preview is portrait.
-                // Normalize that buffer once, before geometry, instead of allowing the corner
-                // ordering code to arbitrarily rotate individual results.
-                if (source.Width > source.Height)
+                Progress<CardNormalizationProgress> normalizationProgress = new(progress =>
                 {
-                    source.Mutate(x => x.Rotate(RotateMode.Rotate90));
-                }
+                    AnalysisStageText = progress.Message;
+                    StatusMessage = progress.Message;
 
-                CardGeometryResult geometry = geometryService.DetectCard(source);
-                if (!geometry.Success || geometry.Corners.Length != 4)
-                {
-                    throw new InvalidOperationException("CollectIQ could not detect the four physical outside card corners. Keep the entire card and some background visible on all four sides.");
-                }
+                    if (!string.IsNullOrWhiteSpace(progress.PreviewImagePath) &&
+                        File.Exists(progress.PreviewImagePath))
+                        ManualPreviewImageSource = ImageSource.FromFile(progress.PreviewImagePath);
 
-                // Freeze the exact four physical corners returned by the same detector
-                // that produced the known-good Centering behavior.
-                detectedOuterCorners = geometry.Corners.ToArray();
+                    if (!string.IsNullOrWhiteSpace(progress.EdgeImagePath) &&
+                        File.Exists(progress.EdgeImagePath))
+                    {
+                        EdgeImageSource = ImageSource.FromFile(progress.EdgeImagePath);
+                        HasEdgeImage = true;
+                    }
 
-                // Save the FULL oriented capture for the result UI. The rectified card
-                // below is measurement-only and is never substituted for this full image.
-                orientedFullImagePath = Path.Combine(outputDirectory, "full_oriented_capture.png");
-                await using (FileStream orientedStream = new(orientedFullImagePath, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    await source.SaveAsync(orientedStream, new PngEncoder());
-                }
-                rawDisplayPath = orientedFullImagePath;
+                    if (!string.IsNullOrWhiteSpace(progress.RectangleImagePath) &&
+                        File.Exists(progress.RectangleImagePath))
+                    {
+                        RectangleImageSource = ImageSource.FromFile(progress.RectangleImagePath);
+                        HasRectangleImage = true;
+                    }
 
-                // Perspective normalization exists only to make the four physical card
-                // sides rectangular for measurement. It does not control UI zoom.
-                using ImageSharpImage canonical = WarpToCanonical(source, geometry.Corners);
-                canonicalImagePath = Path.Combine(outputDirectory, "canonical_measurement_only.png");
-                await using (FileStream canonicalStream = new(canonicalImagePath, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    await canonical.SaveAsync(canonicalStream, new PngEncoder());
-                }
+                    if (!string.IsNullOrWhiteSpace(progress.CardLockImagePath) &&
+                        File.Exists(progress.CardLockImagePath))
+                    {
+                        CardLockImageSource = ImageSource.FromFile(progress.CardLockImagePath);
+                        HasCardLockImage = true;
+                    }
 
-                MeasurementImageSource = ImageSource.FromFile(canonicalImagePath);
-                HasMeasurementImage = true;
+                    if (!string.IsNullOrWhiteSpace(progress.TrueFormImagePath) &&
+                        File.Exists(progress.TrueFormImagePath))
+                    {
+                        TrueFormImageSource = ImageSource.FromFile(progress.TrueFormImagePath);
+                        HasTrueFormImage = true;
+                    }
+                });
 
+                CardNormalizationResult normalized = await InspectionExecution.RunAsync(
+                    "Centering",
+                    "Common card normalization",
+                    cancellationToken => normalizationService.NormalizeAsync(
+                        inputPath,
+                        outputDirectory,
+                        CanonicalWidth,
+                        CanonicalHeight,
+                        normalizationProgress,
+                        cancellationToken),
+                    TimeSpan.FromSeconds(120));
+
+                rawDisplayPath = normalized.SourcePreviewPath;
+                orientedFullImagePath = normalized.SourcePreviewPath;
+                canonicalImagePath = normalized.NormalizedImagePath;
+                detectedOuterCorners = normalized.SourceCorners;
+
+                // Preserve the original capture for comparison while exposing the
+                // normalized image separately as TrueForm View.
+                CardImageSource = ImageSource.FromFile(selectedImagePath);
+                OriginalImageSource = ImageSource.FromFile(selectedImagePath);
+                CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                HasCardLockImage = true;
+                TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasTrueFormImage = true;
+                AnalysisStageText = "TrueForm complete. Measuring the printed/image frame…";
+
+                AnalysisStageText = "Measuring the printed/image frame for automatic centering…";
+
+                using ImageSharpImage canonical = SixLabors.ImageSharp.Image.Load<Rgba32>(canonicalImagePath);
                 float[] gray = ExtractLuminance(canonical);
                 baseMeasurement = EstimateCentering(gray);
+
+                // Auto detection is an initial suggestion. Centering is intentionally
+                // user-verifiable: the user aligns both the physical-edge rectangle
+                // and the printed/image rectangle before accepting the percentages.
                 if (!baseMeasurement.Success)
                 {
-                    throw new InvalidOperationException("CollectIQ normalized the card but could not reliably find the inner frame or border for centering. Try a straighter photo or a card with clearer inner borders.");
+                    baseMeasurement = CreateFallbackMeasurement();
+                    StatusMessage = "The card was flattened successfully. The printed-frame estimate is weak, so adjust the yellow lines manually.";
                 }
 
                 ResetAdjustments();
-                currentMeasurement = baseMeasurement;
-                await RebuildOverlayAsync();
+                currentMeasurement = baseMeasurement.Clone();
+                RecalculateFromGuideLines();
+
                 HasAnalysis = true;
+
+                // Automatic centering is the primary result. The guides start
+                // locked so the user can see exactly what CollectIQ calculated
+                // before choosing whether to correct anything manually.
                 IsManualMode = false;
-                StatusMessage = $"Analysis complete. Full photo preserved; perspective rectification was used only for measurement. Inner frame confidence {currentMeasurement.Confidence:0}%.";
+                RaiseCanExecutes();
+
+                MeasurementImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasMeasurementImage = true;
+                NotifyGuidePositionsChanged();
                 UpdateDisplayedMeasurements();
+
+                AnalysisStageText = "Automatic centering complete.";
+
+                StatusMessage =
+                    "Automatic centering complete. Review the Original Capture, Card Lock View, TrueForm View, and Centering Map below. " +
+                    "If CollectIQ placed a guide incorrectly, tap ADJUST CENTERING and drag the line. Results recalculate live.";
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Centering",
+                    "AUTOMATIC CENTERING COMPLETE",
+                    $"GeometryConfidence={normalized.GeometryConfidence:0.000}; " +
+                    $"LR={currentMeasurement.LeftPercent:0.0}/{currentMeasurement.RightPercent:0.0}; " +
+                    $"TB={currentMeasurement.TopPercent:0.0}/{currentMeasurement.BottomPercent:0.0}");
+            }
+            catch (TimeoutException ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync("Centering", "ANALYSIS TIMEOUT", exception: ex);
+                EnterManualOuterCardMode(
+                    $"Automatic processing did not finish within 120 seconds while: {AnalysisStageText}");
             }
             catch (Exception ex)
             {
-                StatusMessage = ex.Message;
-                HasAnalysis = false;
-                ConfidencePercent = 0;
+                await InspectionDiagnosticLogger.WriteAsync("Centering", "ANALYSIS FAILED", exception: ex);
+                EnterManualOuterCardMode(
+                    $"Automatic card processing could not finish: {ex.Message}");
+            }
+            finally
+            {
+                IsBusy = false;
+                await InspectionDiagnosticLogger.WriteAsync("Centering", "BUSY STATE RELEASED");
+            }
+        }
+
+        private void EnterManualOuterCardMode(string reason)
+        {
+            if (ManualPreviewImageSource is null &&
+                !string.IsNullOrWhiteSpace(selectedImagePath) && File.Exists(selectedImagePath))
+                ManualPreviewImageSource = ImageSource.FromFile(selectedImagePath);
+            NeedsManualOuterCard = true;
+            HasAnalysis = false;
+            IsManualMode = false;
+            AnalysisStageText = "MANUAL CARD LOCK — move the four green lines to the physical outside edges.";
+            StatusMessage =
+                $"{reason} Use MANUAL CARD LOCK below: move LEFT, RIGHT, TOP and BOTTOM green lines onto the real outside edges of the card, then tap CONTINUE WITH THESE CARD EDGES.";
+            RaiseCanExecutes();
+        }
+
+        /// <summary>
+        /// Continues Centering from user-positioned physical-card edges. This
+        /// deliberately skips automatic outer-card detection.
+        /// </summary>
+        public async Task ContinueWithManualOuterEdgesAsync()
+        {
+            if (IsBusy ||
+                string.IsNullOrWhiteSpace(selectedImagePath) ||
+                !File.Exists(selectedImagePath))
+                return;
+
+            IsBusy = true;
+            HasAnalysis = false;
+
+            string manualOutputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "Centering",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_manual");
+
+            Directory.CreateDirectory(manualOutputDirectory);
+            outputDirectory = manualOutputDirectory;
+
+            try
+            {
+                AnalysisStageText = "Using your manual physical-card edges…";
+                StatusMessage = "Creating Card Lock and TrueForm directly from your four green lines…";
+
+                Progress<CardNormalizationProgress> progressReporter = new(progress =>
+                {
+                    AnalysisStageText = progress.Message;
+                    StatusMessage = progress.Message;
+
+                    if (!string.IsNullOrWhiteSpace(progress.CardLockImagePath) &&
+                        File.Exists(progress.CardLockImagePath))
+                    {
+                        CardLockImageSource = ImageSource.FromFile(progress.CardLockImagePath);
+                        HasCardLockImage = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(progress.TrueFormImagePath) &&
+                        File.Exists(progress.TrueFormImagePath))
+                    {
+                        TrueFormImageSource = ImageSource.FromFile(progress.TrueFormImagePath);
+                        HasTrueFormImage = true;
+                    }
+                });
+
+                CardNormalizationResult normalized = await InspectionExecution.RunAsync(
+                    "Centering",
+                    "Manual card-edge normalization",
+                    cancellationToken => normalizationService.NormalizeFromRelativeRectangleAsync(
+                        selectedImagePath,
+                        manualOutputDirectory,
+                        manualOuterLeft,
+                        manualOuterRight,
+                        manualOuterTop,
+                        manualOuterBottom,
+                        CanonicalWidth,
+                        CanonicalHeight,
+                        progressReporter,
+                        cancellationToken),
+                    TimeSpan.FromSeconds(120));
+
+                rawDisplayPath = normalized.SourcePreviewPath;
+                orientedFullImagePath = normalized.SourcePreviewPath;
+                canonicalImagePath = normalized.NormalizedImagePath;
+                detectedOuterCorners = normalized.SourceCorners;
+
+                CardImageSource = ImageSource.FromFile(selectedImagePath);
+                OriginalImageSource = ImageSource.FromFile(selectedImagePath);
+                CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                HasCardLockImage = true;
+                TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasTrueFormImage = true;
+
+                AnalysisStageText = "Measuring printed/image frame on TrueForm…";
+
+                using ImageSharpImage canonical =
+                    SixLabors.ImageSharp.Image.Load<Rgba32>(canonicalImagePath);
+
+                float[] gray = ExtractLuminance(canonical);
+                baseMeasurement = EstimateCentering(gray);
+
+                if (!baseMeasurement.Success)
+                {
+                    baseMeasurement = CreateFallbackMeasurement();
+                }
+
+                ResetAdjustments();
+                currentMeasurement = baseMeasurement.Clone();
+                RecalculateFromGuideLines();
+
+                HasAnalysis = true;
+                NeedsManualOuterCard = false;
+                IsManualMode = false;
+                RaiseCanExecutes();
+
+                MeasurementImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasMeasurementImage = true;
+                NotifyGuidePositionsChanged();
+                UpdateDisplayedMeasurements();
+
+                AnalysisStageText = "Centering complete from your manual card edges.";
+                StatusMessage =
+                    "Centering complete. Review Card Lock, TrueForm and the Centering Map. Tap ADJUST CENTERING if you want to move any of the final green/yellow measurement lines.";
+            }
+            catch (TimeoutException ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Centering",
+                    "MANUAL NORMALIZATION TIMEOUT",
+                    exception: ex);
+
+                NeedsManualOuterCard = true;
+                StatusMessage =
+                    $"Manual card-edge transform did not finish while: {AnalysisStageText}. Your four green lines are still available to adjust and retry.";
+            }
+            catch (Exception ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Centering",
+                    "MANUAL NORMALIZATION FAILED",
+                    exception: ex);
+
+                NeedsManualOuterCard = true;
+                StatusMessage =
+                    $"Could not create TrueForm from the manual card edges: {ex.Message}. Adjust the four green lines and retry.";
             }
             finally
             {
@@ -314,16 +766,129 @@ namespace CollectIQ.Views
             IsManualMode = !IsManualMode;
             RaiseCanExecutes();
             StatusMessage = IsManualMode
-                ? "Manual mode enabled. Use the arrow buttons below. Every tap moves exactly one image pixel."
-                : "Manual mode disabled. Auto-detected measurement lines restored.";
+                ? "Manual alignment enabled. Green = physical card edge; yellow = printed/image edge."
+                : "Manual alignment locked. The current guide positions and percentages are preserved.";
+        }
 
-            if (!IsManualMode)
+        /// <summary>
+        /// Sets one guide directly in normalized-card pixel coordinates.
+        /// Called by the interactive guide editor while the user drags a line.
+        /// </summary>
+        public void SetGuidePosition(string guideName, int pixel)
+        {
+            if (!HasAnalysis || !IsManualMode)
+                return;
+
+            switch (guideName)
             {
-                ResetAdjustments();
-                currentMeasurement = baseMeasurement;
-                _ = RebuildOverlayAsync();
-                UpdateDisplayedMeasurements();
+                case "OuterLeft":
+                    currentMeasurement.OuterLeft = Math.Clamp(
+                        pixel,
+                        0,
+                        currentMeasurement.InnerLeft - 2);
+                    break;
+
+                case "OuterRight":
+                    currentMeasurement.OuterRight = Math.Clamp(
+                        pixel,
+                        currentMeasurement.InnerRight + 2,
+                        CanonicalWidth - 1);
+                    break;
+
+                case "OuterTop":
+                    currentMeasurement.OuterTop = Math.Clamp(
+                        pixel,
+                        0,
+                        currentMeasurement.InnerTop - 2);
+                    break;
+
+                case "OuterBottom":
+                    currentMeasurement.OuterBottom = Math.Clamp(
+                        pixel,
+                        currentMeasurement.InnerBottom + 2,
+                        CanonicalHeight - 1);
+                    break;
+
+                case "InnerLeft":
+                    currentMeasurement.InnerLeft = Math.Clamp(
+                        pixel,
+                        currentMeasurement.OuterLeft + 2,
+                        currentMeasurement.InnerRight - 2);
+                    break;
+
+                case "InnerRight":
+                    currentMeasurement.InnerRight = Math.Clamp(
+                        pixel,
+                        currentMeasurement.InnerLeft + 2,
+                        currentMeasurement.OuterRight - 2);
+                    break;
+
+                case "InnerTop":
+                    currentMeasurement.InnerTop = Math.Clamp(
+                        pixel,
+                        currentMeasurement.OuterTop + 2,
+                        currentMeasurement.InnerBottom - 2);
+                    break;
+
+                case "InnerBottom":
+                    currentMeasurement.InnerBottom = Math.Clamp(
+                        pixel,
+                        currentMeasurement.InnerTop + 2,
+                        currentMeasurement.OuterBottom - 2);
+                    break;
+
+                default:
+                    return;
             }
+
+            RecalculateFromGuideLines();
+            UpdateDisplayedMeasurements();
+            NotifyGuidePositionsChanged();
+            StatusMessage =
+                "Manual guide adjusted. Green = physical card edge; yellow = printed/image edge.";
+        }
+
+        public int GetGuidePosition(string guideName)
+        {
+            return guideName switch
+            {
+                "OuterLeft" => currentMeasurement.OuterLeft,
+                "OuterRight" => currentMeasurement.OuterRight,
+                "OuterTop" => currentMeasurement.OuterTop,
+                "OuterBottom" => currentMeasurement.OuterBottom,
+                "InnerLeft" => currentMeasurement.InnerLeft,
+                "InnerRight" => currentMeasurement.InnerRight,
+                "InnerTop" => currentMeasurement.InnerTop,
+                "InnerBottom" => currentMeasurement.InnerBottom,
+                _ => 0
+            };
+        }
+
+        public void ResetManualGuides()
+        {
+            if (!HasAnalysis)
+                return;
+
+            currentMeasurement = baseMeasurement.Clone();
+            ResetAdjustments();
+            RecalculateFromGuideLines();
+            UpdateDisplayedMeasurements();
+            NotifyGuidePositionsChanged();
+            IsManualMode = false;
+            StatusMessage =
+                "Automatic centering restored. Tap ADJUST CENTERING only if you want to correct a guide manually.";
+        }
+
+        private void NotifyGuidePositionsChanged()
+        {
+            OnPropertyChanged(nameof(OuterLeftGuidePixel));
+            OnPropertyChanged(nameof(OuterRightGuidePixel));
+            OnPropertyChanged(nameof(OuterTopGuidePixel));
+            OnPropertyChanged(nameof(OuterBottomGuidePixel));
+            OnPropertyChanged(nameof(InnerLeftGuidePixel));
+            OnPropertyChanged(nameof(InnerRightGuidePixel));
+            OnPropertyChanged(nameof(InnerTopGuidePixel));
+            OnPropertyChanged(nameof(InnerBottomGuidePixel));
         }
 
         private void ResetAdjustments()
@@ -332,95 +897,134 @@ namespace CollectIQ.Views
             rightAdjust = 0; OnPropertyChanged(nameof(RightAdjust));
             topAdjust = 0; OnPropertyChanged(nameof(TopAdjust));
             bottomAdjust = 0; OnPropertyChanged(nameof(BottomAdjust));
+            outerLeftAdjust = 0; OnPropertyChanged(nameof(OuterLeftAdjust));
+            outerRightAdjust = 0; OnPropertyChanged(nameof(OuterRightAdjust));
+            outerTopAdjust = 0; OnPropertyChanged(nameof(OuterTopAdjust));
+            outerBottomAdjust = 0; OnPropertyChanged(nameof(OuterBottomAdjust));
         }
 
         private async Task ExecuteAdjustManualLineAsync(string? parameter)
         {
-            if (!HasAnalysis || !IsManualMode || string.IsNullOrWhiteSpace(parameter)) return;
+            if (!HasAnalysis || !IsManualMode || string.IsNullOrWhiteSpace(parameter))
+                return;
 
             string[] pieces = parameter.Split(':');
-            if (pieces.Length != 2 || !int.TryParse(pieces[1], out int delta) || Math.Abs(delta) != 1) return;
+            if (pieces.Length != 2 || !int.TryParse(pieces[1], out int delta) || delta == 0 || Math.Abs(delta) > 5)
+                return;
 
             switch (pieces[0])
             {
-                case "Left":
-                    LeftAdjust = Math.Clamp(Math.Round(LeftAdjust) + delta, -80, 80);
-                    break;
-                case "Right":
-                    RightAdjust = Math.Clamp(Math.Round(RightAdjust) + delta, -80, 80);
-                    break;
-                case "Top":
-                    TopAdjust = Math.Clamp(Math.Round(TopAdjust) + delta, -80, 80);
-                    break;
-                case "Bottom":
-                    BottomAdjust = Math.Clamp(Math.Round(BottomAdjust) + delta, -80, 80);
-                    break;
-                default:
-                    return;
+                case "OuterLeft": OuterLeftAdjust = Math.Clamp(Math.Round(OuterLeftAdjust) + delta, 0, 80); break;
+                case "OuterRight": OuterRightAdjust = Math.Clamp(Math.Round(OuterRightAdjust) + delta, 0, 80); break;
+                case "OuterTop": OuterTopAdjust = Math.Clamp(Math.Round(OuterTopAdjust) + delta, 0, 100); break;
+                case "OuterBottom": OuterBottomAdjust = Math.Clamp(Math.Round(OuterBottomAdjust) + delta, 0, 100); break;
+                case "InnerLeft": LeftAdjust = Math.Clamp(Math.Round(LeftAdjust) + delta, -140, 140); break;
+                case "InnerRight": RightAdjust = Math.Clamp(Math.Round(RightAdjust) + delta, -140, 140); break;
+                case "InnerTop": TopAdjust = Math.Clamp(Math.Round(TopAdjust) + delta, -180, 180); break;
+                case "InnerBottom": BottomAdjust = Math.Clamp(Math.Round(BottomAdjust) + delta, -180, 180); break;
+                default: return;
             }
 
-            // Property setters update the measurement immediately. Render one fresh, uniquely
-            // named overlay so MAUI/Android cannot keep showing a cached PNG from the prior tap.
-            await RebuildOverlayAsync();
-            StatusMessage = "Manual line moved exactly 1 image pixel.";
+            ApplyManualAdjustments();
+            NotifyGuidePositionsChanged();
+            StatusMessage = "Guide moved. Align green to the physical card edge and yellow to the printed/image edge.";
         }
 
         private void ApplyManualAdjustments()
         {
-            currentMeasurement = new CenteringMeasurement
-            {
-                Success = true,
-                LeftInset = ClampInset(baseMeasurement.LeftInset + (int)Math.Round(LeftAdjust), CanonicalWidth),
-                RightInset = ClampInset(baseMeasurement.RightInset + (int)Math.Round(RightAdjust), CanonicalWidth),
-                TopInset = ClampInset(baseMeasurement.TopInset + (int)Math.Round(TopAdjust), CanonicalHeight),
-                BottomInset = ClampInset(baseMeasurement.BottomInset + (int)Math.Round(BottomAdjust), CanonicalHeight),
-                Confidence = Math.Max(20.0f, baseMeasurement.Confidence * 0.92f)
-            };
+            currentMeasurement = baseMeasurement.Clone();
+            currentMeasurement.OuterLeft = Math.Clamp((int)Math.Round(OuterLeftAdjust), 0, CanonicalWidth / 5);
+            currentMeasurement.OuterRight = Math.Clamp(CanonicalWidth - 1 - (int)Math.Round(OuterRightAdjust), CanonicalWidth * 4 / 5, CanonicalWidth - 1);
+            currentMeasurement.OuterTop = Math.Clamp((int)Math.Round(OuterTopAdjust), 0, CanonicalHeight / 5);
+            currentMeasurement.OuterBottom = Math.Clamp(CanonicalHeight - 1 - (int)Math.Round(OuterBottomAdjust), CanonicalHeight * 4 / 5, CanonicalHeight - 1);
 
-            float hTotal = currentMeasurement.LeftInset + currentMeasurement.RightInset;
-            float vTotal = currentMeasurement.TopInset + currentMeasurement.BottomInset;
-            currentMeasurement.LeftPercent = (currentMeasurement.LeftInset / hTotal) * 100.0f;
-            currentMeasurement.RightPercent = 100.0f - currentMeasurement.LeftPercent;
-            currentMeasurement.TopPercent = (currentMeasurement.TopInset / vTotal) * 100.0f;
-            currentMeasurement.BottomPercent = 100.0f - currentMeasurement.TopPercent;
+            currentMeasurement.InnerLeft = Math.Clamp(baseMeasurement.InnerLeft + (int)Math.Round(LeftAdjust), currentMeasurement.OuterLeft + 2, currentMeasurement.OuterRight - 4);
+            currentMeasurement.InnerRight = Math.Clamp(baseMeasurement.InnerRight + (int)Math.Round(RightAdjust), currentMeasurement.InnerLeft + 2, currentMeasurement.OuterRight - 2);
+            currentMeasurement.InnerTop = Math.Clamp(baseMeasurement.InnerTop + (int)Math.Round(TopAdjust), currentMeasurement.OuterTop + 2, currentMeasurement.OuterBottom - 4);
+            currentMeasurement.InnerBottom = Math.Clamp(baseMeasurement.InnerBottom + (int)Math.Round(BottomAdjust), currentMeasurement.InnerTop + 2, currentMeasurement.OuterBottom - 2);
+
+            RecalculateFromGuideLines();
             UpdateDisplayedMeasurements();
+            NotifyGuidePositionsChanged();
         }
 
-        private static int ClampInset(int value, int size)
+        private void RecalculateFromGuideLines()
         {
-            return Math.Clamp(value, 4, (int)Math.Round(size * 0.35));
+            currentMeasurement.LeftInset = Math.Max(1, currentMeasurement.InnerLeft - currentMeasurement.OuterLeft);
+            currentMeasurement.RightInset = Math.Max(1, currentMeasurement.OuterRight - currentMeasurement.InnerRight);
+            currentMeasurement.TopInset = Math.Max(1, currentMeasurement.InnerTop - currentMeasurement.OuterTop);
+            currentMeasurement.BottomInset = Math.Max(1, currentMeasurement.OuterBottom - currentMeasurement.InnerBottom);
+
+            float horizontalTotal = currentMeasurement.LeftInset + currentMeasurement.RightInset;
+            float verticalTotal = currentMeasurement.TopInset + currentMeasurement.BottomInset;
+
+            currentMeasurement.LeftPercent = currentMeasurement.LeftInset / horizontalTotal * 100.0f;
+            currentMeasurement.RightPercent = 100.0f - currentMeasurement.LeftPercent;
+            currentMeasurement.TopPercent = currentMeasurement.TopInset / verticalTotal * 100.0f;
+            currentMeasurement.BottomPercent = 100.0f - currentMeasurement.TopPercent;
+        }
+
+        private static CenteringMeasurement CreateFallbackMeasurement()
+        {
+            int left = (int)Math.Round(CanonicalWidth * 0.10);
+            int right = (int)Math.Round(CanonicalWidth * 0.90);
+            int top = (int)Math.Round(CanonicalHeight * 0.08);
+            int bottom = (int)Math.Round(CanonicalHeight * 0.92);
+
+            return new CenteringMeasurement
+            {
+                Success = true,
+                OuterLeft = 0,
+                OuterRight = CanonicalWidth - 1,
+                OuterTop = 0,
+                OuterBottom = CanonicalHeight - 1,
+                InnerLeft = left,
+                InnerRight = right,
+                InnerTop = top,
+                InnerBottom = bottom,
+                Confidence = 25.0f
+            };
         }
 
         private async Task RebuildOverlayAsync()
         {
-            if (string.IsNullOrWhiteSpace(orientedFullImagePath) ||
-                !File.Exists(orientedFullImagePath) ||
-                detectedOuterCorners == null ||
-                detectedOuterCorners.Length != 4 ||
+            if (string.IsNullOrWhiteSpace(canonicalImagePath) ||
+                !File.Exists(canonicalImagePath) ||
                 string.IsNullOrWhiteSpace(outputDirectory))
-            {
                 return;
-            }
 
             long version = Interlocked.Increment(ref overlayRenderVersion);
-            using ImageSharpImage fullPhoto = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(orientedFullImagePath);
-            string nextOverlayPath = Path.Combine(outputDirectory, $"centering_full_photo_overlay_{version:000000}.png");
+            using ImageSharpImage normalized = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(canonicalImagePath);
 
-            await SaveCenteringOverlayOnFullPhotoAsync(
-                fullPhoto,
-                detectedOuterCorners,
-                currentMeasurement,
-                nextOverlayPath);
+            // Green rectangle = physical card perimeter.
+            DrawRectangle(
+                normalized,
+                currentMeasurement.OuterLeft,
+                currentMeasurement.OuterTop,
+                currentMeasurement.OuterRight,
+                currentMeasurement.OuterBottom,
+                new Rgba32(0, 230, 118, 255),
+                3);
 
-            // Only the newest requested redraw is allowed to become visible.
+            // Yellow rectangle = printed/image/frame perimeter used for centering.
+            DrawRectangle(
+                normalized,
+                currentMeasurement.InnerLeft,
+                currentMeasurement.InnerTop,
+                currentMeasurement.InnerRight,
+                currentMeasurement.InnerBottom,
+                new Rgba32(255, 214, 10, 255),
+                3);
+
+            string nextOverlayPath = Path.Combine(outputDirectory, $"centering_guides_{version:000000}.png");
+            await using FileStream stream = new(nextOverlayPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await normalized.SaveAsync(stream, new PngEncoder());
+
             if (version == Interlocked.Read(ref overlayRenderVersion))
             {
                 overlayDisplayPath = nextOverlayPath;
-                if (showingOverlay || CardImageSource == null)
-                {
-                    CardImageSource = ImageSource.FromFile(nextOverlayPath);
-                    showingOverlay = true;
-                }
+                MeasurementImageSource = ImageSource.FromFile(nextOverlayPath);
+                HasMeasurementImage = true;
             }
         }
 
@@ -429,7 +1033,7 @@ namespace CollectIQ.Views
             HorizontalCenteringText = $"{currentMeasurement.LeftPercent:0}/{currentMeasurement.RightPercent:0}";
             VerticalCenteringText = $"{currentMeasurement.TopPercent:0}/{currentMeasurement.BottomPercent:0}";
             ConfidencePercent = currentMeasurement.Confidence;
-            CenteringSummary = $"Estimated centering • Horizontal {HorizontalCenteringText} • Vertical {VerticalCenteringText}";
+            CenteringSummary = $"Measured centering • Left/Right {HorizontalCenteringText} • Top/Bottom {VerticalCenteringText}";
             UpdateRecommendation();
         }
 
@@ -482,6 +1086,14 @@ namespace CollectIQ.Views
             return new CenteringMeasurement
             {
                 Success = confidence >= 30.0f,
+                OuterLeft = 0,
+                OuterRight = CanonicalWidth - 1,
+                OuterTop = 0,
+                OuterBottom = CanonicalHeight - 1,
+                InnerLeft = leftInset,
+                InnerRight = CanonicalWidth - 1 - rightInset,
+                InnerTop = topInset,
+                InnerBottom = CanonicalHeight - 1 - bottomInset,
                 LeftInset = leftInset,
                 RightInset = rightInset,
                 TopInset = topInset,
@@ -541,7 +1153,58 @@ namespace CollectIQ.Views
             return bestInset;
         }
 
-        private static ImageSharpImage WarpToCanonical(ImageSharpImage source, IReadOnlyList<CardPoint> sourceCorners)
+        /// <summary>
+        /// Creates a full-frame display copy without cropping. Only resolution is
+        /// reduced; the complete captured scene remains visible.
+        /// </summary>
+        private static ImageSharpImage CreateBoundedPreview(
+            ImageSharpImage source,
+            int maximumDimension)
+        {
+            int largest = Math.Max(source.Width, source.Height);
+
+            if (largest <= maximumDimension)
+            {
+                return source.Clone();
+            }
+
+            double scale = maximumDimension / (double)largest;
+            int width = Math.Max(1, (int)Math.Round(source.Width * scale));
+            int height = Math.Max(1, (int)Math.Round(source.Height * scale));
+
+            return source.Clone(context =>
+                context.Resize(new ResizeOptions
+                {
+                    Size = new SixLabors.ImageSharp.Size(width, height),
+                    Mode = SixLabors.ImageSharp.Processing.ResizeMode.Stretch,
+                    Sampler = KnownResamplers.Bicubic
+                }));
+        }
+
+        /// <summary>
+        /// Maps geometry from the source photo into the bounded full-frame preview.
+        /// </summary>
+        private static CardPoint[] ScaleCorners(
+            IReadOnlyList<CardPoint> corners,
+            int sourceWidth,
+            int sourceHeight,
+            int targetWidth,
+            int targetHeight)
+        {
+            double scaleX = targetWidth / (double)Math.Max(sourceWidth, 1);
+            double scaleY = targetHeight / (double)Math.Max(sourceHeight, 1);
+
+            return corners
+                .Select(point => new CardPoint(
+                    (float)(point.X * scaleX),
+                    (float)(point.Y * scaleY)))
+                .ToArray();
+        }
+
+        private static ImageSharpImage WarpToCanonical(
+            ImageSharpImage source,
+            IReadOnlyList<CardPoint> sourceCorners,
+            CancellationToken cancellationToken)
         {
             CardPoint[] destination =
             {
@@ -554,6 +1217,11 @@ namespace CollectIQ.Views
             {
                 for (int y = 0; y < CanonicalHeight; y++)
                 {
+                    if ((y & 31) == 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
                     Span<Rgba32> row = accessor.GetRowSpan(y);
                     for (int x = 0; x < CanonicalWidth; x++)
                     {
@@ -588,8 +1256,10 @@ namespace CollectIQ.Views
             ImageSharpImage fullPhoto,
             IReadOnlyList<CardPoint> outerCorners,
             CenteringMeasurement m,
-            string path)
+            string path,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             using ImageSharpImage overlay = fullPhoto.Clone();
 
             // The outer green quadrilateral is the physical card detected in the
@@ -652,7 +1322,10 @@ namespace CollectIQ.Views
                 new Rgba32(0, 225, 255, 210));
 
             await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            await overlay.SaveAsync(stream, new PngEncoder());
+            await overlay.SaveAsync(
+                stream,
+                new PngEncoder(),
+                cancellationToken);
         }
 
         private static CardPoint MapProjectivePoint(double[] matrix, float x, float y)
@@ -821,9 +1494,37 @@ namespace CollectIQ.Views
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
+        /// <summary>
+        /// Worker-thread output for one complete centering run.
+        /// </summary>
+        private sealed class CenteringAnalysisResult
+        {
+            public string OutputDirectory { get; init; } = string.Empty;
+
+            public string OrientedFullImagePath { get; init; } = string.Empty;
+
+            public string CanonicalImagePath { get; init; } = string.Empty;
+
+            public string OverlayImagePath { get; init; } = string.Empty;
+
+            public CardPoint[] OuterCorners { get; init; } = Array.Empty<CardPoint>();
+
+            public CenteringMeasurement Measurement { get; init; } = new();
+
+            public double GeometryConfidence { get; init; }
+        }
+
         private sealed class CenteringMeasurement
         {
-            public bool Success { get; init; }
+            public bool Success { get; set; }
+            public int OuterLeft { get; set; }
+            public int OuterRight { get; set; }
+            public int OuterTop { get; set; }
+            public int OuterBottom { get; set; }
+            public int InnerLeft { get; set; }
+            public int InnerRight { get; set; }
+            public int InnerTop { get; set; }
+            public int InnerBottom { get; set; }
             public int LeftInset { get; set; }
             public int RightInset { get; set; }
             public int TopInset { get; set; }
@@ -833,6 +1534,11 @@ namespace CollectIQ.Views
             public float TopPercent { get; set; }
             public float BottomPercent { get; set; }
             public float Confidence { get; set; }
+
+            public CenteringMeasurement Clone()
+            {
+                return (CenteringMeasurement)MemberwiseClone();
+            }
         }
     }
 }

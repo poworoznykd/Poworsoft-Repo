@@ -14,13 +14,12 @@ namespace CollectIQ.Services.Inspection.Geometry
 {
     /// <summary>
     /// Finds the physical outside perimeter of a trading card using the same
-    /// OpenCV GrabCut -> external contour -> polygon approximation pipeline
-    /// that was proven against the Reed Bailey test photograph before this
-    /// implementation was added to the MAUI application.
+    /// Physical-card detection prioritizes the card/background silhouette,
+    /// independently fitted outer boundary lines, then a Canny contour fallback.
     ///
     /// IMPORTANT:
     /// - This service does not use printed artwork/borders as card geometry.
-    /// - GrabCut separates the physical foreground object from its background.
+    /// - Background contrast separates the card silhouette from the image rim.
     /// - Only the OUTERMOST contour is considered for the four card sides.
     /// - If a corner is rounded/damaged, four robust side lines are fitted to
     ///   the contour and their mathematical intersections are used.
@@ -79,8 +78,52 @@ namespace CollectIQ.Services.Inspection.Geometry
                     }));
 
                 using Mat bgr = CreateBgrMat(detectionImage);
-                if (!TryDetectRectangleByDirectionalScan(bgr, detectionWidth, detectionHeight, out CardPoint[] corners, out double confidence))
+
+                // Prefer the physical card/background transition. The previous
+                // contour-only path rejected otherwise visible cards if Canny left
+                // even one physical edge disconnected. Use independent outer-line
+                // fitting when foreground segmentation cannot resolve the card.
+                // All three detectors operate on this <=900px image.
+                CardPoint[] corners;
+                double confidence;
+                string detector;
+
+                // Standard OpenCV Canny -> FindContours -> ApproxPolyDP rectangle
+                // first. Retain independent outer-edge fitting for broken contours.
+                if (TryDetectCardFromEdges(
+                        bgr, detectionWidth, detectionHeight,
+                        normalizedPriorCorners, out corners, out confidence))
+                {
+                    detector = "Canny / contour / convex quadrilateral";
+                }
+                else if (TryDetectCardFromOuterLines(
+                        bgr, detectionWidth, detectionHeight,
+                        normalizedPriorCorners, out corners, out confidence))
+                {
+                    detector = "independent outer-edge line fit";
+                }
+                else if (TryDetectRectangleByDirectionalScan(
+                        bgr, detectionWidth, detectionHeight,
+                        out corners, out confidence))
+                {
+                    detector = "Sobel directional scan / four fitted lines";
+                }
+                else if (TryDetectCardFromBackgroundContrast(
+                        bgr, detectionWidth, detectionHeight,
+                        normalizedPriorCorners, out corners, out confidence))
+                {
+                    detector = "background / card silhouette";
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        "[CardGeometry] Background contrast, outer line fit, contour and Sobel directional line fit all rejected the capture.");
                     return Failed(source);
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[CardGeometry] Selected {detector}; confidence={confidence:0.000}; " +
+                    $"corners={string.Join("; ", corners.Select(p => $"({p.X:0.0},{p.Y:0.0})"))}");
 
                 return new CardGeometryResult
                 {
@@ -91,8 +134,11 @@ namespace CollectIQ.Services.Inspection.Geometry
                     SourceHeight = source.Height
                 };
             }
-            catch
+            catch (Exception ex)
             {
+                // Do not swallow the reason a detector failed. The caller still
+                // receives the existing failure result and can offer manual lock.
+                System.Diagnostics.Debug.WriteLine($"[CardGeometry] Detection exception: {ex}");
                 return Failed(source);
             }
         }
@@ -133,10 +179,17 @@ namespace CollectIQ.Services.Inspection.Geometry
             Cv2.MorphologyEx(by, by, MorphTypes.Close, hk, iterations: 1);
             Cv2.MorphologyEx(bx, bx, MorphTypes.Close, vk, iterations: 1);
 
-            List<ScanPoint> topRaw = ScanHorizontalSide(by, width, height, true);
-            List<ScanPoint> bottomRaw = ScanHorizontalSide(by, width, height, false);
-            List<ScanPoint> leftRaw = ScanVerticalSide(bx, width, height, true);
-            List<ScanPoint> rightRaw = ScanVerticalSide(bx, width, height, false);
+            // Copy the two binary edge maps out of OpenCV once. The previous
+            // implementation called Mat.At<byte>() inside millions of scan-loop
+            // iterations. On Android that repeatedly crosses the managed/native
+            // boundary and can take tens of seconds.
+            byte[] horizontalMap = CopyBinaryMap(by, width, height);
+            byte[] verticalMap = CopyBinaryMap(bx, width, height);
+
+            List<ScanPoint> topRaw = ScanHorizontalSide(horizontalMap, width, height, true);
+            List<ScanPoint> bottomRaw = ScanHorizontalSide(horizontalMap, width, height, false);
+            List<ScanPoint> leftRaw = ScanVerticalSide(verticalMap, width, height, true);
+            List<ScanPoint> rightRaw = ScanVerticalSide(verticalMap, width, height, false);
 
             if (!TrySelectDominantBand(topRaw, true, height, out List<ScanPoint> topPoints) ||
                 !TrySelectDominantBand(bottomRaw, true, height, out List<ScanPoint> bottomPoints) ||
@@ -173,7 +226,11 @@ namespace CollectIQ.Services.Inspection.Geometry
             return true;
         }
 
-        private static List<ScanPoint> ScanHorizontalSide(Mat map, int width, int height, bool fromTop)
+        private static List<ScanPoint> ScanHorizontalSide(
+            byte[] map,
+            int width,
+            int height,
+            bool fromTop)
         {
             List<ScanPoint> points = new();
             int step = Math.Max(2, width / 320);
@@ -181,23 +238,41 @@ namespace CollectIQ.Services.Inspection.Geometry
             int x1 = Math.Min(width - 9, (int)(width * 0.94));
             int y0 = Math.Max(5, (int)(height * 0.03));
             int y1 = Math.Min(height - 6, (int)(height * 0.97));
+
             for (int x = x0; x <= x1; x += step)
             {
                 if (fromTop)
                 {
                     for (int y = y0; y <= (int)(height * 0.58); y++)
-                        if (HasHorizontalSupport(map, x, y, width)) { points.Add(new ScanPoint(x, y)); break; }
+                    {
+                        if (HasHorizontalSupport(map, x, y, width))
+                        {
+                            points.Add(new ScanPoint(x, y));
+                            break;
+                        }
+                    }
                 }
                 else
                 {
                     for (int y = y1; y >= (int)(height * 0.42); y--)
-                        if (HasHorizontalSupport(map, x, y, width)) { points.Add(new ScanPoint(x, y)); break; }
+                    {
+                        if (HasHorizontalSupport(map, x, y, width))
+                        {
+                            points.Add(new ScanPoint(x, y));
+                            break;
+                        }
+                    }
                 }
             }
+
             return points;
         }
 
-        private static List<ScanPoint> ScanVerticalSide(Mat map, int width, int height, bool fromLeft)
+        private static List<ScanPoint> ScanVerticalSide(
+            byte[] map,
+            int width,
+            int height,
+            bool fromLeft)
         {
             List<ScanPoint> points = new();
             int step = Math.Max(2, height / 420);
@@ -205,36 +280,97 @@ namespace CollectIQ.Services.Inspection.Geometry
             int y1 = Math.Min(height - 9, (int)(height * 0.94));
             int x0 = Math.Max(5, (int)(width * 0.03));
             int x1 = Math.Min(width - 6, (int)(width * 0.97));
+
             for (int y = y0; y <= y1; y += step)
             {
                 if (fromLeft)
                 {
                     for (int x = x0; x <= (int)(width * 0.58); x++)
-                        if (HasVerticalSupport(map, x, y, height)) { points.Add(new ScanPoint(x, y)); break; }
+                    {
+                        if (HasVerticalSupport(map, x, y, width, height))
+                        {
+                            points.Add(new ScanPoint(x, y));
+                            break;
+                        }
+                    }
                 }
                 else
                 {
                     for (int x = x1; x >= (int)(width * 0.42); x--)
-                        if (HasVerticalSupport(map, x, y, height)) { points.Add(new ScanPoint(x, y)); break; }
+                    {
+                        if (HasVerticalSupport(map, x, y, width, height))
+                        {
+                            points.Add(new ScanPoint(x, y));
+                            break;
+                        }
+                    }
                 }
             }
+
             return points;
         }
 
-        private static bool HasHorizontalSupport(Mat map, int x, int y, int width)
+        private static bool HasHorizontalSupport(
+            byte[] map,
+            int x,
+            int y,
+            int width)
         {
             int hits = 0;
+            int rowOffset = y * width;
+
             for (int dx = -5; dx <= 5; dx++)
-                if (map.At<byte>(y, Math.Clamp(x + dx, 0, width - 1)) != 0) hits++;
+            {
+                int sx = Math.Clamp(x + dx, 0, width - 1);
+                if (map[rowOffset + sx] != 0)
+                    hits++;
+            }
+
             return hits >= 6;
         }
 
-        private static bool HasVerticalSupport(Mat map, int x, int y, int height)
+        private static bool HasVerticalSupport(
+            byte[] map,
+            int x,
+            int y,
+            int width,
+            int height)
         {
             int hits = 0;
+
             for (int dy = -5; dy <= 5; dy++)
-                if (map.At<byte>(Math.Clamp(y + dy, 0, height - 1), x) != 0) hits++;
+            {
+                int sy = Math.Clamp(y + dy, 0, height - 1);
+                if (map[(sy * width) + x] != 0)
+                    hits++;
+            }
+
             return hits >= 6;
+        }
+
+        /// <summary>
+        /// Copies a single-channel OpenCV image into managed memory once.
+        /// This avoids repeated Mat.At calls during directional scanning.
+        /// </summary>
+        private static byte[] CopyBinaryMap(Mat map, int width, int height)
+        {
+            int length = width * height;
+            byte[] result = new byte[length];
+
+            if (map.IsContinuous())
+            {
+                Marshal.Copy(map.Data, result, 0, length);
+                return result;
+            }
+
+            // Row fallback for the unlikely case of a non-contiguous Mat.
+            for (int y = 0; y < height; y++)
+            {
+                using Mat row = map.Row(y);
+                Marshal.Copy(row.Data, result, y * width, width);
+            }
+
+            return result;
         }
 
         private static bool TrySelectDominantBand(List<ScanPoint> raw, bool useY, int axisLength, out List<ScanPoint> selected)

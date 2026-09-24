@@ -11,7 +11,7 @@
     <Grid RowDefinitions="Auto,*,Auto">
         <controls:AppModeToggleBar Grid.Row="0" Margin="16,8,16,4" />
 
-        <ScrollView Grid.Row="1">
+        <ScrollView x:Name="CenteringPageScroll" Grid.Row="1">
             <VerticalStackLayout Margin="16,4,16,14" Spacing="12">
                 <Label Text="CENTERING INSPECTOR" TextColor="#F9FAFB" FontSize="20" FontAttributes="Bold" />
 
@@ -20,8 +20,8 @@
                         <Label Text="HOW TO USE IT" TextColor="#C4B5FD" FontSize="12" FontAttributes="Bold" />
                         <Label Text="1. Put the card flat on a plain background with all 4 edges visible." TextColor="#E5E7EB" FontSize="12" />
                         <Label Text="2. Hold the phone straight above it and fit the whole card inside the purple guide." TextColor="#E5E7EB" FontSize="12" />
-                        <Label Text="3. Tap CAPTURE CARD. CollectIQ analyzes it automatically." TextColor="#E5E7EB" FontSize="12" />
-                        <Label Text="4. Check the guides and scores. Use Manual Adjustments only if a detected line is wrong." TextColor="#E5E7EB" FontSize="12" />
+                        <Label Text="3. Tap CAPTURE CARD. CollectIQ automatically finds, straightens and measures the card." TextColor="#E5E7EB" FontSize="12" />
+                        <Label Text="4. Review the automatic result. Only use ADJUST CENTERING if a green or yellow guide needs correction." TextColor="#E5E7EB" FontSize="12" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -64,67 +64,359 @@
                 <Label x:Name="CaptureInstructionLabel" Text="Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare." TextColor="#C4B5FD" FontSize="12" LineBreakMode="WordWrap" />
                 <Button Text="LOAD EXISTING PHOTO" Clicked="OnLoadPhotoClicked" CornerRadius="18" BackgroundColor="#312E81" TextColor="#F9FAFB" FontSize="12" />
 
-                <Border IsVisible="{Binding HasMeasurementImage}"
+                <Border IsVisible="{Binding NeedsManualOuterCard}"
+                        Stroke="#22C55E"
+                        StrokeThickness="2"
+                        Background="#07130C"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="MANUAL CARD LOCK"
+                               TextColor="#86EFAC"
+                               FontSize="16"
+                               FontAttributes="Bold" />
+                        <Label Text="Automatic outer-card detection did not finish. Move the four GREEN lines onto the TRUE OUTSIDE EDGES of the physical card. These four lines will define the rectangle CollectIQ flattens into TrueForm."
+                               TextColor="#DCFCE7"
+                               FontSize="11"
+                               LineBreakMode="WordWrap" />
+
+                        <Label Text="MANUAL POSITIONING: Use the four sliders below the card. The lines will move smoothly without fighting page scrolling."
+                               TextColor="#BBF7D0" FontSize="12" />
+
+
+                        <!-- Bound both axes. An unconstrained image can cause the Grid to
+                             measure itself at the camera bitmap's huge intrinsic width,
+                             placing the photo outside the phone viewport. -->
+                        <Grid x:Name="ManualOuterGuideSurface"
+                              WidthRequest="300"
+                              HeightRequest="420"
+                              HorizontalOptions="Center"
+                              IsClippedToBounds="True"
+                              BackgroundColor="#17212D"
+                              SizeChanged="OnManualOuterGuideSurfaceSizeChanged">
+                            <!-- Stretch image and guide coordinates in the same local
+                                 rectangle; no letterbox/pan/zoom mismatch while editing. -->
+                            <Image Source="{Binding ManualPreviewImageSource}"
+                                   Aspect="Fill"
+                                   HorizontalOptions="Fill"
+                                   VerticalOptions="Fill"
+                                   InputTransparent="True" />
+
+                            <!-- Wide invisible touch target; the visible guide stays 2px thin. -->
+                            <Grid x:Name="ManualOuterLeftGuide"
+                                  WidthRequest="36" HorizontalOptions="Start" VerticalOptions="Fill"
+                                  BackgroundColor="#01000000">
+                                <BoxView WidthRequest="2" HorizontalOptions="Center" VerticalOptions="Fill"
+                                         BackgroundColor="#22FF66"
+                                         InputTransparent="True" />
+
+                            </Grid>
+
+                            <!-- Wide invisible touch target; the visible guide stays 2px thin. -->
+                            <Grid x:Name="ManualOuterRightGuide"
+                                  WidthRequest="36" HorizontalOptions="Start" VerticalOptions="Fill"
+                                  BackgroundColor="#01000000">
+                                <BoxView WidthRequest="2" HorizontalOptions="Center" VerticalOptions="Fill"
+                                         BackgroundColor="#22FF66"
+                                         InputTransparent="True" />
+
+                            </Grid>
+
+                            <!-- Wide invisible touch target; the visible guide stays 2px thin. -->
+                            <Grid x:Name="ManualOuterTopGuide"
+                                  HeightRequest="36" HorizontalOptions="Fill" VerticalOptions="Start"
+                                  BackgroundColor="#01000000">
+                                <BoxView HeightRequest="2" HorizontalOptions="Fill" VerticalOptions="Center"
+                                         BackgroundColor="#22FF66"
+                                         InputTransparent="True" />
+
+                            </Grid>
+
+                            <!-- Wide invisible touch target; the visible guide stays 2px thin. -->
+                            <Grid x:Name="ManualOuterBottomGuide"
+                                  HeightRequest="36" HorizontalOptions="Fill" VerticalOptions="Start"
+                                  BackgroundColor="#01000000">
+                                <BoxView HeightRequest="2" HorizontalOptions="Fill" VerticalOptions="Center"
+                                         BackgroundColor="#22FF66"
+                                         InputTransparent="True" />
+
+                            </Grid>
+
+                        </Grid>
+
+                        <!-- Slider controls are separate from ScrollView and never zoom or resize the image. -->
+                        <VerticalStackLayout Spacing="1">
+                            <Label Text="LEFT EDGE" TextColor="#BBF7D0" FontSize="11" />
+                            <Slider Minimum="0" Maximum="1" Value="{Binding ManualOuterLeft}"
+                                    ValueChanged="OnManualOuterSliderValueChanged"
+                                    AutomationId="ManualOuterLeftSlider" />
+                            <Label Text="RIGHT EDGE" TextColor="#BBF7D0" FontSize="11" />
+                            <Slider Minimum="0" Maximum="1" Value="{Binding ManualOuterRight}"
+                                    ValueChanged="OnManualOuterSliderValueChanged"
+                                    AutomationId="ManualOuterRightSlider" />
+                            <Label Text="TOP EDGE" TextColor="#BBF7D0" FontSize="11" />
+                            <Slider Minimum="0" Maximum="1" Value="{Binding ManualOuterTop}"
+                                    ValueChanged="OnManualOuterSliderValueChanged"
+                                    AutomationId="ManualOuterTopSlider" />
+                            <Label Text="BOTTOM EDGE" TextColor="#BBF7D0" FontSize="11" />
+                            <Slider Minimum="0" Maximum="1" Value="{Binding ManualOuterBottom}"
+                                    ValueChanged="OnManualOuterSliderValueChanged"
+                                    AutomationId="ManualOuterBottomSlider" />
+                        </VerticalStackLayout>
+                        <Label Text="These are PHYSICAL CARD edges only. Printed/image borders are measured after TrueForm is created."
+                               TextColor="#BBF7D0"
+                               FontSize="10"
+                               LineBreakMode="WordWrap" />
+
+                        <Button Text="CONTINUE WITH THESE CARD EDGES"
+                                Clicked="OnContinueManualOuterEdgesClicked"
+                                BackgroundColor="#15803D"
+                                TextColor="White"
+                                FontAttributes="Bold"
+                                CornerRadius="12"
+                                HeightRequest="52" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Inspection output sequence:
+                     1) untouched source, 2) normalized TrueForm, 3) interactive Centering Map. -->
+                <Border IsVisible="{Binding HasOriginalImage}"
+                        Stroke="#7C3AED"
+                        StrokeThickness="2"
+                        Background="#150D24"
+                        StrokeShape="RoundRectangle 16"
+                        Padding="12">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                           IsVisible="{Binding IsBusy}"
+                                           Color="#A78BFA"
+                                           WidthRequest="24"
+                                           HeightRequest="24" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="INSPECTION STAGE"
+                                   TextColor="#C4B5FD"
+                                   FontSize="10"
+                                   FontAttributes="Bold" />
+                            <Label Text="{Binding AnalysisStageText}"
+                                   TextColor="White"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <Border IsVisible="{Binding HasOriginalImage}"
+                        Stroke="#374151"
+                        StrokeThickness="1"
+                        Background="#0B1120"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="1  ORIGINAL CAPTURE"
+                               TextColor="#C4B5FD"
+                               FontSize="14"
+                               FontAttributes="Bold" />
+                        <Label Text="The image exactly as it was captured. Use this to verify that CollectIQ found the correct physical card."
+                               TextColor="#CBD5E1"
+                               FontSize="10"
+                               LineBreakMode="WordWrap" />
+                        <Image Source="{Binding OriginalImageSource}"
+                               Aspect="AspectFit"
+                               HeightRequest="430"
+                               BackgroundColor="Black" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasEdgeImage}"
+                        Stroke="#64748B" StrokeThickness="1"
+                        Background="#0B1120" StrokeShape="RoundRectangle 18" Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="2  EDGE MAP — CANNY" TextColor="#E2E8F0"
+                               FontSize="14" FontAttributes="Bold" />
+                        <Label Text="Physical card edges must be visible here. Card Lock is selected from the rectangle candidates, not from artwork." TextColor="#CBD5E1" FontSize="11" />
+                        <Image Source="{Binding EdgeImageSource}" Aspect="AspectFit"
+                               HeightRequest="420" BackgroundColor="Black" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasRectangleImage}"
+                        Stroke="#7C3AED" StrokeThickness="1"
+                        Background="#0B1120" StrokeShape="RoundRectangle 18" Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="3  RECTANGLE CANDIDATES" TextColor="#C4B5FD"
+                               FontSize="14" FontAttributes="Bold" />
+                        <Label Text="Purple: four-sided contour candidates. Green/yellow: selected outer rectangle and its four corners. The image remains visible even if detection fails later."
+                               TextColor="#CBD5E1" FontSize="11" />
+                        <Image Source="{Binding RectangleImageSource}" Aspect="AspectFit"
+                               HeightRequest="420" BackgroundColor="Black" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasCardLockImage}"
+                        Stroke="#16A34A"
+                        StrokeThickness="2"
+                        Background="#07130C"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="4  CARD LOCK VIEW"
+                               TextColor="#86EFAC"
+                               FontSize="14"
+                               FontAttributes="Bold" />
+                        <Label Text="This is CollectIQ's physical-card detection checkpoint. The thick neon-green rectangle and four corner targets are the EXACT four corners that will be sent into TrueForm. They should sit directly on the real outside edges of the card."
+                               TextColor="#DCFCE7"
+                               FontSize="10"
+                               LineBreakMode="WordWrap" />
+                        <Image Source="{Binding CardLockImageSource}"
+                               Aspect="AspectFit"
+                               HeightRequest="430"
+                               BackgroundColor="Black" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasTrueFormImage}"
                         Stroke="#0E7490"
                         StrokeThickness="2"
                         Background="#071827"
                         StrokeShape="RoundRectangle 18"
                         Padding="12">
                     <VerticalStackLayout Spacing="8">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <VerticalStackLayout Spacing="2">
-                                <Label Text="MEASUREMENT TRANSFORM"
-                                       TextColor="#67E8F9"
-                                       FontSize="13"
-                                       FontAttributes="Bold" />
-                                <Label Text="This is the flattened card CollectIQ actually uses for centering measurements. The full captured photo above remains unchanged."
-                                       TextColor="#94A3B8"
-                                       FontSize="10"
-                                       LineBreakMode="WordWrap" />
-                            </VerticalStackLayout>
+                        <Label Text="5  TRUEFORM VIEW"
+                               TextColor="#67E8F9"
+                               FontSize="14"
+                               FontAttributes="Bold" />
+                        <Label Text="TrueForm View is CollectIQ's perspective-corrected 5:7 inspection image. The detected card has been flattened and standardized so every inspection works from the same geometry."
+                               TextColor="#CFFAFE"
+                               FontSize="10"
+                               LineBreakMode="WordWrap" />
+                        <Image Source="{Binding TrueFormImageSource}"
+                               Aspect="AspectFit"
+                               HeightRequest="448"
+                               BackgroundColor="Black" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasMeasurementImage}"
+                        Stroke="#0E7490"
+                        StrokeThickness="2"
+                        Background="#071827"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="6  CENTERING MAP"
+                               TextColor="#67E8F9"
+                               FontSize="14"
+                               FontAttributes="Bold" />
+                        <Label Text="This starts with CollectIQ's AUTOMATIC centering inspection. GREEN marks the physical card boundary. YELLOW marks the detected printed/image boundary. Review the automatic result first. Tap ADJUST CENTERING only if you want to move a guide."
+                               TextColor="#E2E8F0"
+                               FontSize="11"
+                               LineBreakMode="WordWrap" />
+
+                        <Grid x:Name="CenteringGuideHost"
+                              HeightRequest="460"
+                              HorizontalOptions="Fill"
+                              SizeChanged="OnCenteringGuideHostSizeChanged">
+                            <Border Stroke="#164E63"
+                                    StrokeThickness="1"
+                                    Background="Black"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                <Grid x:Name="CenteringGuideSurface"
+                                      WidthRequest="320"
+                                      HeightRequest="448"
+                                      HorizontalOptions="Center"
+                                      VerticalOptions="Center"
+                                      IsClippedToBounds="True">
+                                    <Image x:Name="CenteringMeasurementImage"
+                                           Source="{Binding MeasurementImageSource}"
+                                           Aspect="Fill"
+                                           HorizontalOptions="Fill"
+                                           VerticalOptions="Fill" />
+
+                                    <!-- GREEN: physical card rectangle -->
+                                    <BoxView x:Name="OuterLeftGuide" WidthRequest="8" Color="#00E676" Opacity="0.90"
+                                             HorizontalOptions="Start" VerticalOptions="Fill">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnOuterLeftPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="OuterRightGuide" WidthRequest="8" Color="#00E676" Opacity="0.90"
+                                             HorizontalOptions="Start" VerticalOptions="Fill">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnOuterRightPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="OuterTopGuide" HeightRequest="8" Color="#00E676" Opacity="0.90"
+                                             HorizontalOptions="Fill" VerticalOptions="Start">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnOuterTopPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="OuterBottomGuide" HeightRequest="8" Color="#00E676" Opacity="0.90"
+                                             HorizontalOptions="Fill" VerticalOptions="Start">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnOuterBottomPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+
+                                    <!-- YELLOW: printed/image rectangle -->
+                                    <BoxView x:Name="InnerLeftGuide" WidthRequest="8" Color="#FFD60A" Opacity="0.92"
+                                             HorizontalOptions="Start" VerticalOptions="Fill">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnInnerLeftPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="InnerRightGuide" WidthRequest="8" Color="#FFD60A" Opacity="0.92"
+                                             HorizontalOptions="Start" VerticalOptions="Fill">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnInnerRightPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="InnerTopGuide" HeightRequest="8" Color="#FFD60A" Opacity="0.92"
+                                             HorizontalOptions="Fill" VerticalOptions="Start">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnInnerTopPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                    <BoxView x:Name="InnerBottomGuide" HeightRequest="8" Color="#FFD60A" Opacity="0.92"
+                                             HorizontalOptions="Fill" VerticalOptions="Start">
+                                        <BoxView.GestureRecognizers>
+                                            <PanGestureRecognizer PanUpdated="OnInnerBottomPanUpdated" />
+                                        </BoxView.GestureRecognizers>
+                                    </BoxView>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Text="RESTORE AUTO RESULT"
+                                    Clicked="OnResetGuidesClicked"
+                                    CornerRadius="16"
+                                    BackgroundColor="#334155"
+                                    TextColor="White"
+                                    FontSize="11" />
                             <Button Grid.Column="1"
-                                    Text="RESET ZOOM"
-                                    Clicked="OnResetMeasurementZoomClicked"
-                                    CornerRadius="14"
-                                    Padding="10,5"
-                                    BackgroundColor="#164E63"
+                                    Text="{Binding ManualGuideStateText}"
+                                    Clicked="OnToggleGuideLockClicked"
+                                    CornerRadius="16"
+                                    BackgroundColor="#0F766E"
                                     TextColor="White"
                                     FontSize="10" />
                         </Grid>
 
-                        <Border Stroke="#164E63"
-                                StrokeThickness="1"
-                                Background="Black"
-                                StrokeShape="RoundRectangle 12"
-                                Padding="4"
-                                HeightRequest="460">
-                            <Grid>
-                                <Image x:Name="CenteringMeasurementImage"
-                                       Source="{Binding MeasurementImageSource}"
-                                       Aspect="AspectFit"
-                                       HorizontalOptions="Fill"
-                                       VerticalOptions="Fill">
-                                    <Image.GestureRecognizers>
-                                        <PinchGestureRecognizer PinchUpdated="OnMeasurementPinchUpdated" />
-                                        <PanGestureRecognizer PanUpdated="OnMeasurementPanUpdated" />
-                                        <TapGestureRecognizer NumberOfTapsRequired="2"
-                                                              Tapped="OnResetMeasurementZoomTapped" />
-                                    </Image.GestureRecognizers>
-                                </Image>
-                            </Grid>
-                        </Border>
-
-                        <Label Text="Pinch to zoom up to 8× • drag while zoomed • double-tap to reset. This changes only the display, never the measurement."
+                        <Label Text="Manual correction is optional. When unlocked, drag near the middle of a guide. Every movement immediately recalculates the left/right and top/bottom percentages. Nothing from this inspection is saved to your collection yet."
                                TextColor="#A5F3FC"
                                FontSize="10"
-                               HorizontalTextAlignment="Center"
                                LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
 
                 <Border Stroke="#1F2937" Background="#0B1120" StrokeShape="RoundRectangle 16" Padding="12">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="RESULT" TextColor="#A5B4FC" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="CENTERING RESULT — AUTOMATIC / CURRENT" TextColor="#A5B4FC" FontSize="12" FontAttributes="Bold" />
                         <Label Text="{Binding StatusMessage}" TextColor="#D1FAE5" FontSize="12" LineBreakMode="WordWrap" />
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="5">
                             <Label Text="Horizontal" TextColor="#A5B4FC" FontSize="12" />
@@ -139,36 +431,14 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Stroke="#134E4A" Background="#071A1A" StrokeShape="RoundRectangle 16" Padding="12">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="MANUAL ADJUSTMENTS" TextColor="#5EEAD4" FontSize="12" FontAttributes="Bold" />
-                        <Label Text="Only use this if Auto Analyze put an inner-frame line in the wrong place." TextColor="#9CA3AF" FontSize="11" />
-                        <Button Text="MANUAL MODE ON / OFF" Command="{Binding ToggleManualModeCommand}" CornerRadius="18" BackgroundColor="#0F766E" TextColor="#F9FAFB" FontSize="12" />
-                        <VerticalStackLayout IsVisible="{Binding IsManualMode}" Spacing="8">
-                            <Label Text="Each tap moves that detected line exactly 1 pixel in the arrow direction." TextColor="#99F6E4" FontSize="11" />
-                            <Grid ColumnDefinitions="58,*,76,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
-                                <Label Text="Left" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
-                                <Button Grid.Column="1" Text="◀ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Left:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-                                <Label Grid.Column="2" Text="{Binding LeftAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
-                                <Button Grid.Column="3" Text="1 px ▶" Command="{Binding AdjustManualLineCommand}" CommandParameter="Left:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-
-                                <Label Grid.Row="1" Text="Right" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
-                                <Button Grid.Row="1" Grid.Column="1" Text="◀ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Right:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-                                <Label Grid.Row="1" Grid.Column="2" Text="{Binding RightAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
-                                <Button Grid.Row="1" Grid.Column="3" Text="1 px ▶" Command="{Binding AdjustManualLineCommand}" CommandParameter="Right:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-
-                                <Label Grid.Row="2" Text="Top" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
-                                <Button Grid.Row="2" Grid.Column="1" Text="▲ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Top:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-                                <Label Grid.Row="2" Grid.Column="2" Text="{Binding TopAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
-                                <Button Grid.Row="2" Grid.Column="3" Text="▼ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Top:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-
-                                <Label Grid.Row="3" Text="Bottom" VerticalTextAlignment="Center" TextColor="#F9FAFB" FontSize="12" />
-                                <Button Grid.Row="3" Grid.Column="1" Text="▲ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Bottom:1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-                                <Label Grid.Row="3" Grid.Column="2" Text="{Binding BottomAdjust, StringFormat='{0:+0;-0;0} px'}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" TextColor="#5EEAD4" FontSize="11" />
-                                <Button Grid.Row="3" Grid.Column="3" Text="▼ 1 px" Command="{Binding AdjustManualLineCommand}" CommandParameter="Bottom:-1" IsEnabled="{Binding IsManualMode}" Padding="8,5" CornerRadius="14" BackgroundColor="#134E4A" TextColor="White" FontSize="11" />
-                            </Grid>
-                            <Button Text="TOGGLE ANALYSIS OVERLAY" Command="{Binding ToggleOverlayCommand}" CornerRadius="18" BackgroundColor="#4C1D95" TextColor="#E5E7EB" FontSize="12" />
-                        </VerticalStackLayout>
+                <Border Stroke="#134E4A" Background="#071A1A" StrokeShape="RoundRectangle 16" Padding="12"
+                        IsVisible="{Binding HasAnalysis}">
+                    <VerticalStackLayout Spacing="5">
+                        <Label Text="CENTERING METHOD" TextColor="#5EEAD4" FontSize="12" FontAttributes="Bold" />
+                        <Label Text="Horizontal = left border pixels ÷ (left + right border pixels). Vertical = top border pixels ÷ (top + bottom border pixels). The values above come directly from the green/yellow guide spacing on the normalized card."
+                               TextColor="#D1FAE5"
+                               FontSize="10"
+                               LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
             </VerticalStackLayout>

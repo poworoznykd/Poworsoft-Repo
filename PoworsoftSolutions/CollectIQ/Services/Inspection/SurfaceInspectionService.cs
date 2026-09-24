@@ -52,6 +52,11 @@ namespace CollectIQ.Services.Inspection
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
             CancellationToken cancellationToken = default)
         {
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Surface/ExternalLight",
+                "SERVICE START",
+                $"Reference={neutralReferencePath}; Captures={captures.Count}");
+
             ValidateCaptures(captures);
             if (string.IsNullOrWhiteSpace(neutralReferencePath) || !File.Exists(neutralReferencePath))
                 throw new InvalidOperationException("A valid neutral reference image is required before directional surface inspection.");
@@ -66,6 +71,13 @@ namespace CollectIQ.Services.Inspection
 
             CardRegistrationResult registration = await cardRegistrationService.RegisterAsync(
                 registrationInputs, "Reference", outputDirectory, cancellationToken);
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Surface/ExternalLight",
+                "REGISTRATION COMPLETE",
+                $"Quality={registration.OverallQuality:0.0}");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             RegisteredCardFrame referenceCapture = registration.Frames["Reference"];
             RegisteredCardFrame topCapture = registration.Frames[SurfaceLightDirection.Top.ToString()];
@@ -417,6 +429,11 @@ namespace CollectIQ.Services.Inspection
             string imagePath,
             CancellationToken cancellationToken = default)
         {
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Surface/SinglePhoto",
+                "SERVICE START",
+                imagePath);
+
             if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
             {
                 throw new InvalidOperationException("A valid card image is required.");
@@ -513,6 +530,11 @@ namespace CollectIQ.Services.Inspection
             IReadOnlyList<string> captures,
             CancellationToken cancellationToken = default)
         {
+            await InspectionDiagnosticLogger.WriteAsync(
+                "Surface/TiltSweep",
+                "SERVICE START",
+                $"Captures={captures?.Count ?? 0}");
+
             if (captures is null || captures.Count < 8)
                 throw new InvalidOperationException("Tilt Sweep needs at least 8 captures; 20 is recommended.");
 

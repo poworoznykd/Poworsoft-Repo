@@ -12,6 +12,7 @@ using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection;
 using CollectIQ.Navigation;
+using CollectIQ.Services.Inspection;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using System.Diagnostics;
@@ -292,28 +293,86 @@ namespace CollectIQ.Views
             ProcessingPanel.IsVisible = true;
             HeaderStatusLabel.Text = "Analyzing surface images";
 
+            string inspectionName = $"Surface/{mode}";
+            bool navigationStarted = false;
+
+            await InspectionDiagnosticLogger.StartRunAsync(
+                inspectionName,
+                $"Reference={neutralReferencePath ?? "(none)"}; Directional={directionalCaptures.Count}; Tilt={tiltCaptures.Count}");
+
             try
             {
-                SurfaceCameraView.StopCameraPreview();
-                SurfaceInspectionResult result = mode switch
+                try { SurfaceCameraView.StopCameraPreview(); } catch { }
+
+                TimeSpan timeout = mode switch
                 {
-                    SurfaceInspectionMode.ExternalLight => await surfaceInspectionService.AnalyzeAsync(
-                        neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing."),
-                        directionalCaptures),
-                    SurfaceInspectionMode.SinglePhoto => await surfaceInspectionService.AnalyzeSinglePhotoAsync(
-                        neutralReferencePath ?? throw new InvalidOperationException("The card image is missing.")),
-                    SurfaceInspectionMode.TiltSweep => await surfaceInspectionService.AnalyzeTiltSweepAsync(tiltCaptures),
-                    _ => throw new InvalidOperationException("Unknown surface inspection mode.")
+                    SurfaceInspectionMode.ExternalLight => TimeSpan.FromSeconds(120),
+                    SurfaceInspectionMode.SinglePhoto => TimeSpan.FromSeconds(60),
+                    SurfaceInspectionMode.TiltSweep => TimeSpan.FromSeconds(240),
+                    _ => TimeSpan.FromSeconds(120)
                 };
 
+                SurfaceInspectionResult result = await InspectionExecution.RunAsync(
+                    inspectionName,
+                    "Surface analysis",
+                    async cancellationToken =>
+                    {
+                        return mode switch
+                        {
+                            SurfaceInspectionMode.ExternalLight => await surfaceInspectionService.AnalyzeAsync(
+                                neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing."),
+                                directionalCaptures,
+                                cancellationToken),
+
+                            SurfaceInspectionMode.SinglePhoto => await surfaceInspectionService.AnalyzeSinglePhotoAsync(
+                                neutralReferencePath ?? throw new InvalidOperationException("The card image is missing."),
+                                cancellationToken),
+
+                            SurfaceInspectionMode.TiltSweep => await surfaceInspectionService.AnalyzeTiltSweepAsync(
+                                tiltCaptures,
+                                cancellationToken),
+
+                            _ => throw new InvalidOperationException("Unknown surface inspection mode.")
+                        };
+                    },
+                    timeout);
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "NAVIGATING TO RESULT");
+
+                navigationStarted = true;
                 await Navigation.PushAsync(new SurfaceInspectionResultPage(result));
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SurfaceInspection] {ex}");
-                ProcessingPanel.IsVisible = false;
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "ANALYSIS FAILED",
+                    exception: ex);
+
                 CapturePanel.IsVisible = true;
-                await DisplayAlert("Analysis Failed", $"The surface images could not be analyzed: {ex.Message}", "OK");
+                HeaderStatusLabel.Text = "Surface analysis failed";
+
+                string message = ex is TimeoutException
+                    ? ex.Message + " The inspection was stopped instead of loading forever. Retake the image(s) and try again."
+                    : $"The surface images could not be analyzed: {ex.Message}";
+
+                await DisplayAlert("Analysis Failed", message, "OK");
+            }
+            finally
+            {
+                ProcessingPanel.IsVisible = false;
+
+                if (!navigationStarted)
+                {
+                    CapturePanel.IsVisible = true;
+                    CaptureButton.IsEnabled = true;
+                }
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "PROCESSING STATE RELEASED");
             }
         }
 
