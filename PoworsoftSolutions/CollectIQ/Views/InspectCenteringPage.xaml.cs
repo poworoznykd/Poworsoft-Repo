@@ -21,6 +21,7 @@ namespace CollectIQ.Views
         private double measurementPanStartY;
 
         private int activeGuideStartPixel;
+        private bool suppressManualCenteringSliderEvents;
 
         private Image? MeasurementImageControl =>
             this.FindByName<Image>("CenteringMeasurementImage");
@@ -34,9 +35,14 @@ namespace CollectIQ.Views
             ViewModel.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(InspectCenteringViewModel.HasAnalysis) ||
+                    args.PropertyName == nameof(InspectCenteringViewModel.IsManualMode) ||
                     args.PropertyName?.EndsWith("GuidePixel", StringComparison.Ordinal) == true)
                 {
-                    MainThread.BeginInvokeOnMainThread(UpdateGuideVisuals);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        UpdateGuideVisuals();
+                        UpdateManualCenteringEditorVisuals();
+                    });
                 }
 
                 if (args.PropertyName == nameof(InspectCenteringViewModel.NeedsManualOuterCard) ||
@@ -293,9 +299,16 @@ namespace CollectIQ.Views
         private void SetManualGuideEditing(bool enabled)
         {
             manualGuideEditing = enabled;
-            // Never change ScrollView orientation while the user is looking at
-            // the capture: Android can remeasure/jump the viewport and hide it.
-            // The fixed-size guide surface owns its own pan gestures.
+            // Resolve these optional controls from the XAML namescope instead of
+            // relying on generated fields that can be stale after a XAML edit.
+            ScrollView? pageScroll = this.FindByName<ScrollView>("CenteringPageScroll");
+            if (pageScroll != null)
+            {
+                pageScroll.Orientation = enabled
+                    ? ScrollOrientation.Neither
+                    : ScrollOrientation.Vertical;
+            }
+
             Button? editButton = this.FindByName<Button>("ManualGuideEditButton");
             if (editButton != null)
             {
@@ -311,7 +324,7 @@ namespace CollectIQ.Views
             if (sender is not Slider slider || !ViewModel.NeedsManualOuterCard)
                 return;
 
-            string? name = slider.AutomationId switch
+            string? guideName = slider.AutomationId switch
             {
                 "ManualOuterLeftSlider" => "Left",
                 "ManualOuterRightSlider" => "Right",
@@ -320,8 +333,10 @@ namespace CollectIQ.Views
                 _ => null
             };
 
-            if (name is null) return;
-            ViewModel.SetManualOuterGuide(name, e.NewValue);
+            if (guideName == null)
+                return;
+
+            ViewModel.SetManualOuterGuide(guideName, e.NewValue);
             UpdateManualOuterGuideVisuals();
         }
 
@@ -558,10 +573,122 @@ namespace CollectIQ.Views
             if (!ViewModel.HasAnalysis)
                 return;
 
-            ViewModel.IsManualMode = !ViewModel.IsManualMode;
-            ViewModel.StatusMessage = ViewModel.IsManualMode
-                ? "Manual correction enabled. Drag any green or yellow guide; the centering result recalculates immediately."
-                : "Manual correction locked. The current guide positions and centering result are preserved.";
+            // Manual correction gets its own full-screen editor. The underlying page
+            // remains covered, so ScrollView gestures cannot steal slider movement.
+            ViewModel.IsManualMode = true;
+            ManualCenteringOverlay.IsVisible = true;
+            ViewModel.StatusMessage =
+                "Manual correction enabled. The TrueForm card is locked in place. Use the 8 sliders, then tap LOCK MANUAL LINES.";
+
+            // Let the full-screen overlay receive its actual phone dimensions before
+            // sizing the centered 5:7 card.
+            Dispatcher.Dispatch(() =>
+            {
+                UpdateManualCenteringCardSize();
+                UpdateManualCenteringEditorVisuals();
+            });
+        }
+
+        private void OnManualCenteringCardHostSizeChanged(object sender, EventArgs e)
+        {
+            UpdateManualCenteringCardSize();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void UpdateManualCenteringCardSize()
+        {
+            if (ManualCenteringCardHost == null || ManualCenteringGuideSurface == null)
+                return;
+
+            double availableWidth = ManualCenteringCardHost.Width;
+            double availableHeight = ManualCenteringCardHost.Height;
+            if (availableWidth <= 20 || availableHeight <= 20)
+                return;
+
+            // TrueForm is 5:7. Fit the largest centered card that leaves a small
+            // safety inset from the phone edges; never zoom or pan the editor image.
+            double width = Math.Min(availableWidth - 8, (availableHeight - 8) * 5.0 / 7.0);
+            double height = width * 7.0 / 5.0;
+
+            if (height > availableHeight - 8)
+            {
+                height = availableHeight - 8;
+                width = height * 5.0 / 7.0;
+            }
+
+            ManualCenteringGuideSurface.WidthRequest = Math.Max(120, width);
+            ManualCenteringGuideSurface.HeightRequest = Math.Max(168, height);
+        }
+
+        private void OnManualCenteringGuideSurfaceSizeChanged(object sender, EventArgs e)
+        {
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void UpdateManualCenteringEditorVisuals()
+        {
+            if (!ViewModel.HasAnalysis || ManualCenteringGuideSurface == null ||
+                ManualCenteringGuideSurface.Width <= 1 || ManualCenteringGuideSurface.Height <= 1)
+                return;
+
+            double xScale = ManualCenteringGuideSurface.Width / ViewModel.CanonicalWidthPixels;
+            double yScale = ManualCenteringGuideSurface.Height / ViewModel.CanonicalHeightPixels;
+
+            SetVerticalGuide(EditOuterLeftGuide, ViewModel.OuterLeftGuidePixel * xScale);
+            SetVerticalGuide(EditOuterRightGuide, ViewModel.OuterRightGuidePixel * xScale);
+            SetHorizontalGuide(EditOuterTopGuide, ViewModel.OuterTopGuidePixel * yScale);
+            SetHorizontalGuide(EditOuterBottomGuide, ViewModel.OuterBottomGuidePixel * yScale);
+            SetVerticalGuide(EditInnerLeftGuide, ViewModel.InnerLeftGuidePixel * xScale);
+            SetVerticalGuide(EditInnerRightGuide, ViewModel.InnerRightGuidePixel * xScale);
+            SetHorizontalGuide(EditInnerTopGuide, ViewModel.InnerTopGuidePixel * yScale);
+            SetHorizontalGuide(EditInnerBottomGuide, ViewModel.InnerBottomGuidePixel * yScale);
+
+            suppressManualCenteringSliderEvents = true;
+            try
+            {
+                EditOuterLeftSlider.Value = ViewModel.OuterLeftGuidePixel;
+                EditOuterRightSlider.Value = ViewModel.OuterRightGuidePixel;
+                EditOuterTopSlider.Value = ViewModel.OuterTopGuidePixel;
+                EditOuterBottomSlider.Value = ViewModel.OuterBottomGuidePixel;
+                EditInnerLeftSlider.Value = ViewModel.InnerLeftGuidePixel;
+                EditInnerRightSlider.Value = ViewModel.InnerRightGuidePixel;
+                EditInnerTopSlider.Value = ViewModel.InnerTopGuidePixel;
+                EditInnerBottomSlider.Value = ViewModel.InnerBottomGuidePixel;
+            }
+            finally
+            {
+                suppressManualCenteringSliderEvents = false;
+            }
+        }
+
+        private void OnManualCenteringSliderValueChanged(object sender, ValueChangedEventArgs e)
+        {
+            if (suppressManualCenteringSliderEvents || !ViewModel.HasAnalysis || !ViewModel.IsManualMode)
+                return;
+
+            if (sender is not Slider slider || string.IsNullOrWhiteSpace(slider.AutomationId))
+                return;
+
+            ViewModel.SetGuidePosition(slider.AutomationId, (int)Math.Round(e.NewValue));
+            UpdateGuideVisuals();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void OnManualCenteringRestoreAutoClicked(object sender, EventArgs e)
+        {
+            ViewModel.ResetManualGuides();
+            ViewModel.IsManualMode = true;
+            UpdateGuideVisuals();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void OnManualCenteringLockClicked(object sender, EventArgs e)
+        {
+            ViewModel.IsManualMode = false;
+            ManualCenteringOverlay.IsVisible = false;
+            ViewModel.StatusMessage =
+                "Manual lines locked. The current guide positions and centering result are preserved.";
+            UpdateGuideVisuals();
         }
 
         private void ShowCapturedImage()

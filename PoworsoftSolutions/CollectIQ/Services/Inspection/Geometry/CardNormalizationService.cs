@@ -159,10 +159,78 @@ namespace CollectIQ.Services.Inspection.Geometry
                     OpenCvSharp.Point[] chosen = selectedPreviewCorners
                         .Select(pt => new OpenCvSharp.Point((int)Math.Round(pt.X), (int)Math.Round(pt.Y)))
                         .ToArray();
-                    Cv2.Polylines(candidates, new[] { chosen }, true, new Scalar(0, 255, 0), 3);
+                    Cv2.Polylines(candidates, new[] { chosen }, true, new Scalar(0, 255, 0), 1);
                     foreach (OpenCvSharp.Point point in chosen)
                         Cv2.Circle(candidates, point, 7, new Scalar(0, 255, 255), 2);
                 }
+                // One alternate automatic pass only. If the first Canny level did not
+                // produce a usable outer quadrilateral, retry with a lower threshold
+                // before falling back to the directional edge detector.
+                if (selectedPreviewCorners is null)
+                {
+                    progress?.Report(new CardNormalizationProgress
+                    {
+                        Stage = "RECTANGLE_RETRY",
+                        Message = "First rectangle pass was incomplete. Trying one alternate edge level…",
+                        PreviewImagePath = manualPreviewPath,
+                        EdgeImagePath = edgePath
+                    });
+
+                    using Mat retryEdges = new();
+                    Cv2.Canny(blurred, retryEdges, 45, 150);
+                    Cv2.FindContours(retryEdges, out OpenCvSharp.Point[][] retryContours,
+                        out _, RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+
+                    foreach (OpenCvSharp.Point[] contour in retryContours)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        double perimeter = Cv2.ArcLength(contour, true);
+                        if (perimeter < 80) continue;
+                        OpenCvSharp.Point[] quad = Cv2.ApproxPolyDP(contour, perimeter * 0.025, true);
+                        if (quad.Length != 4 || !Cv2.IsContourConvex(quad)) continue;
+
+                        double area = Math.Abs(Cv2.ContourArea(quad));
+                        double imageArea = preview.Width * (double)preview.Height;
+                        if (area < imageArea * 0.06 || area > imageArea * 0.94) continue;
+
+                        OpenCvSharp.Rect box = Cv2.BoundingRect(quad);
+                        if (box.X <= 1 || box.Y <= 1 || box.Right >= preview.Width - 1 ||
+                            box.Bottom >= preview.Height - 1) continue;
+
+                        double ratio = Math.Min(box.Width, box.Height) /
+                                       (double)Math.Max(box.Width, box.Height);
+                        if (ratio < 0.48 || ratio > 0.92) continue;
+
+                        CardPoint[]? ordered = OrderQuad(quad);
+                        if (ordered is null) continue;
+
+                        Cv2.Polylines(candidates, new[] { quad }, true,
+                            new Scalar(180, 80, 255), 1);
+
+                        double centerOffset =
+                            Math.Abs((box.X + box.Width / 2.0) / preview.Width - 0.5) +
+                            Math.Abs((box.Y + box.Height / 2.0) / preview.Height - 0.5);
+                        double score = area / imageArea
+                                     - 0.13 * Math.Abs(ratio - 2.5 / 3.5)
+                                     - 0.07 * centerOffset;
+                        if (score <= bestScore) continue;
+
+                        bestScore = score;
+                        selectedPreviewCorners = ordered;
+                    }
+
+                    if (selectedPreviewCorners is not null)
+                    {
+                        OpenCvSharp.Point[] chosen = selectedPreviewCorners
+                            .Select(pt => new OpenCvSharp.Point((int)Math.Round(pt.X), (int)Math.Round(pt.Y)))
+                            .ToArray();
+                        Cv2.Polylines(candidates, new[] { chosen }, true,
+                            new Scalar(0, 255, 0), 1);
+                        foreach (OpenCvSharp.Point point in chosen)
+                            Cv2.Circle(candidates, point, 6, new Scalar(0, 255, 255), 1);
+                    }
+                }
+
                 string rectanglePath = Path.Combine(outputDirectory, "rectangle_candidates.jpg");
                 if (!Cv2.ImWrite(rectanglePath, candidates))
                     throw new IOException("Could not save rectangle detection view.");
@@ -335,13 +403,25 @@ namespace CollectIQ.Services.Inspection.Geometry
 
             string normalizedPath = Path.Combine(outputDirectory, "normalized_card.png");
 
-            // Native OpenCV performs the perspective transform in optimized native
-            // code. Do not map/sample 787,500 output pixels in managed C#.
+            // Preserve a small safety margin around the detected card. The physical
+            // card is mapped to an inset rectangle rather than the image boundary,
+            // so a slightly-too-tight detector cannot permanently crop an edge.
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
             WarpPerspectiveWithOpenCv(
                 working,
                 workingCorners,
                 normalizedWidth,
                 normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
                 normalizedPath,
                 cancellationToken);
 
@@ -367,7 +447,11 @@ namespace CollectIQ.Services.Inspection.Geometry
                 SourceCorners = geometry.Corners.ToArray(),
                 GeometryConfidence = geometry.Confidence,
                 NormalizedWidth = normalizedWidth,
-                NormalizedHeight = normalizedHeight
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
             };
         }
 
@@ -466,11 +550,22 @@ namespace CollectIQ.Services.Inspection.Geometry
                 outputDirectory,
                 "manual_normalized_card.png");
 
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
             WarpPerspectiveWithOpenCv(
                 working,
                 workingCorners,
                 normalizedWidth,
                 normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
                 normalizedPath,
                 cancellationToken);
 
@@ -490,7 +585,11 @@ namespace CollectIQ.Services.Inspection.Geometry
                 SourceCorners = sourceCorners,
                 GeometryConfidence = 1.0,
                 NormalizedWidth = normalizedWidth,
-                NormalizedHeight = normalizedHeight
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
             };
         }
 
@@ -536,7 +635,7 @@ namespace CollectIQ.Services.Inspection.Geometry
                     (int)Math.Round(end.X),
                     (int)Math.Round(end.Y),
                     color,
-                    10);
+                    2);
             }
 
             foreach (CardPoint corner in corners)
@@ -555,10 +654,10 @@ namespace CollectIQ.Services.Inspection.Geometry
             int cy,
             Rgba32 color)
         {
-            const int radius = 20;
+            const int radius = 10;
 
-            DrawLine(image, cx - radius, cy, cx + radius, cy, color, 8);
-            DrawLine(image, cx, cy - radius, cx, cy + radius, color, 8);
+            DrawLine(image, cx - radius, cy, cx + radius, cy, color, 2);
+            DrawLine(image, cx, cy - radius, cx, cy + radius, color, 2);
         }
 
         private static void DrawLine(
@@ -662,6 +761,10 @@ namespace CollectIQ.Services.Inspection.Geometry
             IReadOnlyList<CardPoint> sourceCorners,
             int width,
             int height,
+            int cardLeft,
+            int cardRight,
+            int cardTop,
+            int cardBottom,
             string outputPath,
             CancellationToken cancellationToken)
         {
@@ -682,10 +785,10 @@ namespace CollectIQ.Services.Inspection.Geometry
 
             Point2f[] dst =
             {
-                new(0, 0),
-                new(width - 1, 0),
-                new(width - 1, height - 1),
-                new(0, height - 1)
+                new(cardLeft, cardTop),
+                new(cardRight, cardTop),
+                new(cardRight, cardBottom),
+                new(cardLeft, cardBottom)
             };
 
             using Mat transform = Cv2.GetPerspectiveTransform(src, dst);

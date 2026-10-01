@@ -535,14 +535,38 @@ namespace CollectIQ.Views
 
                 using ImageSharpImage canonical = SixLabors.ImageSharp.Image.Load<Rgba32>(canonicalImagePath);
                 float[] gray = ExtractLuminance(canonical);
-                baseMeasurement = EstimateCentering(gray);
+                baseMeasurement = EstimateCentering(
+                    gray,
+                    normalized.NormalizedCardLeft,
+                    normalized.NormalizedCardRight,
+                    normalized.NormalizedCardTop,
+                    normalized.NormalizedCardBottom,
+                    alternatePass: false);
+
+                // One alternate inner-border pass only when the first pass cannot
+                // confidently establish all four printed/image edges.
+                if (!baseMeasurement.Success)
+                {
+                    AnalysisStageText = "First inner-edge pass was weak. Trying one alternate edge level…";
+                    baseMeasurement = EstimateCentering(
+                        gray,
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom,
+                        alternatePass: true);
+                }
 
                 // Auto detection is an initial suggestion. Centering is intentionally
                 // user-verifiable: the user aligns both the physical-edge rectangle
                 // and the printed/image rectangle before accepting the percentages.
                 if (!baseMeasurement.Success)
                 {
-                    baseMeasurement = CreateFallbackMeasurement();
+                    baseMeasurement = CreateFallbackMeasurement(
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom);
                     StatusMessage = "The card was flattened successfully. The printed-frame estimate is weak, so adjust the yellow lines manually.";
                 }
 
@@ -690,11 +714,32 @@ namespace CollectIQ.Views
                     SixLabors.ImageSharp.Image.Load<Rgba32>(canonicalImagePath);
 
                 float[] gray = ExtractLuminance(canonical);
-                baseMeasurement = EstimateCentering(gray);
+                baseMeasurement = EstimateCentering(
+                    gray,
+                    normalized.NormalizedCardLeft,
+                    normalized.NormalizedCardRight,
+                    normalized.NormalizedCardTop,
+                    normalized.NormalizedCardBottom,
+                    alternatePass: false);
 
                 if (!baseMeasurement.Success)
                 {
-                    baseMeasurement = CreateFallbackMeasurement();
+                    baseMeasurement = EstimateCentering(
+                        gray,
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom,
+                        alternatePass: true);
+                }
+
+                if (!baseMeasurement.Success)
+                {
+                    baseMeasurement = CreateFallbackMeasurement(
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom);
                 }
 
                 ResetAdjustments();
@@ -964,20 +1009,26 @@ namespace CollectIQ.Views
             currentMeasurement.BottomPercent = 100.0f - currentMeasurement.TopPercent;
         }
 
-        private static CenteringMeasurement CreateFallbackMeasurement()
+        private static CenteringMeasurement CreateFallbackMeasurement(
+            int outerLeft,
+            int outerRight,
+            int outerTop,
+            int outerBottom)
         {
-            int left = (int)Math.Round(CanonicalWidth * 0.10);
-            int right = (int)Math.Round(CanonicalWidth * 0.90);
-            int top = (int)Math.Round(CanonicalHeight * 0.08);
-            int bottom = (int)Math.Round(CanonicalHeight * 0.92);
+            int cardWidth = Math.Max(10, outerRight - outerLeft + 1);
+            int cardHeight = Math.Max(10, outerBottom - outerTop + 1);
+            int left = outerLeft + (int)Math.Round(cardWidth * 0.10);
+            int right = outerRight - (int)Math.Round(cardWidth * 0.10);
+            int top = outerTop + (int)Math.Round(cardHeight * 0.08);
+            int bottom = outerBottom - (int)Math.Round(cardHeight * 0.08);
 
             return new CenteringMeasurement
             {
                 Success = true,
-                OuterLeft = 0,
-                OuterRight = CanonicalWidth - 1,
-                OuterTop = 0,
-                OuterBottom = CanonicalHeight - 1,
+                OuterLeft = outerLeft,
+                OuterRight = outerRight,
+                OuterTop = outerTop,
+                OuterBottom = outerBottom,
                 InnerLeft = left,
                 InnerRight = right,
                 InnerTop = top,
@@ -1004,7 +1055,7 @@ namespace CollectIQ.Views
                 currentMeasurement.OuterRight,
                 currentMeasurement.OuterBottom,
                 new Rgba32(0, 230, 118, 255),
-                3);
+                1);
 
             // Yellow rectangle = printed/image/frame perimeter used for centering.
             DrawRectangle(
@@ -1014,7 +1065,7 @@ namespace CollectIQ.Views
                 currentMeasurement.InnerRight,
                 currentMeasurement.InnerBottom,
                 new Rgba32(255, 214, 10, 255),
-                3);
+                1);
 
             string nextOverlayPath = Path.Combine(outputDirectory, $"centering_guides_{version:000000}.png");
             await using FileStream stream = new(nextOverlayPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -1060,40 +1111,71 @@ namespace CollectIQ.Views
             }
         }
 
-        private static CenteringMeasurement EstimateCentering(float[] gray)
+        private static CenteringMeasurement EstimateCentering(
+            float[] gray,
+            int outerLeft,
+            int outerRight,
+            int outerTop,
+            int outerBottom,
+            bool alternatePass)
         {
-            int leftInset = SearchBorderInset(gray, verticalEdge: true, fromStart: true);
-            int rightInset = SearchBorderInset(gray, verticalEdge: true, fromStart: false);
-            int topInset = SearchBorderInset(gray, verticalEdge: false, fromStart: true);
-            int bottomInset = SearchBorderInset(gray, verticalEdge: false, fromStart: false);
-            if (leftInset <= 0 || rightInset <= 0 || topInset <= 0 || bottomInset <= 0)
+            outerLeft = Math.Clamp(outerLeft, 0, CanonicalWidth - 5);
+            outerRight = Math.Clamp(outerRight, outerLeft + 4, CanonicalWidth - 1);
+            outerTop = Math.Clamp(outerTop, 0, CanonicalHeight - 5);
+            outerBottom = Math.Clamp(outerBottom, outerTop + 4, CanonicalHeight - 1);
+
+            int leftInner = SearchBorderPosition(gray, true, true,
+                outerLeft, outerRight, outerTop, outerBottom, alternatePass);
+            int rightInner = SearchBorderPosition(gray, true, false,
+                outerLeft, outerRight, outerTop, outerBottom, alternatePass);
+            int topInner = SearchBorderPosition(gray, false, true,
+                outerLeft, outerRight, outerTop, outerBottom, alternatePass);
+            int bottomInner = SearchBorderPosition(gray, false, false,
+                outerLeft, outerRight, outerTop, outerBottom, alternatePass);
+
+            if (leftInner <= outerLeft || rightInner >= outerRight ||
+                topInner <= outerTop || bottomInner >= outerBottom ||
+                leftInner >= rightInner || topInner >= bottomInner)
                 return new CenteringMeasurement();
+
+            int leftInset = leftInner - outerLeft;
+            int rightInset = outerRight - rightInner;
+            int topInset = topInner - outerTop;
+            int bottomInset = outerBottom - bottomInner;
 
             float hTotal = leftInset + rightInset;
             float vTotal = topInset + bottomInset;
-            if (hTotal < 10 || vTotal < 10) return new CenteringMeasurement();
+            if (hTotal < 10 || vTotal < 10)
+                return new CenteringMeasurement();
 
-            float leftPercent = (leftInset / hTotal) * 100.0f;
+            float leftPercent = leftInset / hTotal * 100.0f;
             float rightPercent = 100.0f - leftPercent;
-            float topPercent = (topInset / vTotal) * 100.0f;
+            float topPercent = topInset / vTotal * 100.0f;
             float bottomPercent = 100.0f - topPercent;
             float horizontalError = MathF.Abs(leftPercent - 50.0f);
             float verticalError = MathF.Abs(topPercent - 50.0f);
-            float confidence = Math.Clamp(100.0f - ((horizontalError + verticalError) * 1.25f), 30.0f, 100.0f);
-            if (leftInset > CanonicalWidth * 0.30f || rightInset > CanonicalWidth * 0.30f || topInset > CanonicalHeight * 0.22f || bottomInset > CanonicalHeight * 0.22f)
+            float confidence = Math.Clamp(
+                100.0f - ((horizontalError + verticalError) * 1.25f),
+                30.0f,
+                100.0f);
+
+            int cardWidth = outerRight - outerLeft + 1;
+            int cardHeight = outerBottom - outerTop + 1;
+            if (leftInset > cardWidth * 0.30f || rightInset > cardWidth * 0.30f ||
+                topInset > cardHeight * 0.22f || bottomInset > cardHeight * 0.22f)
                 confidence *= 0.55f;
 
             return new CenteringMeasurement
             {
                 Success = confidence >= 30.0f,
-                OuterLeft = 0,
-                OuterRight = CanonicalWidth - 1,
-                OuterTop = 0,
-                OuterBottom = CanonicalHeight - 1,
-                InnerLeft = leftInset,
-                InnerRight = CanonicalWidth - 1 - rightInset,
-                InnerTop = topInset,
-                InnerBottom = CanonicalHeight - 1 - bottomInset,
+                OuterLeft = outerLeft,
+                OuterRight = outerRight,
+                OuterTop = outerTop,
+                OuterBottom = outerBottom,
+                InnerLeft = leftInner,
+                InnerRight = rightInner,
+                InnerTop = topInner,
+                InnerBottom = bottomInner,
                 LeftInset = leftInset,
                 RightInset = rightInset,
                 TopInset = topInset,
@@ -1106,51 +1188,90 @@ namespace CollectIQ.Views
             };
         }
 
-        private static int SearchBorderInset(float[] gray, bool verticalEdge, bool fromStart)
+        private static int SearchBorderPosition(
+            float[] gray,
+            bool verticalEdge,
+            bool fromStart,
+            int outerLeft,
+            int outerRight,
+            int outerTop,
+            int outerBottom,
+            bool alternatePass)
         {
-            int primaryLength = verticalEdge ? CanonicalWidth : CanonicalHeight;
-            int secondaryLength = verticalEdge ? CanonicalHeight : CanonicalWidth;
-            int start = Math.Max(8, (int)Math.Round(primaryLength * 0.02f));
-            int end = Math.Min((int)Math.Round(primaryLength * 0.26f), primaryLength / 3);
-            int secondaryStart = (int)Math.Round(secondaryLength * 0.10f);
-            int secondaryEnd = (int)Math.Round(secondaryLength * 0.90f);
+            int primaryStart = verticalEdge ? outerLeft : outerTop;
+            int primaryEnd = verticalEdge ? outerRight : outerBottom;
+            int secondaryStart = verticalEdge ? outerTop : outerLeft;
+            int secondaryEnd = verticalEdge ? outerBottom : outerRight;
+            int primaryLength = primaryEnd - primaryStart + 1;
+            int secondaryLength = secondaryEnd - secondaryStart + 1;
+
+            int startInset = Math.Max(5, (int)Math.Round(primaryLength * 0.02));
+            int endInset = Math.Min(
+                (int)Math.Round(primaryLength * 0.28),
+                primaryLength / 3);
+
+            // Do not let corner detail dominate the edge score.
+            int sampleStart = secondaryStart + (int)Math.Round(secondaryLength * 0.10);
+            int sampleEnd = secondaryEnd - (int)Math.Round(secondaryLength * 0.10);
 
             float bestScore = 0;
-            int bestInset = 0;
-            for (int inset = start; inset <= end; inset++)
+            int bestPosition = 0;
+            int separation = alternatePass ? 3 : 1;
+            float binaryLevel = alternatePass ? 16.0f : 0.0f;
+
+            for (int inset = startInset; inset <= endInset; inset++)
             {
+                int position = fromStart
+                    ? primaryStart + inset
+                    : primaryEnd - inset;
+
                 float sum = 0;
                 int samples = 0;
-                for (int s = secondaryStart; s < secondaryEnd; s += 2)
+                for (int sample = sampleStart; sample <= sampleEnd; sample += 2)
                 {
                     int xA, yA, xB, yB;
                     if (verticalEdge)
                     {
-                        xA = fromStart ? inset : CanonicalWidth - inset - 1;
-                        xB = fromStart ? xA - 1 : xA + 1;
-                        yA = yB = s;
+                        xA = position;
+                        xB = fromStart ? position - separation : position + separation;
+                        yA = yB = sample;
                     }
                     else
                     {
-                        yA = fromStart ? inset : CanonicalHeight - inset - 1;
-                        yB = fromStart ? yA - 1 : yA + 1;
-                        xA = xB = s;
+                        yA = position;
+                        yB = fromStart ? position - separation : position + separation;
+                        xA = xB = sample;
                     }
-                    if (xA <= 0 || yA <= 0 || xB <= 0 || yB <= 0 || xA >= CanonicalWidth - 1 || xB >= CanonicalWidth - 1 || yA >= CanonicalHeight - 1 || yB >= CanonicalHeight - 1)
+
+                    if (xA < 0 || xA >= CanonicalWidth || xB < 0 || xB >= CanonicalWidth ||
+                        yA < 0 || yA >= CanonicalHeight || yB < 0 || yB >= CanonicalHeight)
                         continue;
-                    float diff = MathF.Abs(gray[(yA * CanonicalWidth) + xA] - gray[(yB * CanonicalWidth) + xB]);
+
+                    float diff = MathF.Abs(
+                        gray[(yA * CanonicalWidth) + xA] -
+                        gray[(yB * CanonicalWidth) + xB]);
+
+                    // Alternate pass behaves like a simple binary edge-level retry:
+                    // emphasize stronger transitions and suppress weak artwork noise.
+                    if (alternatePass)
+                        diff = diff >= binaryLevel ? diff * 1.35f : diff * 0.25f;
+
                     sum += diff;
                     samples++;
                 }
-                if (samples == 0) continue;
+
+                if (samples == 0)
+                    continue;
+
                 float score = sum / samples;
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    bestInset = inset;
+                    bestPosition = position;
                 }
             }
-            return bestInset;
+
+            return bestPosition;
         }
 
         /// <summary>

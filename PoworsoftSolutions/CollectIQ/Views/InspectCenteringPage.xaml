@@ -106,7 +106,7 @@
                             <Grid x:Name="ManualOuterLeftGuide"
                                   WidthRequest="36" HorizontalOptions="Start" VerticalOptions="Fill"
                                   BackgroundColor="#01000000">
-                                <BoxView WidthRequest="2" HorizontalOptions="Center" VerticalOptions="Fill"
+                                <BoxView WidthRequest="1" ScaleX="0.35" HorizontalOptions="Center" VerticalOptions="Fill"
                                          BackgroundColor="#22FF66"
                                          InputTransparent="True" />
 
@@ -116,7 +116,7 @@
                             <Grid x:Name="ManualOuterRightGuide"
                                   WidthRequest="36" HorizontalOptions="Start" VerticalOptions="Fill"
                                   BackgroundColor="#01000000">
-                                <BoxView WidthRequest="2" HorizontalOptions="Center" VerticalOptions="Fill"
+                                <BoxView WidthRequest="1" ScaleX="0.35" HorizontalOptions="Center" VerticalOptions="Fill"
                                          BackgroundColor="#22FF66"
                                          InputTransparent="True" />
 
@@ -126,7 +126,7 @@
                             <Grid x:Name="ManualOuterTopGuide"
                                   HeightRequest="36" HorizontalOptions="Fill" VerticalOptions="Start"
                                   BackgroundColor="#01000000">
-                                <BoxView HeightRequest="2" HorizontalOptions="Fill" VerticalOptions="Center"
+                                <BoxView HeightRequest="1" ScaleY="0.35" HorizontalOptions="Fill" VerticalOptions="Center"
                                          BackgroundColor="#22FF66"
                                          InputTransparent="True" />
 
@@ -136,7 +136,7 @@
                             <Grid x:Name="ManualOuterBottomGuide"
                                   HeightRequest="36" HorizontalOptions="Fill" VerticalOptions="Start"
                                   BackgroundColor="#01000000">
-                                <BoxView HeightRequest="2" HorizontalOptions="Fill" VerticalOptions="Center"
+                                <BoxView HeightRequest="1" ScaleY="0.35" HorizontalOptions="Fill" VerticalOptions="Center"
                                          BackgroundColor="#22FF66"
                                          InputTransparent="True" />
 
@@ -337,56 +337,24 @@
                                            VerticalOptions="Fill" />
 
                                     <!-- GREEN: physical card rectangle -->
-                                    <BoxView x:Name="OuterLeftGuide" WidthRequest="8" Color="#00E676" Opacity="0.90"
-                                             HorizontalOptions="Start" VerticalOptions="Fill">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnOuterLeftPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="OuterRightGuide" WidthRequest="8" Color="#00E676" Opacity="0.90"
-                                             HorizontalOptions="Start" VerticalOptions="Fill">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnOuterRightPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="OuterTopGuide" HeightRequest="8" Color="#00E676" Opacity="0.90"
-                                             HorizontalOptions="Fill" VerticalOptions="Start">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnOuterTopPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="OuterBottomGuide" HeightRequest="8" Color="#00E676" Opacity="0.90"
-                                             HorizontalOptions="Fill" VerticalOptions="Start">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnOuterBottomPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
+                                    <BoxView x:Name="OuterLeftGuide" WidthRequest="1" ScaleX="0.35" Color="#00E676" Opacity="0.95"
+                                             HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                                    <BoxView x:Name="OuterRightGuide" WidthRequest="1" ScaleX="0.35" Color="#00E676" Opacity="0.95"
+                                             HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                                    <BoxView x:Name="OuterTopGuide" HeightRequest="1" ScaleY="0.35" Color="#00E676" Opacity="0.95"
+                                             HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+                                    <BoxView x:Name="OuterBottomGuide" HeightRequest="1" ScaleY="0.35" Color="#00E676" Opacity="0.95"
+                                             HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
 
                                     <!-- YELLOW: printed/image rectangle -->
-                                    <BoxView x:Name="InnerLeftGuide" WidthRequest="8" Color="#FFD60A" Opacity="0.92"
-                                             HorizontalOptions="Start" VerticalOptions="Fill">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnInnerLeftPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="InnerRightGuide" WidthRequest="8" Color="#FFD60A" Opacity="0.92"
-                                             HorizontalOptions="Start" VerticalOptions="Fill">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnInnerRightPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="InnerTopGuide" HeightRequest="8" Color="#FFD60A" Opacity="0.92"
-                                             HorizontalOptions="Fill" VerticalOptions="Start">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnInnerTopPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
-                                    <BoxView x:Name="InnerBottomGuide" HeightRequest="8" Color="#FFD60A" Opacity="0.92"
-                                             HorizontalOptions="Fill" VerticalOptions="Start">
-                                        <BoxView.GestureRecognizers>
-                                            <PanGestureRecognizer PanUpdated="OnInnerBottomPanUpdated" />
-                                        </BoxView.GestureRecognizers>
-                                    </BoxView>
+                                    <BoxView x:Name="InnerLeftGuide" WidthRequest="1" ScaleX="0.35" Color="#FFD60A" Opacity="0.98"
+                                             HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                                    <BoxView x:Name="InnerRightGuide" WidthRequest="1" ScaleX="0.35" Color="#FFD60A" Opacity="0.98"
+                                             HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                                    <BoxView x:Name="InnerTopGuide" HeightRequest="1" ScaleY="0.35" Color="#FFD60A" Opacity="0.98"
+                                             HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+                                    <BoxView x:Name="InnerBottomGuide" HeightRequest="1" ScaleY="0.35" Color="#FFD60A" Opacity="0.98"
+                                             HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
                                 </Grid>
                             </Border>
                         </Grid>
@@ -407,7 +375,7 @@
                                     FontSize="10" />
                         </Grid>
 
-                        <Label Text="Manual correction is optional. When unlocked, drag near the middle of a guide. Every movement immediately recalculates the left/right and top/bottom percentages. Nothing from this inspection is saved to your collection yet."
+                        <Label Text="Manual correction is optional. Tap ADJUST CENTERING to open the dedicated full-screen editor. The transformed card is locked in place; use the 8 sliders to move the hairline guides, then tap LOCK MANUAL LINES."
                                TextColor="#A5F3FC"
                                FontSize="10"
                                LineBreakMode="WordWrap" />
@@ -443,6 +411,109 @@
                 </Border>
             </VerticalStackLayout>
         </ScrollView>
+
+        <!-- Dedicated manual centering editor. It fully covers the normal page,
+             centers the transformed card, and uses sliders only. -->
+        <Grid x:Name="ManualCenteringOverlay"
+              Grid.RowSpan="3"
+              ZIndex="100"
+              IsVisible="False"
+              BackgroundColor="#FF050814"
+              Padding="12"
+              RowDefinitions="Auto,*,Auto">
+            <VerticalStackLayout Grid.Row="0" Spacing="2">
+                <Label Text="ADJUST CENTERING"
+                       TextColor="#F9FAFB"
+                       FontSize="19"
+                       FontAttributes="Bold" />
+                <Label Text="The TrueForm card is centered and locked. GREEN = physical card edges • YELLOW = printed/image edges. Use only the 8 sliders below."
+                       TextColor="#CFFAFE"
+                       FontSize="10"
+                       LineBreakMode="WordWrap" />
+            </VerticalStackLayout>
+
+            <Grid Grid.Row="1" RowDefinitions="*,Auto" RowSpacing="6" Padding="0,5,0,5">
+                <Grid x:Name="ManualCenteringCardHost"
+                      Grid.Row="0"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill"
+                      SizeChanged="OnManualCenteringCardHostSizeChanged">
+                    <Border Stroke="#155E75"
+                            StrokeThickness="1"
+                            Background="Black"
+                            StrokeShape="RoundRectangle 10"
+                            Padding="0"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <Grid x:Name="ManualCenteringGuideSurface"
+                              WidthRequest="260"
+                              HeightRequest="364"
+                              IsClippedToBounds="True"
+                              SizeChanged="OnManualCenteringGuideSurfaceSizeChanged">
+                            <Image Source="{Binding MeasurementImageSource}"
+                                   Aspect="Fill"
+                                   HorizontalOptions="Fill"
+                                   VerticalOptions="Fill"
+                                   InputTransparent="True" />
+
+                            <BoxView x:Name="EditOuterLeftGuide" WidthRequest="1" ScaleX="0.35" Color="#00E676" Opacity="0.98" HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                            <BoxView x:Name="EditOuterRightGuide" WidthRequest="1" ScaleX="0.35" Color="#00E676" Opacity="0.98" HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                            <BoxView x:Name="EditOuterTopGuide" HeightRequest="1" ScaleY="0.35" Color="#00E676" Opacity="0.98" HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+                            <BoxView x:Name="EditOuterBottomGuide" HeightRequest="1" ScaleY="0.35" Color="#00E676" Opacity="0.98" HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+
+                            <BoxView x:Name="EditInnerLeftGuide" WidthRequest="1" ScaleX="0.35" Color="#FFD60A" Opacity="1" HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                            <BoxView x:Name="EditInnerRightGuide" WidthRequest="1" ScaleX="0.35" Color="#FFD60A" Opacity="1" HorizontalOptions="Start" VerticalOptions="Fill" InputTransparent="True" />
+                            <BoxView x:Name="EditInnerTopGuide" HeightRequest="1" ScaleY="0.35" Color="#FFD60A" Opacity="1" HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+                            <BoxView x:Name="EditInnerBottomGuide" HeightRequest="1" ScaleY="0.35" Color="#FFD60A" Opacity="1" HorizontalOptions="Fill" VerticalOptions="Start" InputTransparent="True" />
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <VerticalStackLayout Grid.Row="1" Spacing="3">
+                    <Label Text="GREEN — PHYSICAL CARD" TextColor="#86EFAC" FontSize="10" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Spacing="0"><Label Text="LEFT" TextColor="#DCFCE7" FontSize="9" /><Slider x:Name="EditOuterLeftSlider" Minimum="0" Maximum="749" AutomationId="OuterLeft" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Text="RIGHT" TextColor="#DCFCE7" FontSize="9" /><Slider x:Name="EditOuterRightSlider" Minimum="0" Maximum="749" AutomationId="OuterRight" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Spacing="0"><Label Text="TOP" TextColor="#DCFCE7" FontSize="9" /><Slider x:Name="EditOuterTopSlider" Minimum="0" Maximum="1049" AutomationId="OuterTop" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Text="BOTTOM" TextColor="#DCFCE7" FontSize="9" /><Slider x:Name="EditOuterBottomSlider" Minimum="0" Maximum="1049" AutomationId="OuterBottom" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                    </Grid>
+
+                    <Label Text="YELLOW — PRINTED / IMAGE" TextColor="#FDE68A" FontSize="10" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Spacing="0"><Label Text="LEFT" TextColor="#FEF3C7" FontSize="9" /><Slider x:Name="EditInnerLeftSlider" Minimum="0" Maximum="749" AutomationId="InnerLeft" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Text="RIGHT" TextColor="#FEF3C7" FontSize="9" /><Slider x:Name="EditInnerRightSlider" Minimum="0" Maximum="749" AutomationId="InnerRight" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Spacing="0"><Label Text="TOP" TextColor="#FEF3C7" FontSize="9" /><Slider x:Name="EditInnerTopSlider" Minimum="0" Maximum="1049" AutomationId="InnerTop" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Text="BOTTOM" TextColor="#FEF3C7" FontSize="9" /><Slider x:Name="EditInnerBottomSlider" Minimum="0" Maximum="1049" AutomationId="InnerBottom" ValueChanged="OnManualCenteringSliderValueChanged" /></VerticalStackLayout>
+                    </Grid>
+
+                    <Border Stroke="#1E7490" Background="#082F49" StrokeShape="RoundRectangle 8" Padding="6">
+                        <Grid ColumnDefinitions="*,*">
+                            <Label Text="{Binding HorizontalCenteringText}" TextColor="White" FontSize="11" FontAttributes="Bold" />
+                            <Label Grid.Column="1" Text="{Binding VerticalCenteringText}" TextColor="White" FontSize="11" HorizontalTextAlignment="End" FontAttributes="Bold" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Text="RESTORE AUTO"
+                        Clicked="OnManualCenteringRestoreAutoClicked"
+                        BackgroundColor="#334155"
+                        TextColor="White"
+                        CornerRadius="12" />
+                <Button Grid.Column="1"
+                        Text="LOCK MANUAL LINES"
+                        Clicked="OnManualCenteringLockClicked"
+                        BackgroundColor="#0F766E"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="12" />
+            </Grid>
+        </Grid>
 
         <controls:FuturisticNavBar Grid.Row="2" />
     </Grid>

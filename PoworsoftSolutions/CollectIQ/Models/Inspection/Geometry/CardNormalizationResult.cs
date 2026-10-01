@@ -20,5 +20,11 @@ namespace CollectIQ.Models.Inspection.Geometry
         public double GeometryConfidence { get; init; }
         public int NormalizedWidth { get; init; }
         public int NormalizedHeight { get; init; }
+
+        // Physical card location inside the padded TrueForm image.
+        public int NormalizedCardLeft { get; init; }
+        public int NormalizedCardRight { get; init; }
+        public int NormalizedCardTop { get; init; }
+        public int NormalizedCardBottom { get; init; }
     }
 }
