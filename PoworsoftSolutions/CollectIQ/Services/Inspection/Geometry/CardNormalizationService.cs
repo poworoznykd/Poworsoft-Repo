@@ -593,6 +593,176 @@ namespace CollectIQ.Services.Inspection.Geometry
             };
         }
 
+        public async Task<CardNormalizationResult> NormalizeFromRelativeCornersAsync(
+            string imagePath,
+            string outputDirectory,
+            CardPoint[] relativeCorners,
+            int normalizedWidth,
+            int normalizedHeight,
+            IProgress<CardNormalizationProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+                throw new FileNotFoundException("The inspection image could not be found.", imagePath);
+
+            if (relativeCorners == null || relativeCorners.Length != 4)
+                throw new InvalidOperationException("Exactly four manual card corners are required.");
+
+            CardPoint[] clamped = relativeCorners
+                .Select(p => new CardPoint(
+                    (float)Math.Clamp(p.X, 0.0, 1.0),
+                    (float)Math.Clamp(p.Y, 0.0, 1.0)))
+                .ToArray();
+
+            ValidateManualCornerQuadrilateral(clamped);
+
+            Directory.CreateDirectory(outputDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_LOAD",
+                Message = "Using your four physical-card corners…"
+            });
+
+            using ImageSharpImage source = SixLabors.ImageSharp.Image.Load<Rgba32>(imagePath);
+            source.Mutate(x => x.AutoOrient());
+
+            CardPoint[] sourceCorners = clamped
+                .Select(p => new CardPoint(
+                    p.X * (source.Width - 1),
+                    p.Y * (source.Height - 1)))
+                .ToArray();
+
+            using ImageSharpImage working = CreateBoundedPreview(source, WorkingMaximumDimension);
+            CardPoint[] workingCorners = ScaleCorners(
+                sourceCorners,
+                source.Width,
+                source.Height,
+                working.Width,
+                working.Height);
+
+            string detectionOverlayPath = Path.Combine(
+                outputDirectory,
+                "manual_corner_card_lock_view.jpg");
+
+            using (ImageSharpImage detectionOverlay = working.Clone())
+            {
+                DrawDetectedCardOverlay(
+                    detectionOverlay,
+                    workingCorners,
+                    new Rgba32(0, 255, 70, 255));
+
+                await using FileStream overlayStream = File.Create(detectionOverlayPath);
+                await detectionOverlay.SaveAsync(
+                    overlayStream,
+                    new JpegEncoder { Quality = 92 },
+                    cancellationToken);
+            }
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_CARD_LOCK_COMPLETE",
+                Message = "Manual Card Lock complete. Your four selected corners are exactly what TrueForm will flatten.",
+                CardLockImagePath = detectionOverlayPath
+            });
+
+            await Task.Delay(100, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string normalizedPath = Path.Combine(
+                outputDirectory,
+                "manual_corner_normalized_card.png");
+
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_TRUEFORM",
+                Message = "Flattening your four selected corners into TrueForm View…"
+            });
+
+            WarpPerspectiveWithOpenCv(
+                working,
+                workingCorners,
+                normalizedWidth,
+                normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
+                normalizedPath,
+                cancellationToken);
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_TRUEFORM_COMPLETE",
+                Message = "TrueForm created from your four corners. Measuring centering next…",
+                CardLockImagePath = detectionOverlayPath,
+                TrueFormImagePath = normalizedPath
+            });
+
+            return new CardNormalizationResult
+            {
+                SourcePreviewPath = imagePath,
+                DetectionOverlayPath = detectionOverlayPath,
+                NormalizedImagePath = normalizedPath,
+                SourceCorners = sourceCorners,
+                GeometryConfidence = 1.0,
+                NormalizedWidth = normalizedWidth,
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
+            };
+        }
+
+        private static void ValidateManualCornerQuadrilateral(CardPoint[] points)
+        {
+            static double Cross(CardPoint a, CardPoint b, CardPoint c) =>
+                ((b.X - a.X) * (c.Y - b.Y)) - ((b.Y - a.Y) * (c.X - b.X));
+
+            static double Distance(CardPoint a, CardPoint b)
+            {
+                double dx = b.X - a.X;
+                double dy = b.Y - a.Y;
+                return Math.Sqrt((dx * dx) + (dy * dy));
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (Distance(points[i], points[(i + 1) % 4]) < 0.05)
+                    throw new InvalidOperationException("Two selected card corners are too close together.");
+            }
+
+            double c0 = Cross(points[0], points[1], points[2]);
+            double c1 = Cross(points[1], points[2], points[3]);
+            double c2 = Cross(points[2], points[3], points[0]);
+            double c3 = Cross(points[3], points[0], points[1]);
+
+            bool allPositive = c0 > 0 && c1 > 0 && c2 > 0 && c3 > 0;
+            bool allNegative = c0 < 0 && c1 < 0 && c2 < 0 && c3 < 0;
+            if (!allPositive && !allNegative)
+                throw new InvalidOperationException("The four card corners cross or are out of order. Use Top Left, Top Right, Bottom Right, Bottom Left.");
+
+            double area = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                CardPoint a = points[i];
+                CardPoint b = points[(i + 1) % 4];
+                area += (a.X * b.Y) - (b.X * a.Y);
+            }
+
+            if (Math.Abs(area) * 0.5 < 0.03)
+                throw new InvalidOperationException("The selected card area is too small. Tap the four outside corners of the physical card.");
+        }
+
         private static ImageSharpImage CreateBoundedPreview(ImageSharpImage source, int maximumDimension)
         {
             int largest = Math.Max(source.Width, source.Height);

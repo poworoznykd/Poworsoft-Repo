@@ -788,6 +788,159 @@ namespace CollectIQ.Views
             }
         }
 
+        /// <summary>
+        /// Continues Centering from four user-selected physical-card corners.
+        /// The automatic detector is not rerun; the supplied TL, TR, BR, BL
+        /// quadrilateral becomes the Card Lock sent directly into TrueForm.
+        /// </summary>
+        public async Task ContinueWithManualOuterCornersAsync(CardPoint[] relativeCorners)
+        {
+            if (IsBusy ||
+                string.IsNullOrWhiteSpace(selectedImagePath) ||
+                !File.Exists(selectedImagePath))
+                return;
+
+            IsBusy = true;
+            HasAnalysis = false;
+
+            string manualOutputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "Centering",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_manual_corners");
+
+            Directory.CreateDirectory(manualOutputDirectory);
+            outputDirectory = manualOutputDirectory;
+
+            try
+            {
+                AnalysisStageText = "Using your four physical-card corners…";
+                StatusMessage = "Creating Card Lock and TrueForm directly from your selected corners…";
+
+                Progress<CardNormalizationProgress> progressReporter = new(progress =>
+                {
+                    AnalysisStageText = progress.Message;
+                    StatusMessage = progress.Message;
+
+                    if (!string.IsNullOrWhiteSpace(progress.CardLockImagePath) &&
+                        File.Exists(progress.CardLockImagePath))
+                    {
+                        CardLockImageSource = ImageSource.FromFile(progress.CardLockImagePath);
+                        HasCardLockImage = true;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(progress.TrueFormImagePath) &&
+                        File.Exists(progress.TrueFormImagePath))
+                    {
+                        TrueFormImageSource = ImageSource.FromFile(progress.TrueFormImagePath);
+                        HasTrueFormImage = true;
+                    }
+                });
+
+                CardNormalizationResult normalized = await InspectionExecution.RunAsync(
+                    "Centering",
+                    "Manual four-corner normalization",
+                    cancellationToken => normalizationService.NormalizeFromRelativeCornersAsync(
+                        selectedImagePath,
+                        manualOutputDirectory,
+                        relativeCorners,
+                        CanonicalWidth,
+                        CanonicalHeight,
+                        progressReporter,
+                        cancellationToken),
+                    TimeSpan.FromSeconds(120));
+
+                rawDisplayPath = normalized.SourcePreviewPath;
+                orientedFullImagePath = normalized.SourcePreviewPath;
+                canonicalImagePath = normalized.NormalizedImagePath;
+                detectedOuterCorners = normalized.SourceCorners;
+
+                CardImageSource = ImageSource.FromFile(selectedImagePath);
+                OriginalImageSource = ImageSource.FromFile(selectedImagePath);
+                CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                HasCardLockImage = true;
+                TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasTrueFormImage = true;
+
+                AnalysisStageText = "Measuring printed/image frame on TrueForm…";
+
+                using ImageSharpImage canonical =
+                    SixLabors.ImageSharp.Image.Load<Rgba32>(canonicalImagePath);
+
+                float[] gray = ExtractLuminance(canonical);
+                baseMeasurement = EstimateCentering(
+                    gray,
+                    normalized.NormalizedCardLeft,
+                    normalized.NormalizedCardRight,
+                    normalized.NormalizedCardTop,
+                    normalized.NormalizedCardBottom,
+                    alternatePass: false);
+
+                if (!baseMeasurement.Success)
+                {
+                    baseMeasurement = EstimateCentering(
+                        gray,
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom,
+                        alternatePass: true);
+                }
+
+                if (!baseMeasurement.Success)
+                {
+                    baseMeasurement = CreateFallbackMeasurement(
+                        normalized.NormalizedCardLeft,
+                        normalized.NormalizedCardRight,
+                        normalized.NormalizedCardTop,
+                        normalized.NormalizedCardBottom);
+                }
+
+                ResetAdjustments();
+                currentMeasurement = baseMeasurement.Clone();
+                RecalculateFromGuideLines();
+
+                HasAnalysis = true;
+                NeedsManualOuterCard = false;
+                IsManualMode = false;
+                RaiseCanExecutes();
+
+                MeasurementImageSource = ImageSource.FromFile(canonicalImagePath);
+                HasMeasurementImage = true;
+                NotifyGuidePositionsChanged();
+                UpdateDisplayedMeasurements();
+
+                AnalysisStageText = "Centering complete from your four manual card corners.";
+                StatusMessage =
+                    "TrueForm was created from your four selected physical-card corners. Fine-tune the final green/yellow measurement lines in the 8-slider editor.";
+            }
+            catch (TimeoutException ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Centering",
+                    "MANUAL FOUR-CORNER NORMALIZATION TIMEOUT",
+                    exception: ex);
+
+                NeedsManualOuterCard = true;
+                StatusMessage =
+                    $"The four-corner transform did not finish while: {AnalysisStageText}. Your selected corners can be adjusted and retried.";
+            }
+            catch (Exception ex)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Centering",
+                    "MANUAL FOUR-CORNER NORMALIZATION FAILED",
+                    exception: ex);
+
+                NeedsManualOuterCard = true;
+                StatusMessage =
+                    $"Could not create TrueForm from the four selected corners: {ex.Message}";
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
         private void ExecuteToggleOverlay()
         {
             if (!HasAnalysis) return;

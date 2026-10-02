@@ -34,5 +34,19 @@ namespace CollectIQ.Interfaces
             int normalizedHeight,
             IProgress<CardNormalizationProgress>? progress = null,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Creates the normalized card from four user-selected physical-card
+        /// corners in TL, TR, BR, BL order. Coordinates are relative 0..1 in
+        /// the visually auto-oriented source image.
+        /// </summary>
+        Task<CardNormalizationResult> NormalizeFromRelativeCornersAsync(
+            string imagePath,
+            string outputDirectory,
+            CardPoint[] relativeCorners,
+            int normalizedWidth,
+            int normalizedHeight,
+            IProgress<CardNormalizationProgress>? progress = null,
+            CancellationToken cancellationToken = default);
     }
 }
