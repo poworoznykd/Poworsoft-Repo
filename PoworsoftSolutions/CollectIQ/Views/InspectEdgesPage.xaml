@@ -7,7 +7,7 @@
              BackgroundColor="#050814" Title="Edges">
     <Grid RowDefinitions="Auto,*,Auto">
         <controls:AppModeToggleBar Grid.Row="0" />
-        <ScrollView Grid.Row="1">
+        <ScrollView x:Name="BoundaryScroll" Grid.Row="1">
             <VerticalStackLayout Padding="20" Spacing="14">
                 <Label Text="EDGE INSPECTION" TextColor="#FBBF24" FontSize="22" FontAttributes="Bold" />
                 <Border Stroke="#FBBF24" StrokeThickness="1" Background="#0F172A" StrokeShape="RoundRectangle 16" Padding="14">
@@ -16,7 +16,7 @@
                         <Label Text="1. Put one card flat on a plain contrasting background.&#10;2. Keep the complete card and all four outer edges visible.&#10;3. Keep the phone as square to the card as practical.&#10;4. Tap CAPTURE. CollectIQ uses the same outer-card detector as Centering, rectifies the card, then analyzes only the four physical edge bands." TextColor="#CBD5E1" FontSize="12" />
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="#FBBF24" StrokeThickness="2" Background="Black" StrokeShape="RoundRectangle 20" Padding="8">
+                <Border x:Name="CapturePanel" Stroke="#FBBF24" StrokeThickness="2" Background="Black" StrokeShape="RoundRectangle 20" Padding="8">
                     <Grid RowDefinitions="390,Auto" RowSpacing="8">
                         <Grid>
                             <toolkit:CameraView x:Name="InspectionCameraView" BackgroundColor="Black" CameraFlashMode="Off" />
@@ -35,6 +35,84 @@
                         </Grid>
                     </Grid>
                 </Border>
+
+                <Border x:Name="ManualCornerPanel"
+                        IsVisible="False"
+                        Stroke="#22C55E"
+                        StrokeThickness="2"
+                        Background="#07130C"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="12">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="4-CORNER CARD LOCK"
+                               TextColor="#86EFAC"
+                               FontSize="16"
+                               FontAttributes="Bold" />
+                        <Label x:Name="ManualCornerInstructionLabel"
+                               Text="Pinch to zoom, drag to pan, then tap TOP LEFT on the physical card."
+                               TextColor="#DCFCE7"
+                               FontSize="12"
+                               LineBreakMode="WordWrap" />
+
+                        <Grid x:Name="ManualCornerPickerSurface"
+                              HeightRequest="520"
+                              HorizontalOptions="Fill"
+                              IsClippedToBounds="True"
+                              BackgroundColor="#020617"
+                              SizeChanged="OnManualCornerPickerSurfaceSizeChanged">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnManualCornerPickerTapped" />
+                                <PinchGestureRecognizer PinchUpdated="OnManualCornerPickerPinchUpdated" />
+                                <PanGestureRecognizer PanUpdated="OnManualCornerPickerPanUpdated" />
+                            </Grid.GestureRecognizers>
+
+                            <Grid x:Name="ManualCornerTransformLayer"
+                                  HorizontalOptions="Fill"
+                                  VerticalOptions="Fill"
+                                  InputTransparent="True">
+                                <Image x:Name="ManualCornerImage"
+                                       Aspect="Fill"
+                                       HorizontalOptions="Fill"
+                                       VerticalOptions="Fill"
+                                       InputTransparent="True" />
+                                <GraphicsView x:Name="ManualCornerPickerOverlay"
+                                              InputTransparent="True" />
+                            </Grid>
+
+                            <Border HorizontalOptions="End" VerticalOptions="Start" Margin="8" Padding="7,4"
+                                    BackgroundColor="#B3020612" Stroke="#475569" StrokeShape="RoundRectangle 10" InputTransparent="True">
+                                <Label Text="PINCH TO ZOOM • DRAG TO PAN • TAP TO SET" TextColor="#E2E8F0" FontSize="9" />
+                            </Border>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label Text="Zoom tightly into each physical corner before tapping. The yellow points stay registered to the original image."
+                                   TextColor="#BBF7D0" FontSize="10" VerticalTextAlignment="Center" LineBreakMode="WordWrap" />
+                            <Button Grid.Column="1" Text="RESET VIEW" Clicked="OnResetManualCornerViewClicked"
+                                    CornerRadius="12" BackgroundColor="#334155" TextColor="White" FontSize="9" Padding="8,6" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="5">
+                            <Button Text="TOP LEFT" CommandParameter="0" Clicked="OnManualCornerSelectionClicked" CornerRadius="12" BackgroundColor="#334155" TextColor="White" FontSize="9" Padding="4,8" />
+                            <Button Grid.Column="1" Text="TOP RIGHT" CommandParameter="1" Clicked="OnManualCornerSelectionClicked" CornerRadius="12" BackgroundColor="#334155" TextColor="White" FontSize="9" Padding="4,8" />
+                            <Button Grid.Column="2" Text="BOTTOM RIGHT" CommandParameter="2" Clicked="OnManualCornerSelectionClicked" CornerRadius="12" BackgroundColor="#334155" TextColor="White" FontSize="9" Padding="4,8" />
+                            <Button Grid.Column="3" Text="BOTTOM LEFT" CommandParameter="3" Clicked="OnManualCornerSelectionClicked" CornerRadius="12" BackgroundColor="#334155" TextColor="White" FontSize="9" Padding="4,8" />
+                        </Grid>
+
+                        <Label Text="Yellow markers are the selected physical-card corners. Thin green lines show the exact quadrilateral used to flatten the card before edges inspection."
+                               TextColor="#BBF7D0" FontSize="10" LineBreakMode="WordWrap" />
+
+                        <Button x:Name="ManualCornerUseButton"
+                                Text="USE THESE 4 CORNERS → ANALYZE"
+                                Clicked="OnUseManualCornersClicked"
+                                IsEnabled="False"
+                                CornerRadius="18"
+                                BackgroundColor="#15803D"
+                                TextColor="White"
+                                FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+
                 <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" Color="#FBBF24" />
                 <Label x:Name="SummaryLabel" Text="Capture a card to begin." TextColor="#CBD5E1" FontSize="12" />
                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">

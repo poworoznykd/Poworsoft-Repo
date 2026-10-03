@@ -7,89 +7,151 @@
              BackgroundColor="#050814" Title="Corners">
     <Grid RowDefinitions="Auto,*,Auto">
         <controls:AppModeToggleBar Grid.Row="0" />
-        <ScrollView Grid.Row="1">
+
+        <ScrollView x:Name="CornerScroll" Grid.Row="1">
             <VerticalStackLayout Padding="20" Spacing="14">
                 <Label Text="CORNER INSPECTION" TextColor="#C084FC" FontSize="22" FontAttributes="Bold" />
+
                 <Border Stroke="#C084FC" StrokeThickness="1" Background="#0F172A" StrokeShape="RoundRectangle 16" Padding="14">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="HOW TO CAPTURE" FontAttributes="Bold" TextColor="White" />
-                        <Label Text="1. Put one card flat on a plain contrasting background.&#10;2. Keep the complete card and all four outer edges visible.&#10;3. Keep the phone as square to the card as practical.&#10;4. Tap CAPTURE. CollectIQ uses the same outer-card detector as Centering, rectifies the card, then analyzes only the four physical corners." TextColor="#CBD5E1" FontSize="12" />
+                    <VerticalStackLayout Spacing="7">
+                        <Label Text="ONE CORNER • ONE CLOSE-UP" FontAttributes="Bold" TextColor="White" />
+                        <Label Text="Choose the physical corner, move in close, and keep both card edges visible. CollectIQ analyzes the close-up for shape loss/rounding, fraying, whitening/chipping, crush/bend, missing material and localized deformation. Repeat for the other corners if you want all four checked."
+                               TextColor="#CBD5E1" FontSize="12" LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="#C084FC" StrokeThickness="2" Background="Black" StrokeShape="RoundRectangle 20" Padding="8">
-                    <Grid RowDefinitions="390,Auto" RowSpacing="8">
+
+                <Label Text="1  CHOOSE THE CORNER" TextColor="#C084FC" FontAttributes="Bold" FontSize="14" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                    <Button x:Name="TopLeftButton" Text="TOP LEFT" CommandParameter="TopLeft" Clicked="OnCornerSelected" BackgroundColor="#7E22CE" TextColor="White" CornerRadius="14" />
+                    <Button x:Name="TopRightButton" Grid.Column="1" Text="TOP RIGHT" CommandParameter="TopRight" Clicked="OnCornerSelected" BackgroundColor="#334155" TextColor="White" CornerRadius="14" />
+                    <Button x:Name="BottomLeftButton" Grid.Row="1" Text="BOTTOM LEFT" CommandParameter="BottomLeft" Clicked="OnCornerSelected" BackgroundColor="#334155" TextColor="White" CornerRadius="14" />
+                    <Button x:Name="BottomRightButton" Grid.Row="1" Grid.Column="1" Text="BOTTOM RIGHT" CommandParameter="BottomRight" Clicked="OnCornerSelected" BackgroundColor="#334155" TextColor="White" CornerRadius="14" />
+                </Grid>
+
+                <Border x:Name="CapturePanel" Stroke="#C084FC" StrokeThickness="2" Background="Black" StrokeShape="RoundRectangle 20" Padding="8">
+                    <Grid RowDefinitions="430,Auto" RowSpacing="8">
                         <Grid>
                             <toolkit:CameraView x:Name="InspectionCameraView" BackgroundColor="Black" CameraFlashMode="Off" />
-                            <Image x:Name="ResultImage"
-                                   Aspect="AspectFit"
-                                   Margin="18"
+
+                            <Grid x:Name="CornerGuide" Margin="35" InputTransparent="True">
+                                <Border Stroke="#C084FC" StrokeThickness="2" BackgroundColor="#09000000" StrokeShape="RoundRectangle 18" />
+                                <AbsoluteLayout x:Name="CornerGuideCanvas" WidthRequest="260" HeightRequest="260" HorizontalOptions="Center" VerticalOptions="Center">
+                                    <BoxView x:Name="GuideHorizontalLine" Color="#FDE047" />
+                                    <BoxView x:Name="GuideVerticalLine" Color="#FDE047" />
+                                    <Border x:Name="GuideCornerMarker" WidthRequest="28" HeightRequest="28" BackgroundColor="#30FDE047" Stroke="#FDE047" StrokeThickness="2" StrokeShape="RoundRectangle 14" />
+                                </AbsoluteLayout>
+                            </Grid>
+
+                            <Label x:Name="CameraStatusLabel"
+                                   Text="Starting camera…"
+                                   TextColor="White"
+                                   BackgroundColor="#D0050814"
+                                   Padding="8"
                                    HorizontalOptions="Fill"
-                                   VerticalOptions="Fill"
-                                   IsVisible="False" />
-                            <Border x:Name="CameraGuide" Margin="45,30" Stroke="#C084FC" StrokeThickness="3" BackgroundColor="#05000000" StrokeShape="RoundRectangle 16" InputTransparent="True" />
-                            <Label x:Name="CameraStatusLabel" Text="Starting camera…" TextColor="White" BackgroundColor="#C0050814" Padding="8" HorizontalOptions="Fill" HorizontalTextAlignment="Center" VerticalOptions="Start" Margin="8" />
+                                   HorizontalTextAlignment="Center"
+                                   VerticalOptions="Start"
+                                   Margin="8" />
+
+                            <Label x:Name="SelectedCornerOverlayLabel"
+                                   Text="TOP LEFT"
+                                   TextColor="#FDE047"
+                                   FontAttributes="Bold"
+                                   BackgroundColor="#B0050814"
+                                   Padding="8,5"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="End"
+                                   Margin="8" />
                         </Grid>
+
                         <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
-                            <Button x:Name="CaptureButton" Text="● CAPTURE" Clicked="OnCaptureClicked" BackgroundColor="#C084FC" TextColor="White" CornerRadius="20" />
+                            <Button x:Name="CaptureButton" Text="● CAPTURE CLOSE-UP" Clicked="OnCaptureClicked" BackgroundColor="#C084FC" TextColor="White" CornerRadius="20" />
                             <Button Grid.Column="1" Text="LOAD PHOTO" Clicked="OnLoadPhotoClicked" BackgroundColor="#334155" TextColor="White" CornerRadius="20" />
                         </Grid>
                     </Grid>
                 </Border>
-                <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" Color="#C084FC" />
-                <Label x:Name="SummaryLabel" Text="Capture a card to begin." TextColor="#CBD5E1" FontSize="12" />
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
-                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="10"><VerticalStackLayout><Label Text="TOP LEFT" TextColor="White" FontAttributes="Bold"/><Label x:Name="Score1" Text="—" TextColor="#CBD5E1"/></VerticalStackLayout></Border>
-                    <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10"><VerticalStackLayout><Label Text="TOP RIGHT" TextColor="White" FontAttributes="Bold"/><Label x:Name="Score2" Text="—" TextColor="#CBD5E1"/></VerticalStackLayout></Border>
-                    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="10"><VerticalStackLayout><Label Text="BOTTOM LEFT" TextColor="White" FontAttributes="Bold"/><Label x:Name="Score3" Text="—" TextColor="#CBD5E1"/></VerticalStackLayout></Border>
-                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10"><VerticalStackLayout><Label Text="BOTTOM RIGHT" TextColor="White" FontAttributes="Bold"/><Label x:Name="Score4" Text="—" TextColor="#CBD5E1"/></VerticalStackLayout></Border>
-                </Grid>
-                <Border Stroke="#155E75" StrokeThickness="1" Background="#071C2A" StrokeShape="RoundRectangle 16" Padding="10">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="FULL CARD CORNER OVERVIEW" TextColor="#67E8F9" FontAttributes="Bold" FontSize="12" />
-                        <Label Text="The whole normalized card stays visible with padding around every physical edge. Closeups below are supplemental only." TextColor="#94A3B8" FontSize="10" />
-                        <Image x:Name="AnalysisImage" Aspect="AspectFit" MaximumHeightRequest="620" />
-                    </VerticalStackLayout>
-                </Border>
 
-                <Label Text="EXTREME CORNER CLOSEUPS" TextColor="#C084FC" FontAttributes="Bold" FontSize="15" />
-                <Border Stroke="#334155" StrokeThickness="1" Background="#0B1220" StrokeShape="RoundRectangle 12" Padding="10">
+                <Border Stroke="#334155" StrokeThickness="1" Background="#0B1220" StrokeShape="RoundRectangle 14" Padding="11">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="HOW TO READ THESE CLOSEUPS" TextColor="#C084FC" FontAttributes="Bold" FontSize="11" />
-                        <Label Text="The detector examines only the physical outer corner boundary and compares it with nearby card material. A box appears only when the response clears the screening threshold. Green/low = weak, yellow/orange = possible, red = strong. The text below each image explains exactly what triggered the response and whether it is likely damage or probably normal border/lighting." TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
+                        <Label Text="CAPTURE TIP" TextColor="#FDE047" FontAttributes="Bold" FontSize="11" />
+                        <Label Text="Place the physical corner at the yellow circle and align its two card edges with the yellow L. Leave plain background visible outside both edges. Keep the card flat, avoid glare, and make sure the surface is sharply focused."
+                               TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Style="{StaticResource AuroraGlassBorder}" Padding="10">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="TOP LEFT" TextColor="White" FontAttributes="Bold" />
-                        <Image x:Name="TopLeftCloseupImage" Aspect="AspectFit" MaximumHeightRequest="320" />
-                        <Label x:Name="TopLeftExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Style="{StaticResource AuroraGlassBorder}" Padding="10">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="TOP RIGHT" TextColor="White" FontAttributes="Bold" />
-                        <Image x:Name="TopRightCloseupImage" Aspect="AspectFit" MaximumHeightRequest="320" />
-                        <Label x:Name="TopRightExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Style="{StaticResource AuroraGlassBorder}" Padding="10">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="BOTTOM LEFT" TextColor="White" FontAttributes="Bold" />
-                        <Image x:Name="BottomLeftCloseupImage" Aspect="AspectFit" MaximumHeightRequest="320" />
-                        <Label x:Name="BottomLeftExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Style="{StaticResource AuroraGlassBorder}" Padding="10">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="BOTTOM RIGHT" TextColor="White" FontAttributes="Bold" />
-                        <Image x:Name="BottomRightCloseupImage" Aspect="AspectFit" MaximumHeightRequest="320" />
-                        <Label x:Name="BottomRightExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="10" LineBreakMode="WordWrap" />
-                    </VerticalStackLayout>
-                </Border>
-                <Label Text="These are machine-vision screening scores, not a final grade. Confirm suspected whitening, chipping, fraying, rounding or roughness against the physical card." TextColor="#94A3B8" FontSize="10" />
+                <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" Color="#C084FC" />
+                <Label x:Name="SummaryLabel" Text="Select a corner and capture a close-up." TextColor="#CBD5E1" FontSize="12" LineBreakMode="WordWrap" />
+
+                <VerticalStackLayout x:Name="ResultPanel" IsVisible="False" Spacing="12">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <Border Stroke="#C084FC" StrokeThickness="2" Background="#16102A" StrokeShape="RoundRectangle 18" Padding="14" WidthRequest="125">
+                            <VerticalStackLayout HorizontalOptions="Center" Spacing="2">
+                                <Label Text="CONDITION" TextColor="#CBD5E1" FontSize="10" HorizontalTextAlignment="Center" />
+                                <Label x:Name="OverallScoreLabel" Text="—" TextColor="White" FontSize="30" FontAttributes="Bold" HorizontalTextAlignment="Center" />
+                                <Label Text="/ 100" TextColor="#94A3B8" FontSize="10" HorizontalTextAlignment="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="4">
+                            <Label x:Name="ResultCornerLabel" Text="TOP LEFT" TextColor="#C084FC" FontSize="16" FontAttributes="Bold" />
+                            <Label x:Name="CaptureQualityLabel" Text="Capture quality —" TextColor="#67E8F9" FontSize="10" />
+                            <Label x:Name="ResultSummaryLabel" Text="" TextColor="#E2E8F0" FontSize="11" LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Border Stroke="#155E75" StrokeThickness="1" Background="#071C2A" StrokeShape="RoundRectangle 16" Padding="10">
+                        <VerticalStackLayout Spacing="7">
+                            <Label Text="DETECTED CORNER GEOMETRY" TextColor="#67E8F9" FontAttributes="Bold" FontSize="12" />
+                            <Label Text="Green lines are shown only after CollectIQ has verified that both fits behave like the two physical card edges. The marker shows their predicted original intersection."
+                                   TextColor="#94A3B8" FontSize="10" LineBreakMode="WordWrap" />
+                            <Image x:Name="AnalysisImage" Aspect="AspectFit" MaximumHeightRequest="520" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label Text="DEFECT BREAKDOWN" TextColor="#C084FC" FontAttributes="Bold" FontSize="14" />
+
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="SHAPE / ROUNDING" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="ShapeScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="ShapeExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="FRAYING / FUZZING" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="FrayingScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="FrayingExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="WHITENING / CHIPPING" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="WhiteningScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="WhiteningExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="CRUSH / BEND" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="CrushScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="CrushExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="MISSING MATERIAL" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="MissingScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="MissingExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="10">
+                            <VerticalStackLayout><Label Text="LOCAL DEFORMATION" TextColor="White" FontAttributes="Bold" FontSize="10"/><Label x:Name="DeformationScoreLabel" Text="—" TextColor="#67E8F9" FontSize="18" FontAttributes="Bold"/><Label x:Name="DeformationExplanationLabel" Text="" TextColor="#CBD5E1" FontSize="9" LineBreakMode="WordWrap"/></VerticalStackLayout>
+                        </Border>
+                    </Grid>
+
+                    <Border Stroke="#334155" StrokeThickness="1" Background="#0B1220" StrokeShape="RoundRectangle 14" Padding="10">
+                        <VerticalStackLayout Spacing="5">
+                            <Label Text="THIS SESSION" TextColor="#C084FC" FontAttributes="Bold" FontSize="11" />
+                            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                                <Label x:Name="TopLeftSessionLabel" Text="TL —" TextColor="#CBD5E1" FontSize="10" HorizontalTextAlignment="Center" />
+                                <Label x:Name="TopRightSessionLabel" Grid.Column="1" Text="TR —" TextColor="#CBD5E1" FontSize="10" HorizontalTextAlignment="Center" />
+                                <Label x:Name="BottomRightSessionLabel" Grid.Column="2" Text="BR —" TextColor="#CBD5E1" FontSize="10" HorizontalTextAlignment="Center" />
+                                <Label x:Name="BottomLeftSessionLabel" Grid.Column="3" Text="BL —" TextColor="#CBD5E1" FontSize="10" HorizontalTextAlignment="Center" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Text="↻ RETAKE THIS CORNER" Clicked="OnRetakeClicked" BackgroundColor="#334155" TextColor="White" CornerRadius="18" />
+                        <Button Grid.Column="1" Text="NEXT CORNER →" Clicked="OnNextCornerClicked" BackgroundColor="#7E22CE" TextColor="White" CornerRadius="18" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <Label Text="Scores are machine-vision screening results from a single visible-light close-up, not a professional grading guarantee. Subtle bends or compression may require additional angled-light inspection later."
+                       TextColor="#94A3B8" FontSize="10" LineBreakMode="WordWrap" />
             </VerticalStackLayout>
         </ScrollView>
+
         <controls:FuturisticNavBar Grid.Row="2" />
     </Grid>
 </ContentPage>
