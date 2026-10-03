@@ -1,53 +1,29 @@
-using System.Diagnostics;
-using CollectIQ.Interfaces;
-using CollectIQ.Models.Inspection.Geometry;
 using CollectIQ.Services.Inspection;
-using CollectIQ.Services.Inspection.Geometry;
 using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Views
 {
     public partial class InspectEdgesPage : ContentPage
     {
-        private readonly CardBoundaryInspectionService inspectionService;
+        private readonly SingleEdgeInspectionService inspectionService = new();
+        private readonly Dictionary<EdgePosition, double> sessionScores = new();
+        private EdgePosition selectedEdge = EdgePosition.Top;
         private bool cameraReady;
         private bool captureInProgress;
         private bool showingResult;
         private CancellationTokenSource? cameraCts;
 
-        private string? pendingManualImagePath;
-        private readonly Point?[] manualOuterCorners = new Point?[4];
-        private readonly ManualCornerDrawable manualCornerDrawable;
-        private int activeManualOuterCornerIndex;
-        private double manualCornerScale = 1.0;
-        private double manualCornerScaleAtGestureStart = 1.0;
-        private double manualCornerTranslationX;
-        private double manualCornerTranslationY;
-        private double manualCornerPanStartX;
-        private double manualCornerPanStartY;
-        private bool manualCornerPanMoved;
-        private DateTime manualCornerIgnoreTapUntilUtc = DateTime.MinValue;
-
-        private static readonly string[] ManualCornerNames =
-        {
-            "TOP LEFT", "TOP RIGHT", "BOTTOM RIGHT", "BOTTOM LEFT"
-        };
-
         public InspectEdgesPage()
         {
             InitializeComponent();
-            ICardGeometryService geometry = new CardGeometryService();
-            inspectionService = new CardBoundaryInspectionService(geometry);
-            manualCornerDrawable = new ManualCornerDrawable(manualOuterCorners);
-            ManualCornerPickerOverlay.Drawable = manualCornerDrawable;
+            UpdateSelectedEdgeUi();
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            if (!showingResult && !ManualCornerPanel.IsVisible)
+            if (!showingResult)
                 await RestartCameraAsync();
         }
 
@@ -94,11 +70,10 @@ namespace CollectIQ.Views
                 }
 
                 await InspectionCameraView.StartCameraPreview(cameraCts.Token);
-                await Task.Delay(350, cameraCts.Token);
+                await Task.Delay(300, cameraCts.Token);
                 cameraReady = true;
                 CaptureButton.IsEnabled = true;
-                CaptureButton.Text = "● CAPTURE";
-                CameraStatusLabel.Text = "Keep the entire physical card inside the guide.";
+                CameraStatusLabel.Text = $"Place the {selectedEdge.ToString().ToUpperInvariant()} physical edge anywhere inside the yellow band — BACKGROUND on one side, CARD on the other.";
             }
             catch (Exception ex)
             {
@@ -106,16 +81,21 @@ namespace CollectIQ.Views
             }
         }
 
+        private async void OnEdgeSelected(object sender, EventArgs e)
+        {
+            if (sender is not Button button || button.CommandParameter is not string value ||
+                !Enum.TryParse(value, true, out EdgePosition edge))
+                return;
+
+            selectedEdge = edge;
+            showingResult = false;
+            UpdateSelectedEdgeUi();
+            await RestartCameraAsync();
+        }
+
         private async void OnCaptureClicked(object sender, EventArgs e)
         {
             if (captureInProgress) return;
-            if (showingResult)
-            {
-                showingResult = false;
-                await RestartCameraAsync();
-                return;
-            }
-
             if (!cameraReady)
             {
                 await RestartCameraAsync();
@@ -128,12 +108,7 @@ namespace CollectIQ.Views
             {
                 using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
                 using Stream stream = await InspectionCameraView.CaptureImage(timeout.Token);
-                string dir = Path.Combine(FileSystem.AppDataDirectory, "BoundaryInspections", "Inputs");
-                Directory.CreateDirectory(dir);
-                string path = Path.Combine(dir, "edges_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + ".jpg");
-                await using (FileStream output = new(path, FileMode.Create, FileAccess.Write, FileShare.None))
-                    await stream.CopyToAsync(output);
-
+                string path = await SaveInputAsync(stream, "edge");
                 ReleaseCamera();
                 await AnalyzeAsync(path);
             }
@@ -155,59 +130,53 @@ namespace CollectIQ.Views
                 FileResult? photo = await MediaPicker.Default.PickPhotoAsync();
                 if (photo == null) return;
 
-                string dir = Path.Combine(FileSystem.AppDataDirectory, "BoundaryInspections", "Inputs");
-                Directory.CreateDirectory(dir);
-                string ext = Path.GetExtension(photo.FileName);
-                if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
-                string path = Path.Combine(dir, "edges_picked_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + ext);
                 await using Stream input = await photo.OpenReadAsync();
-                await using (FileStream output = new(path, FileMode.Create, FileAccess.Write, FileShare.None))
-                    await input.CopyToAsync(output);
-
+                string path = await SaveInputAsync(input, "edge_picked", Path.GetExtension(photo.FileName));
                 ReleaseCamera();
                 await AnalyzeAsync(path);
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Inspection", ex.Message, "OK");
+                await DisplayAlert("Edge inspection", ex.Message, "OK");
             }
+        }
+
+        private static async Task<string> SaveInputAsync(Stream input, string prefix, string? extension = null)
+        {
+            string dir = Path.Combine(FileSystem.AppDataDirectory, "EdgeInspections", "Inputs");
+            Directory.CreateDirectory(dir);
+            string ext = string.IsNullOrWhiteSpace(extension) ? ".jpg" : extension;
+            string path = Path.Combine(dir, $"{prefix}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}{ext}");
+            await using FileStream output = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await input.CopyToAsync(output);
+            return path;
         }
 
         private async Task AnalyzeAsync(string path)
         {
-            pendingManualImagePath = path;
-            await InspectionDiagnosticLogger.StartRunAsync("Edges", $"Input={path}");
-
+            await InspectionDiagnosticLogger.StartRunAsync("SingleEdge", $"Input={path}; Edge={selectedEdge}");
             BusyIndicator.IsVisible = true;
             BusyIndicator.IsRunning = true;
-            SummaryLabel.Text = "Finding the physical card with the Centering detector and analyzing the four physical edge bands…";
+            SummaryLabel.Text = $"Locking the {selectedEdge.ToString().ToUpperInvariant()} physical edge before grading…";
 
             try
             {
-                CardBoundaryInspectionResult r = await InspectionExecution.RunAsync(
-                    "Edges",
-                    "Boundary analysis",
-                    cancellationToken => inspectionService.AnalyzeAsync(path, cancellationToken),
-                    TimeSpan.FromSeconds(50));
+                SingleEdgeInspectionResult result = await InspectionExecution.RunAsync(
+                    "SingleEdge",
+                    "Close-up edge analysis",
+                    cancellationToken => inspectionService.AnalyzeAsync(path, selectedEdge, cancellationToken),
+                    TimeSpan.FromSeconds(35));
 
-                ApplyResult(r, false);
-            }
-            catch (CardBoundaryGeometryException ex)
-            {
-                await InspectionDiagnosticLogger.WriteAsync("Edges", "AUTO CARD LOCK FAILED - MANUAL FALLBACK", exception: ex);
-                showingResult = false;
-                ShowManualCornerPicker(path);
-                SummaryLabel.Text = "Automatic Card Lock could not confidently find the physical card. Set the four corners on the captured image, then CollectIQ will flatten the card and continue the edges inspection.";
+                sessionScores[selectedEdge] = result.OverallConditionScore;
+                ApplyResult(result);
             }
             catch (Exception ex)
             {
-                await InspectionDiagnosticLogger.WriteAsync("Edges", "ANALYSIS FAILED", exception: ex);
-                SummaryLabel.Text = ex is TimeoutException
-                    ? ex.Message + " The camera has been restored so you can retake the photo."
-                    : ex.Message;
-
+                await InspectionDiagnosticLogger.WriteAsync("SingleEdge", "ANALYSIS FAILED", exception: ex);
                 showingResult = false;
-                ShowCamera();
+                ResultPanel.IsVisible = false;
+                SummaryLabel.Text = ex.Message;
+                await DisplayAlert("Retake edge", ex.Message, "OK");
                 await RestartCameraAsync();
             }
             finally
@@ -215,351 +184,132 @@ namespace CollectIQ.Views
                 BusyIndicator.IsVisible = false;
                 BusyIndicator.IsRunning = false;
                 CaptureButton.IsEnabled = true;
-                await InspectionDiagnosticLogger.WriteAsync("Edges", "BUSY STATE RELEASED");
             }
         }
 
-        private void ApplyResult(CardBoundaryInspectionResult r, bool manualGeometry)
+        private void ApplyResult(SingleEdgeInspectionResult result)
         {
             showingResult = true;
-            ShowResult();
-            CaptureButton.Text = "↻ RETAKE";
-            CaptureButton.IsEnabled = true;
-                Score1.Text = Format(r.TopEdge);
-                Score2.Text = Format(r.RightEdge);
-                Score3.Text = Format(r.LeftEdge);
-                Score4.Text = Format(r.BottomEdge);
-                ResultImage.Source = ImageSource.FromFile(r.NormalizedImagePath);
-                AnalysisImage.Source = ImageSource.FromFile(r.EdgeOverlayPath);
-                TopEdgeCloseupImage.Source = ImageSource.FromFile(r.TopEdgeCloseupPath);
-                RightEdgeCloseupImage.Source = ImageSource.FromFile(r.RightEdgeCloseupPath);
-                BottomEdgeCloseupImage.Source = ImageSource.FromFile(r.BottomEdgeCloseupPath);
-                LeftEdgeCloseupImage.Source = ImageSource.FromFile(r.LeftEdgeCloseupPath);
-                TopEdgeExplanationLabel.Text = r.TopEdgeExplanation;
-                RightEdgeExplanationLabel.Text = r.RightEdgeExplanation;
-                BottomEdgeExplanationLabel.Text = r.BottomEdgeExplanation;
-                LeftEdgeExplanationLabel.Text = r.LeftEdgeExplanation;
-            SummaryLabel.Text = manualGeometry
-                ? "Card geometry was set manually. The flattened card is shown above; use the magnified strips to review the strongest machine-vision candidates."
-                : $"Physical card detected at {r.DetectionConfidence:0}% confidence. The full card remains visible above; use the magnified strips to inspect each highlighted candidate.";
-        }
-
-        private void ShowManualCornerPicker(string path)
-        {
-            ReleaseCamera();
-            CapturePanel.IsVisible = false;
-            ManualCornerPanel.IsVisible = true;
-            ManualCornerImage.Source = ImageSource.FromFile(path);
-            PrepareManualCornerPicker();
-        }
-
-        private void PrepareManualCornerPicker()
-        {
-            for (int i = 0; i < manualOuterCorners.Length; i++)
-                manualOuterCorners[i] = null;
-
-            activeManualOuterCornerIndex = 0;
-            ManualCornerUseButton.IsEnabled = false;
-            ManualCornerInstructionLabel.Text =
-                "Pinch to zoom, drag to pan, then tap TOP LEFT on the physical card.";
-            ResetManualCornerView();
-            ManualCornerPickerOverlay.Invalidate();
-        }
-
-        private void OnManualCornerSelectionClicked(object sender, EventArgs e)
-        {
-            if (sender is not Button button ||
-                button.CommandParameter is not string value ||
-                !int.TryParse(value, out int index) || index < 0 || index > 3)
-                return;
-
-            activeManualOuterCornerIndex = index;
-            ManualCornerInstructionLabel.Text = $"Tap {ManualCornerNames[index]} on the physical card.";
-        }
-
-        private void OnManualCornerPickerTapped(object sender, TappedEventArgs e)
-        {
-            if (!ManualCornerPanel.IsVisible ||
-                DateTime.UtcNow < manualCornerIgnoreTapUntilUtc ||
-                ManualCornerPickerSurface.Width <= 1 || ManualCornerPickerSurface.Height <= 1 ||
-                ManualCornerTransformLayer.Width <= 1 || ManualCornerTransformLayer.Height <= 1)
-                return;
-
-            Point? position = e.GetPosition(ManualCornerPickerSurface);
-            if (position is null) return;
-
-            double surfaceCenterX = ManualCornerPickerSurface.Width / 2.0;
-            double surfaceCenterY = ManualCornerPickerSurface.Height / 2.0;
-            double layerCenterX = ManualCornerTransformLayer.Width / 2.0;
-            double layerCenterY = ManualCornerTransformLayer.Height / 2.0;
-
-            double imageX = ((position.Value.X - surfaceCenterX - manualCornerTranslationX) / manualCornerScale) + layerCenterX;
-            double imageY = ((position.Value.Y - surfaceCenterY - manualCornerTranslationY) / manualCornerScale) + layerCenterY;
-
-            if (imageX < 0 || imageX > ManualCornerTransformLayer.Width ||
-                imageY < 0 || imageY > ManualCornerTransformLayer.Height)
-            {
-                ManualCornerInstructionLabel.Text =
-                    "That tap is outside the image. Pan the card into view and tap the physical corner again.";
-                return;
-            }
-
-            double x = Math.Clamp(imageX / ManualCornerTransformLayer.Width, 0.0, 1.0);
-            double y = Math.Clamp(imageY / ManualCornerTransformLayer.Height, 0.0, 1.0);
-            manualOuterCorners[activeManualOuterCornerIndex] = new Point(x, y);
-
-            bool complete = manualOuterCorners.All(p => p.HasValue);
-            ManualCornerUseButton.IsEnabled = complete;
-
-            if (!complete)
-            {
-                for (int offset = 1; offset <= 4; offset++)
-                {
-                    int candidate = (activeManualOuterCornerIndex + offset) % 4;
-                    if (!manualOuterCorners[candidate].HasValue)
-                    {
-                        activeManualOuterCornerIndex = candidate;
-                        break;
-                    }
-                }
-
-                ManualCornerInstructionLabel.Text =
-                    $"Corner saved. Zoom/pan as needed, then tap {ManualCornerNames[activeManualOuterCornerIndex]}.";
-            }
-            else
-            {
-                ManualCornerInstructionLabel.Text =
-                    "All four corners are set. Check the green quadrilateral, correct any named corner if needed, then analyze.";
-            }
-
-            ManualCornerPickerOverlay.Invalidate();
-        }
-
-        private async void OnUseManualCornersClicked(object sender, EventArgs e)
-        {
-            if (pendingManualImagePath == null || !manualOuterCorners.All(p => p.HasValue))
-                return;
-
-            CardPoint[] corners = manualOuterCorners
-                .Select(p => new CardPoint((float)p!.Value.X, (float)p.Value.Y))
-                .ToArray();
-
-            if (!IsValidManualQuad(corners))
-            {
-                ManualCornerInstructionLabel.Text =
-                    "Those four points do not form a valid card shape. Recheck TOP LEFT → TOP RIGHT → BOTTOM RIGHT → BOTTOM LEFT.";
-                return;
-            }
-
-            ManualCornerUseButton.IsEnabled = false;
-            BusyIndicator.IsVisible = true;
-            BusyIndicator.IsRunning = true;
-            SummaryLabel.Text = "Flattening the manually locked card and running the edges inspection…";
-
-            try
-            {
-                CardBoundaryInspectionResult r = await InspectionExecution.RunAsync(
-                    "Edges",
-                    "Manual boundary analysis",
-                    cancellationToken => inspectionService.AnalyzeWithNormalizedCornersAsync(pendingManualImagePath, corners, cancellationToken),
-                    TimeSpan.FromSeconds(50));
-
-                ApplyResult(r, true);
-            }
-            catch (Exception ex)
-            {
-                await InspectionDiagnosticLogger.WriteAsync("Edges", "MANUAL ANALYSIS FAILED", exception: ex);
-                ManualCornerInstructionLabel.Text = ex.Message;
-                SummaryLabel.Text = ex.Message;
-                ManualCornerUseButton.IsEnabled = true;
-            }
-            finally
-            {
-                BusyIndicator.IsVisible = false;
-                BusyIndicator.IsRunning = false;
-            }
-        }
-
-        private static bool IsValidManualQuad(IReadOnlyList<CardPoint> p)
-        {
-            if (p.Count != 4) return false;
-
-            double area = 0;
-            for (int i = 0; i < 4; i++)
-            {
-                CardPoint a = p[i];
-                CardPoint b = p[(i + 1) % 4];
-                area += (a.X * b.Y) - (b.X * a.Y);
-            }
-
-            if (Math.Abs(area) < 0.02) return false;
-
-            double? sign = null;
-            for (int i = 0; i < 4; i++)
-            {
-                CardPoint a = p[i];
-                CardPoint b = p[(i + 1) % 4];
-                CardPoint c = p[(i + 2) % 4];
-                double cross = ((b.X - a.X) * (c.Y - b.Y)) - ((b.Y - a.Y) * (c.X - b.X));
-                if (Math.Abs(cross) < 0.0001) continue;
-                double current = Math.Sign(cross);
-                sign ??= current;
-                if (current != sign.Value) return false;
-            }
-
-            return true;
-        }
-
-        private void OnManualCornerPickerSurfaceSizeChanged(object sender, EventArgs e)
-            => ApplyManualCornerTransform();
-
-        private void OnManualCornerPickerPinchUpdated(object sender, PinchGestureUpdatedEventArgs e)
-        {
-            if (!ManualCornerPanel.IsVisible) return;
-
-            if (e.Status == GestureStatus.Started)
-            {
-                manualCornerScaleAtGestureStart = manualCornerScale;
-                BoundaryScroll.Orientation = ScrollOrientation.Neither;
-                return;
-            }
-
-            if (e.Status == GestureStatus.Running)
-            {
-                manualCornerScale = Math.Clamp(manualCornerScaleAtGestureStart * e.Scale, 1.0, 8.0);
-                ClampManualCornerTranslation();
-                ApplyManualCornerTransform();
-                return;
-            }
-
-            BoundaryScroll.Orientation = ScrollOrientation.Vertical;
-            manualCornerIgnoreTapUntilUtc = DateTime.UtcNow.AddMilliseconds(180);
-        }
-
-        private void OnManualCornerPickerPanUpdated(object sender, PanUpdatedEventArgs e)
-        {
-            if (!ManualCornerPanel.IsVisible) return;
-
-            if (e.StatusType == GestureStatus.Started)
-            {
-                manualCornerPanStartX = manualCornerTranslationX;
-                manualCornerPanStartY = manualCornerTranslationY;
-                manualCornerPanMoved = false;
-                BoundaryScroll.Orientation = ScrollOrientation.Neither;
-                return;
-            }
-
-            if (e.StatusType == GestureStatus.Running)
-            {
-                if (Math.Abs(e.TotalX) > 3 || Math.Abs(e.TotalY) > 3)
-                    manualCornerPanMoved = true;
-
-                manualCornerTranslationX = manualCornerPanStartX + e.TotalX;
-                manualCornerTranslationY = manualCornerPanStartY + e.TotalY;
-                ClampManualCornerTranslation();
-                ApplyManualCornerTransform();
-                return;
-            }
-
-            BoundaryScroll.Orientation = ScrollOrientation.Vertical;
-            if (manualCornerPanMoved)
-                manualCornerIgnoreTapUntilUtc = DateTime.UtcNow.AddMilliseconds(180);
-        }
-
-        private void OnResetManualCornerViewClicked(object sender, EventArgs e)
-            => ResetManualCornerView();
-
-        private void ResetManualCornerView()
-        {
-            manualCornerScale = 1.0;
-            manualCornerScaleAtGestureStart = 1.0;
-            manualCornerTranslationX = 0;
-            manualCornerTranslationY = 0;
-            manualCornerPanStartX = 0;
-            manualCornerPanStartY = 0;
-            manualCornerPanMoved = false;
-            manualCornerIgnoreTapUntilUtc = DateTime.MinValue;
-            BoundaryScroll.Orientation = ScrollOrientation.Vertical;
-            ApplyManualCornerTransform();
-        }
-
-        private void ClampManualCornerTranslation()
-        {
-            if (ManualCornerPickerSurface.Width <= 1 || ManualCornerPickerSurface.Height <= 1)
-                return;
-
-            double maxX = Math.Max(0, (ManualCornerPickerSurface.Width * manualCornerScale - ManualCornerPickerSurface.Width) / 2.0);
-            double maxY = Math.Max(0, (ManualCornerPickerSurface.Height * manualCornerScale - ManualCornerPickerSurface.Height) / 2.0);
-            manualCornerTranslationX = Math.Clamp(manualCornerTranslationX, -maxX, maxX);
-            manualCornerTranslationY = Math.Clamp(manualCornerTranslationY, -maxY, maxY);
-        }
-
-        private void ApplyManualCornerTransform()
-        {
-            ManualCornerTransformLayer.Scale = manualCornerScale;
-            ManualCornerTransformLayer.TranslationX = manualCornerTranslationX;
-            ManualCornerTransformLayer.TranslationY = manualCornerTranslationY;
-        }
-
-        private static string Format(RegionScore s) => $"{s.DamageScore:0}/100 • {s.Label}";
-
-        private void ShowCamera()
-        {
-            CapturePanel.IsVisible = true;
-            ManualCornerPanel.IsVisible = false;
-            InspectionCameraView.IsVisible = true;
-            CameraGuide.IsVisible = true;
-            CameraStatusLabel.IsVisible = true;
-            ResultImage.IsVisible = false;
-            AnalysisImage.Source = null;
-        }
-
-        private void ShowResult()
-        {
-            CapturePanel.IsVisible = true;
-            ManualCornerPanel.IsVisible = false;
             InspectionCameraView.IsVisible = false;
             CameraGuide.IsVisible = false;
             CameraStatusLabel.IsVisible = false;
             ResultImage.IsVisible = true;
+            ResultImage.Source = ImageSource.FromFile(result.CloseupImagePath);
+            ResultPanel.IsVisible = true;
+            AnalysisImage.Source = ImageSource.FromFile(result.AnalysisOverlayPath);
+
+            OverallScoreLabel.Text = $"{result.OverallConditionScore:0}/100";
+            GeometryConfidenceLabel.Text = $"Geometry {result.GeometryConfidence:0}/100";
+            CaptureQualityLabel.Text = $"Quality {result.CaptureQuality:0}/100";
+            StraightnessScoreLabel.Text = $"{result.StraightnessConditionScore:0}/100";
+            WhiteningScoreLabel.Text = $"{result.WhiteningConditionScore:0}/100";
+            FrayingScoreLabel.Text = $"{result.FrayingConditionScore:0}/100";
+            NickScoreLabel.Text = $"{result.NickConditionScore:0}/100";
+            MissingScoreLabel.Text = $"{result.MissingMaterialConditionScore:0}/100";
+            DeformationScoreLabel.Text = $"{result.DeformationConditionScore:0}/100";
+
+            ResultExplanationLabel.Text = string.Join("\n\n", new[]
+            {
+                result.Summary,
+                result.StraightnessExplanation,
+                result.WhiteningExplanation,
+                result.FrayingExplanation,
+                result.NickExplanation,
+                result.MissingMaterialExplanation,
+                result.DeformationExplanation
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            SummaryLabel.Text = result.Summary;
+            UpdateSessionLabels();
         }
 
-        private sealed class ManualCornerDrawable : IDrawable
+        private async void OnRetakeClicked(object sender, EventArgs e)
         {
-            private readonly Point?[] points;
+            showingResult = false;
+            ResultPanel.IsVisible = false;
+            await RestartCameraAsync();
+        }
 
-            public ManualCornerDrawable(Point?[] points)
+        private async void OnNextEdgeClicked(object sender, EventArgs e)
+        {
+            selectedEdge = selectedEdge switch
             {
-                this.points = points;
-            }
+                EdgePosition.Top => EdgePosition.Right,
+                EdgePosition.Right => EdgePosition.Bottom,
+                EdgePosition.Bottom => EdgePosition.Left,
+                _ => EdgePosition.Top
+            };
 
-            public void Draw(ICanvas canvas, RectF dirtyRect)
+            showingResult = false;
+            ResultPanel.IsVisible = false;
+            UpdateSelectedEdgeUi();
+            await RestartCameraAsync();
+        }
+
+        private void ShowCamera()
+        {
+            InspectionCameraView.IsVisible = true;
+            CameraGuide.IsVisible = true;
+            CameraStatusLabel.IsVisible = true;
+            ResultImage.IsVisible = false;
+            ResultImage.Source = null;
+            ResultPanel.IsVisible = false;
+            UpdateGuideOrientation();
+        }
+
+        private void UpdateSelectedEdgeUi()
+        {
+            SelectedEdgeLabel.Text = $"Inspecting {selectedEdge.ToString().ToUpperInvariant()} edge";
+            TopEdgeButton.BackgroundColor = selectedEdge == EdgePosition.Top ? Color.FromArgb("#F59E0B") : Color.FromArgb("#334155");
+            RightEdgeButton.BackgroundColor = selectedEdge == EdgePosition.Right ? Color.FromArgb("#F59E0B") : Color.FromArgb("#334155");
+            BottomEdgeButton.BackgroundColor = selectedEdge == EdgePosition.Bottom ? Color.FromArgb("#F59E0B") : Color.FromArgb("#334155");
+            LeftEdgeButton.BackgroundColor = selectedEdge == EdgePosition.Left ? Color.FromArgb("#F59E0B") : Color.FromArgb("#334155");
+            UpdateGuideOrientation();
+        }
+
+        private void UpdateGuideOrientation()
+        {
+            bool horizontal = selectedEdge is EdgePosition.Top or EdgePosition.Bottom;
+            GuideBand.WidthRequest = horizontal ? 285 : 18;
+            GuideBand.HeightRequest = horizontal ? 18 : 285;
+            GuideCenterLine.WidthRequest = horizontal ? 285 : 2;
+            GuideCenterLine.HeightRequest = horizontal ? 2 : 285;
+
+            GuideOutsideLabel.TranslationX = 0;
+            GuideOutsideLabel.TranslationY = 0;
+            GuideCardLabel.TranslationX = 0;
+            GuideCardLabel.TranslationY = 0;
+
+            switch (selectedEdge)
             {
-                PointF?[] actual = points
-                    .Select(p => p.HasValue
-                        ? new PointF((float)(p.Value.X * dirtyRect.Width), (float)(p.Value.Y * dirtyRect.Height))
-                        : (PointF?)null)
-                    .ToArray();
-
-                canvas.StrokeColor = Color.FromArgb("#22FF66");
-                canvas.StrokeSize = 2;
-
-                for (int i = 0; i < 3; i++)
-                {
-                    if (actual[i].HasValue && actual[i + 1].HasValue)
-                        canvas.DrawLine(actual[i]!.Value, actual[i + 1]!.Value);
-                }
-
-                if (actual[3].HasValue && actual[0].HasValue && points.All(p => p.HasValue))
-                    canvas.DrawLine(actual[3]!.Value, actual[0]!.Value);
-
-                canvas.FillColor = Color.FromArgb("#FFD60A");
-                foreach (PointF? point in actual)
-                {
-                    if (point.HasValue)
-                        canvas.FillCircle(point.Value.X, point.Value.Y, 9);
-                }
+                case EdgePosition.Top:
+                    GuideOutsideLabel.TranslationY = -35;
+                    GuideCardLabel.TranslationY = 35;
+                    break;
+                case EdgePosition.Bottom:
+                    GuideOutsideLabel.TranslationY = 35;
+                    GuideCardLabel.TranslationY = -35;
+                    break;
+                case EdgePosition.Left:
+                    GuideOutsideLabel.TranslationX = -55;
+                    GuideCardLabel.TranslationX = 55;
+                    break;
+                case EdgePosition.Right:
+                    GuideOutsideLabel.TranslationX = 55;
+                    GuideCardLabel.TranslationX = -55;
+                    break;
             }
         }
+
+        private void UpdateSessionLabels()
+        {
+            TopSessionLabel.Text = SessionText("TOP", EdgePosition.Top);
+            RightSessionLabel.Text = SessionText("RIGHT", EdgePosition.Right);
+            BottomSessionLabel.Text = SessionText("BOTTOM", EdgePosition.Bottom);
+            LeftSessionLabel.Text = SessionText("LEFT", EdgePosition.Left);
+        }
+
+        private string SessionText(string name, EdgePosition edge)
+            => sessionScores.TryGetValue(edge, out double score) ? $"{name} {score:0}" : $"{name} —";
     }
 }
