@@ -201,6 +201,9 @@ namespace CollectIQ.Views
             ResultPanel.IsVisible = true;
             CapturePanel.IsVisible = false;
             AnalysisImage.Source = ImageSource.FromFile(result.AnalysisOverlayPath);
+            DetectedCornerZoomImage.Source = ImageSource.FromFile(result.DetectedCornerZoomPath);
+            DetectedCornerExplanationLabel.Text =
+                $"You selected {FriendlyName(result.Corner).ToUpperInvariant()}. The highlighted intersection below is the exact physical corner CollectIQ used for every defect score. If the marker is not on that corner, retake it rather than trusting the grade.";
             OverallScoreLabel.Text = result.OverallConditionScore.ToString("0");
             ResultCornerLabel.Text = FriendlyName(result.Corner).ToUpperInvariant();
             CaptureQualityLabel.Text = $"Geometry {result.GeometryConfidence:0}/100 • Capture quality {result.CaptureQuality:0}/100";

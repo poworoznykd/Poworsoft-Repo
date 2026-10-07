@@ -131,13 +131,24 @@ namespace CollectIQ.Services.Inspection
                 DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
             Directory.CreateDirectory(outputDirectory);
 
+            // The detector grades every selected corner in a canonical TOP-LEFT orientation.
+            // Restore the selected physical corner before saving user-facing images so the
+            // overlay matches what the user actually photographed.
+            using Mat displayCloseup = analysis.Clone();
+            RestoreDisplayOrientation(displayCloseup, corner);
             string normalizedPath = Path.Combine(outputDirectory, "corner_closeup.jpg");
-            Cv2.ImWrite(normalizedPath, analysis, new[] { (int)ImwriteFlags.JpegQuality, 90 });
+            Cv2.ImWrite(normalizedPath, displayCloseup, new[] { (int)ImwriteFlags.JpegQuality, 90 });
 
             using Mat overlay = analysis.Clone();
             DrawAnalysisOverlay(overlay, geometry, metrics);
+            RestoreDisplayOrientation(overlay, corner);
             string overlayPath = Path.Combine(outputDirectory, "corner_analysis.jpg");
             Cv2.ImWrite(overlayPath, overlay, new[] { (int)ImwriteFlags.JpegQuality, 90 });
+
+            using Mat detectedCornerZoom = BuildDetectedCornerZoom(analysis, geometry, corner);
+            string detectedCornerZoomPath = Path.Combine(outputDirectory, "detected_corner_zoom.jpg");
+            Cv2.ImWrite(detectedCornerZoomPath, detectedCornerZoom, new[] { (int)ImwriteFlags.JpegQuality, 94 });
+
             await InspectionDiagnosticLogger.WriteAsync("SingleCorner", "STAGE 5 - output COMPLETE", $"Elapsed={total.Elapsed.TotalSeconds:0.00}s");
 
             fullFallback?.Dispose();
@@ -156,6 +167,7 @@ namespace CollectIQ.Services.Inspection
                 GeometryConfidence = geometry.GeometryConfidence,
                 NormalizedImagePath = normalizedPath,
                 AnalysisOverlayPath = overlayPath,
+                DetectedCornerZoomPath = detectedCornerZoomPath,
                 Summary = BuildSummary(metrics, overallCondition),
                 ShapeExplanation = BuildMetricExplanation("Shape / rounding", metrics.ShapeLossSeverity,
                     "The detected physical contour is compared with the sharp intersection predicted by the two straight edge segments."),
@@ -188,6 +200,24 @@ namespace CollectIQ.Services.Inspection
 
         private static void NormalizeOrientation(Mat image, CornerPosition corner)
         {
+            switch (corner)
+            {
+                case CornerPosition.TopRight:
+                    Cv2.Flip(image, image, FlipMode.Y);
+                    break;
+                case CornerPosition.BottomRight:
+                    Cv2.Flip(image, image, FlipMode.XY);
+                    break;
+                case CornerPosition.BottomLeft:
+                    Cv2.Flip(image, image, FlipMode.X);
+                    break;
+            }
+        }
+
+        private static void RestoreDisplayOrientation(Mat image, CornerPosition corner)
+        {
+            // Flips are self-inverse.  Analysis remains canonical internally while the saved
+            // close-up/overlay is returned to the corner orientation the user selected.
             switch (corner)
             {
                 case CornerPosition.TopRight:
@@ -775,6 +805,63 @@ namespace CollectIQ.Services.Inspection
             return $"{level}. {method}";
         }
 
+
+        private static Mat BuildDetectedCornerZoom(Mat canonicalImage, CornerGeometry g, CornerPosition corner)
+        {
+            using Mat marked = canonicalImage.Clone();
+
+            Scalar green = new(94, 197, 34);
+            Scalar cyan = new(255, 229, 103);
+            Scalar magenta = new(214, 74, 192);
+            Scalar white = new(255, 255, 255);
+
+            int cx = Math.Clamp((int)Math.Round(g.IdealX), 0, marked.Width - 1);
+            int cy = Math.Clamp((int)Math.Round(g.IdealY), 0, marked.Height - 1);
+            int reach = Math.Max(70, (int)Math.Round(g.Radius * 1.55));
+
+            int xEnd = Math.Clamp(cx + reach, 0, marked.Width - 1);
+            int yEnd = Math.Clamp(cy + reach, 0, marked.Height - 1);
+
+            Cv2.Line(marked,
+                new OpenCvSharp.Point(cx, Math.Clamp((int)Math.Round((g.TopSlope * cx) + g.TopIntercept), 0, marked.Height - 1)),
+                new OpenCvSharp.Point(xEnd, Math.Clamp((int)Math.Round((g.TopSlope * xEnd) + g.TopIntercept), 0, marked.Height - 1)),
+                green, 6, LineTypes.AntiAlias);
+
+            Cv2.Line(marked,
+                new OpenCvSharp.Point(Math.Clamp((int)Math.Round((g.LeftSlopeXFromY * cy) + g.LeftInterceptXFromY), 0, marked.Width - 1), cy),
+                new OpenCvSharp.Point(Math.Clamp((int)Math.Round((g.LeftSlopeXFromY * yEnd) + g.LeftInterceptXFromY), 0, marked.Width - 1), yEnd),
+                green, 6, LineTypes.AntiAlias);
+
+            Cv2.Circle(marked, new OpenCvSharp.Point(cx, cy), 22, magenta, 5, LineTypes.AntiAlias);
+            Cv2.Circle(marked, new OpenCvSharp.Point(cx, cy), 7, cyan, -1, LineTypes.AntiAlias);
+            Cv2.Line(marked, new OpenCvSharp.Point(Math.Max(0, cx - 34), cy), new OpenCvSharp.Point(Math.Min(marked.Width - 1, cx + 34), cy), cyan, 3, LineTypes.AntiAlias);
+            Cv2.Line(marked, new OpenCvSharp.Point(cx, Math.Max(0, cy - 34)), new OpenCvSharp.Point(cx, Math.Min(marked.Height - 1, cy + 34)), cyan, 3, LineTypes.AntiAlias);
+
+            int cropPadBefore = Math.Max(35, (int)Math.Round(g.Radius * 0.42));
+            int cropReach = Math.Max(150, (int)Math.Round(g.Radius * 1.75));
+            int x0 = Math.Clamp(cx - cropPadBefore, 0, marked.Width - 2);
+            int y0 = Math.Clamp(cy - cropPadBefore, 0, marked.Height - 2);
+            int x1 = Math.Clamp(cx + cropReach, x0 + 2, marked.Width);
+            int y1 = Math.Clamp(cy + cropReach, y0 + 2, marked.Height);
+
+            Mat crop = new(marked, new OpenCvSharp.Rect(x0, y0, x1 - x0, y1 - y0));
+            Mat display = crop.Clone();
+            crop.Dispose();
+
+            RestoreDisplayOrientation(display, corner);
+
+            int fontScaleBase = Math.Max(1, Math.Min(display.Width, display.Height) / 280);
+            double fontScale = Math.Clamp(fontScaleBase * 0.55, 0.55, 1.1);
+            int thickness = Math.Max(2, (int)Math.Round(fontScale * 2.2));
+            string text = "DETECTED CORNER";
+            Cv2.PutText(display, text, new OpenCvSharp.Point(14, Math.Max(30, (int)(34 * fontScale))),
+                HersheyFonts.HersheySimplex, fontScale, white, thickness + 2, LineTypes.AntiAlias);
+            Cv2.PutText(display, text, new OpenCvSharp.Point(14, Math.Max(30, (int)(34 * fontScale))),
+                HersheyFonts.HersheySimplex, fontScale, magenta, thickness, LineTypes.AntiAlias);
+
+            return display;
+        }
+
         private static void DrawAnalysisOverlay(Mat image, CornerGeometry g, CornerDefectMetrics metrics)
         {
             Scalar green = new(94, 197, 34);
@@ -860,6 +947,7 @@ namespace CollectIQ.Services.Inspection
         public double GeometryConfidence { get; set; }
         public string NormalizedImagePath { get; set; } = string.Empty;
         public string AnalysisOverlayPath { get; set; } = string.Empty;
+        public string DetectedCornerZoomPath { get; set; } = string.Empty;
         public string Summary { get; set; } = string.Empty;
         public string ShapeExplanation { get; set; } = string.Empty;
         public string FrayingExplanation { get; set; } = string.Empty;

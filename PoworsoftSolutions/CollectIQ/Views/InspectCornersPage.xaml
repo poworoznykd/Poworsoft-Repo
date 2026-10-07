@@ -97,10 +97,20 @@
                         </VerticalStackLayout>
                     </Grid>
 
+                    <Border Stroke="#A855F7" StrokeThickness="2" Background="#160B24" StrokeShape="RoundRectangle 16" Padding="10">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="THIS IS THE CORNER COLLECTIQ INSPECTED" TextColor="#F0ABFC" FontAttributes="Bold" FontSize="13" />
+                            <Label x:Name="DetectedCornerExplanationLabel"
+                                   Text="The large marker below is the exact intersection used for grading. If this is not the physical corner you selected, the geometry detector chose the wrong corner and the score should not be trusted."
+                                   TextColor="#E2E8F0" FontSize="10" LineBreakMode="WordWrap" />
+                            <Image x:Name="DetectedCornerZoomImage" Aspect="AspectFit" MaximumHeightRequest="430" />
+                        </VerticalStackLayout>
+                    </Border>
+
                     <Border Stroke="#155E75" StrokeThickness="1" Background="#071C2A" StrokeShape="RoundRectangle 16" Padding="10">
                         <VerticalStackLayout Spacing="7">
-                            <Label Text="DETECTED CORNER GEOMETRY" TextColor="#67E8F9" FontAttributes="Bold" FontSize="12" />
-                            <Label Text="Green lines are shown only after CollectIQ has verified that both fits behave like the two physical card edges. The marker shows their predicted original intersection."
+                            <Label Text="FULL CLOSE-UP + DETECTED GEOMETRY" TextColor="#67E8F9" FontAttributes="Bold" FontSize="12" />
+                            <Label Text="Green lines are the two physical edges CollectIQ fitted. The marker is the predicted corner intersection used by the scoring algorithm."
                                    TextColor="#94A3B8" FontSize="10" LineBreakMode="WordWrap" />
                             <Image x:Name="AnalysisImage" Aspect="AspectFit" MaximumHeightRequest="520" />
                         </VerticalStackLayout>
