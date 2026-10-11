@@ -6,6 +6,7 @@ namespace CollectIQ.Models.Inspection.Registration
     {
         public string Key { get; set; } = string.Empty;
         public string SourcePath { get; set; } = string.Empty;
+        public string PreviewImagePath { get; set; } = string.Empty;
         public string DetectionOverlayPath { get; set; } = string.Empty;
         public string RegisteredImagePath { get; set; } = string.Empty;
         public string EdgeImagePath { get; set; } = string.Empty;

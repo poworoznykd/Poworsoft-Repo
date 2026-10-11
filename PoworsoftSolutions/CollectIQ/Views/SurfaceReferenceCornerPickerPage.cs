@@ -3,28 +3,38 @@ using CollectIQ.Models.Inspection.Geometry;
 namespace CollectIQ.Views
 {
     /// <summary>
-    /// Manual recovery used only when Surface cannot lock the neutral reference.
-    /// The preview is the bounded, already-auto-oriented image created by the
-    /// shared card normalizer, so the returned 0..1 coordinates map directly to
-    /// the reference geometry used by Surface.
+    /// Precision four-corner editor used by Surface. The existing detected corners can be
+    /// supplied so the user only needs to correct a bad point instead of starting over.
+    /// A full-card view is used for coarse placement and a magnified corner view plus
+    /// one-pixel arrow nudges is used for final placement.
     /// </summary>
     public sealed class SurfaceReferenceCornerPickerPage : ContentPage
     {
+        // Internal order must stay TL, TR, BR, BL because the perspective warp expects it.
         private static readonly string[] CornerNames =
         {
             "TOP LEFT", "TOP RIGHT", "BOTTOM RIGHT", "BOTTOM LEFT"
         };
+
+        // Button order is more natural visually: TL, TR, BL, BR.
+        private static readonly int[] ButtonCornerOrder = { 0, 1, 3, 2 };
 
         private readonly TaskCompletionSource<CardPoint[]?> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Point?[] corners = new Point?[4];
         private readonly Grid viewport;
         private readonly Grid transformLayer;
         private readonly GraphicsView overlay;
+        private readonly Grid precisionViewport;
+        private readonly Grid precisionLayer;
+        private readonly Label precisionLabel;
         private readonly Label instruction;
         private readonly Button useButton;
         private readonly CornerDrawable drawable;
         private readonly double sourceWidth;
         private readonly double sourceHeight;
+        private readonly List<Button> cornerButtons = new();
+        private readonly string previewImagePath;
+
         private int activeCorner;
         private double scale = 1.0;
         private double scaleStart = 1.0;
@@ -34,26 +44,43 @@ namespace CollectIQ.Views
         private double panStartY;
         private bool panMoved;
         private DateTime ignoreTapUntil = DateTime.MinValue;
+        private const double PrecisionScale = 5.5;
 
-        public SurfaceReferenceCornerPickerPage(string previewImagePath)
+        public SurfaceReferenceCornerPickerPage(
+            string previewImagePath,
+            string titleText = "REFERENCE IMAGE — MANUAL 4-CORNER LOCK",
+            string subtitleText = "Set the four PHYSICAL card corners. Use the large image for coarse placement, then the magnified view and arrows for pixel-level accuracy.",
+            string continueButtonText = "USE THESE 4 CORNERS → CONTINUE SURFACE",
+            IReadOnlyList<CardPoint>? initialCorners = null)
         {
-            Title = "Surface Reference Corners";
+            this.previewImagePath = previewImagePath;
+            Title = "Surface Corner Editor";
             BackgroundColor = Color.FromArgb("#050814");
 
             var info = SixLabors.ImageSharp.Image.Identify(previewImagePath);
             sourceWidth = Math.Max(1, info?.Width ?? 1);
             sourceHeight = Math.Max(1, info?.Height ?? 1);
 
+            if (initialCorners is not null && initialCorners.Count >= 4)
+            {
+                for (int i = 0; i < 4; i++)
+                    corners[i] = new Point(
+                        Math.Clamp(initialCorners[i].X, 0f, 1f),
+                        Math.Clamp(initialCorners[i].Y, 0f, 1f));
+            }
+
             instruction = new Label
             {
-                Text = "Pinch to zoom, drag to pan, then tap TOP LEFT on the physical card.",
+                Text = corners.All(p => p.HasValue)
+                    ? "Detected corners are loaded. Select a corner, tap near it for a coarse move, then use the arrows for exact placement."
+                    : "Select TOP LEFT and tap the physical card corner. Continue around the card.",
                 TextColor = Color.FromArgb("#E2E8F0"),
                 FontSize = 13
             };
 
             viewport = new Grid
             {
-                HeightRequest = 570,
+                HeightRequest = 500,
                 BackgroundColor = Colors.Black,
                 IsClippedToBounds = true
             };
@@ -67,7 +94,7 @@ namespace CollectIQ.Views
                 VerticalOptions = LayoutOptions.Fill,
                 InputTransparent = true
             };
-            drawable = new CornerDrawable(corners, GetAspectFitRect);
+            drawable = new CornerDrawable(corners, GetAspectFitRect, () => activeCorner);
             overlay = new GraphicsView
             {
                 Drawable = drawable,
@@ -86,35 +113,70 @@ namespace CollectIQ.Views
             var pan = new PanGestureRecognizer();
             pan.PanUpdated += OnPan;
             viewport.GestureRecognizers.Add(pan);
-            viewport.SizeChanged += (_, _) => overlay.Invalidate();
-
-            var buttons = new Grid { ColumnSpacing = 6 };
-            for (int i = 0; i < 4; i++)
-                buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-            for (int i = 0; i < 4; i++)
+            viewport.SizeChanged += (_, _) =>
             {
-                int index = i;
+                overlay.Invalidate();
+                UpdatePrecisionView();
+            };
+
+            var cornerButtons = new Grid { ColumnSpacing = 6 };
+            for (int i = 0; i < 4; i++)
+                cornerButtons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+
+            foreach ((int cornerIndex, int column) in ButtonCornerOrder.Select((cornerIndex, column) => (cornerIndex, column)))
+            {
+                int index = cornerIndex;
                 var button = new Button
                 {
-                    Text = CornerNames[i].Replace(" ", "\n"),
-                    FontSize = 9,
+                    Text = ShortCornerName(index),
+                    FontSize = 11,
                     CornerRadius = 12,
                     BackgroundColor = Color.FromArgb("#253047"),
-                    TextColor = Colors.White
+                    TextColor = Colors.White,
+                    Padding = new Thickness(4)
                 };
-                button.Clicked += (_, _) =>
-                {
-                    activeCorner = index;
-                    instruction.Text = $"Tap {CornerNames[index]} on the physical card.";
-                };
-                Grid.SetColumn(button, i);
-                buttons.Children.Add(button);
+                button.Clicked += (_, _) => SelectCorner(index);
+                cornerButtons.Add(button, column, 0);
+                this.cornerButtons.Add(button);
             }
+
+            precisionLabel = new Label
+            {
+                Text = "PRECISION VIEW — TOP LEFT",
+                TextColor = Color.FromArgb("#86FF70"),
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 15
+            };
+
+            precisionViewport = new Grid
+            {
+                HeightRequest = 230,
+                BackgroundColor = Colors.Black,
+                IsClippedToBounds = true
+            };
+            precisionLayer = new Grid();
+            precisionLayer.Children.Add(new Image
+            {
+                Source = ImageSource.FromFile(previewImagePath),
+                Aspect = Aspect.AspectFit,
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Fill,
+                InputTransparent = true
+            });
+            precisionViewport.Children.Add(precisionLayer);
+            precisionViewport.Children.Add(new GraphicsView
+            {
+                Drawable = new PrecisionCrosshairDrawable(),
+                InputTransparent = true
+            });
+            precisionViewport.SizeChanged += (_, _) => UpdatePrecisionView();
+
+            var arrows = BuildArrowPad();
 
             useButton = new Button
             {
-                Text = "USE THESE 4 CORNERS → CONTINUE SURFACE",
-                IsEnabled = false,
+                Text = continueButtonText,
+                IsEnabled = corners.All(x => x.HasValue),
                 HeightRequest = 52,
                 CornerRadius = 20,
                 BackgroundColor = Color.FromArgb("#1D6A2A"),
@@ -123,14 +185,14 @@ namespace CollectIQ.Views
             };
             useButton.Clicked += OnUseClicked;
 
-            var resetButton = new Button
+            var resetViewButton = new Button
             {
-                Text = "RESET VIEW",
+                Text = "RESET ZOOM",
                 BackgroundColor = Color.FromArgb("#253047"),
                 TextColor = Colors.White,
                 CornerRadius = 16
             };
-            resetButton.Clicked += (_, _) => ResetView();
+            resetViewButton.Clicked += (_, _) => ResetView();
 
             var cancelButton = new Button
             {
@@ -149,22 +211,27 @@ namespace CollectIQ.Views
             {
                 Content = new VerticalStackLayout
                 {
-                    Padding = new Thickness(16, 18, 16, 24),
+                    Padding = new Thickness(16, 18, 16, 30),
                     Spacing = 12,
                     Children =
                     {
-                        new Label { Text = "REFERENCE IMAGE — MANUAL 4-CORNER LOCK", TextColor = Color.FromArgb("#86FF70"), FontSize = 22, FontAttributes = FontAttributes.Bold },
-                        new Label { Text = "Only the NEUTRAL REFERENCE failed automatic Card Lock. Set its four PHYSICAL card corners once. TOP, RIGHT, BOTTOM and LEFT will inherit this reference geometry automatically.", TextColor = Color.FromArgb("#9FB3C8"), FontSize = 12 },
+                        new Label { Text = titleText, TextColor = Color.FromArgb("#86FF70"), FontSize = 22, FontAttributes = FontAttributes.Bold },
+                        new Label { Text = subtitleText, TextColor = Color.FromArgb("#9FB3C8"), FontSize = 12 },
                         instruction,
                         viewport,
-                        buttons,
-                        new HorizontalStackLayout { Spacing = 8, Children = { resetButton, cancelButton } },
+                        cornerButtons,
+                        precisionLabel,
+                        precisionViewport,
+                        new Label { Text = "NUDGE SELECTED CORNER — 1 SOURCE PIXEL PER TAP", TextColor = Color.FromArgb("#9FB3C8"), FontSize = 11 },
+                        arrows,
+                        new HorizontalStackLayout { Spacing = 8, Children = { resetViewButton, cancelButton } },
                         useButton
                     }
                 }
             };
-        }
 
+            SelectCorner(0);
+        }
 
         protected override bool OnBackButtonPressed()
         {
@@ -173,6 +240,64 @@ namespace CollectIQ.Views
         }
 
         public Task<CardPoint[]?> WaitForCornersAsync() => completion.Task;
+
+        private Grid BuildArrowPad()
+        {
+            var grid = new Grid
+            {
+                RowSpacing = 6,
+                ColumnSpacing = 6,
+                HorizontalOptions = LayoutOptions.Center
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(74)));
+            }
+
+            grid.Add(CreateNudgeButton("↑", 0, -1), 1, 0);
+            grid.Add(CreateNudgeButton("←", -1, 0), 0, 1);
+            grid.Add(CreateNudgeButton("●", 0, 0), 1, 1);
+            grid.Add(CreateNudgeButton("→", 1, 0), 2, 1);
+            grid.Add(CreateNudgeButton("↓", 0, 1), 1, 2);
+            return grid;
+        }
+
+        private Button CreateNudgeButton(string text, int dx, int dy)
+        {
+            var button = new Button
+            {
+                Text = text,
+                FontSize = 22,
+                HeightRequest = 48,
+                CornerRadius = 12,
+                BackgroundColor = dx == 0 && dy == 0 ? Color.FromArgb("#162033") : Color.FromArgb("#253047"),
+                TextColor = dx == 0 && dy == 0 ? Color.FromArgb("#86FF70") : Colors.White,
+                IsEnabled = !(dx == 0 && dy == 0)
+            };
+            if (dx != 0 || dy != 0)
+                button.Clicked += (_, _) => NudgeActiveCorner(dx, dy);
+            return button;
+        }
+
+        private void SelectCorner(int index)
+        {
+            activeCorner = Math.Clamp(index, 0, 3);
+            instruction.Text = corners[activeCorner].HasValue
+                ? $"{CornerNames[activeCorner]} selected. Tap the large image to move it, or use the arrows below for pixel-level adjustment."
+                : $"{CornerNames[activeCorner]} selected. Tap its physical card corner on the large image.";
+            precisionLabel.Text = $"PRECISION VIEW — {CornerNames[activeCorner]}";
+
+            foreach (Button button in cornerButtons)
+                button.BackgroundColor = Color.FromArgb("#253047");
+
+            int buttonPosition = Array.IndexOf(ButtonCornerOrder, activeCorner);
+            if (buttonPosition >= 0 && buttonPosition < cornerButtons.Count)
+                cornerButtons[buttonPosition].BackgroundColor = Color.FromArgb("#1D6A2A");
+
+            overlay.Invalidate();
+            UpdatePrecisionView();
+        }
 
         private void OnTapped(object? sender, TappedEventArgs e)
         {
@@ -197,27 +322,67 @@ namespace CollectIQ.Views
             double nx = Math.Clamp((imageX - fit.X) / fit.Width, 0.0, 1.0);
             double ny = Math.Clamp((imageY - fit.Y) / fit.Height, 0.0, 1.0);
             corners[activeCorner] = new Point(nx, ny);
-            overlay.Invalidate();
+            OnCornerChanged();
 
-            bool complete = corners.All(x => x.HasValue);
-            useButton.IsEnabled = complete;
-            if (!complete)
-            {
-                for (int offset = 1; offset <= 4; offset++)
-                {
-                    int candidate = (activeCorner + offset) % 4;
-                    if (!corners[candidate].HasValue)
-                    {
-                        activeCorner = candidate;
-                        break;
-                    }
-                }
-                instruction.Text = $"Corner saved. Tap {CornerNames[activeCorner]} next.";
-            }
+            if (corners.All(x => x.HasValue))
+                instruction.Text = $"{CornerNames[activeCorner]} moved. Use the precision arrows if needed, then update the image.";
             else
+                SelectNextUnsetCorner();
+        }
+
+        private void NudgeActiveCorner(int dxPixels, int dyPixels)
+        {
+            if (!corners[activeCorner].HasValue)
             {
-                instruction.Text = "All four corners are set. Check the green quadrilateral, then continue Surface.";
+                instruction.Text = $"Place {CornerNames[activeCorner]} once on the large image before nudging it.";
+                return;
             }
+
+            Point current = corners[activeCorner]!.Value;
+            double nx = Math.Clamp(current.X + (dxPixels / Math.Max(1.0, sourceWidth - 1.0)), 0.0, 1.0);
+            double ny = Math.Clamp(current.Y + (dyPixels / Math.Max(1.0, sourceHeight - 1.0)), 0.0, 1.0);
+            corners[activeCorner] = new Point(nx, ny);
+            OnCornerChanged();
+            instruction.Text = $"{CornerNames[activeCorner]} nudged {Math.Abs(dxPixels) + Math.Abs(dyPixels)} px. Crosshair stays fixed while the image moves beneath it.";
+        }
+
+        private void OnCornerChanged()
+        {
+            overlay.Invalidate();
+            useButton.IsEnabled = corners.All(x => x.HasValue);
+            UpdatePrecisionView();
+        }
+
+        private void SelectNextUnsetCorner()
+        {
+            for (int offset = 1; offset <= 4; offset++)
+            {
+                int candidate = (activeCorner + offset) % 4;
+                if (!corners[candidate].HasValue)
+                {
+                    SelectCorner(candidate);
+                    return;
+                }
+            }
+        }
+
+        private void UpdatePrecisionView()
+        {
+            if (precisionViewport.Width <= 1 || precisionViewport.Height <= 1 || !corners[activeCorner].HasValue)
+                return;
+
+            Point point = corners[activeCorner]!.Value;
+            Rect fit = GetAspectFitRect(precisionViewport.Width, precisionViewport.Height);
+            double px = fit.X + point.X * fit.Width;
+            double py = fit.Y + point.Y * fit.Height;
+            double cx = precisionViewport.Width / 2.0;
+            double cy = precisionViewport.Height / 2.0;
+
+            precisionLayer.AnchorX = 0.5;
+            precisionLayer.AnchorY = 0.5;
+            precisionLayer.Scale = PrecisionScale;
+            precisionLayer.TranslationX = -(px - cx) * PrecisionScale;
+            precisionLayer.TranslationY = -(py - cy) * PrecisionScale;
         }
 
         private void OnPinch(object? sender, PinchGestureUpdatedEventArgs e)
@@ -281,10 +446,12 @@ namespace CollectIQ.Views
             ApplyTransform();
         }
 
-        private Rect GetAspectFitRect()
+        private Rect GetAspectFitRect() => GetAspectFitRect(viewport.Width, viewport.Height);
+
+        private Rect GetAspectFitRect(double viewportWidth, double viewportHeight)
         {
-            double width = Math.Max(1, viewport.Width);
-            double height = Math.Max(1, viewport.Height);
+            double width = Math.Max(1, viewportWidth);
+            double height = Math.Max(1, viewportHeight);
             double fitScale = Math.Min(width / sourceWidth, height / sourceHeight);
             double imageWidth = sourceWidth * fitScale;
             double imageHeight = sourceHeight * fitScale;
@@ -299,15 +466,26 @@ namespace CollectIQ.Views
             await Navigation.PopModalAsync();
         }
 
+        private static string ShortCornerName(int index) => index switch
+        {
+            0 => "TL",
+            1 => "TR",
+            2 => "BR",
+            3 => "BL",
+            _ => "?"
+        };
+
         private sealed class CornerDrawable : IDrawable
         {
             private readonly Point?[] corners;
             private readonly Func<Rect> getImageRect;
+            private readonly Func<int> getActiveCorner;
 
-            public CornerDrawable(Point?[] corners, Func<Rect> getImageRect)
+            public CornerDrawable(Point?[] corners, Func<Rect> getImageRect, Func<int> getActiveCorner)
             {
                 this.corners = corners;
                 this.getImageRect = getImageRect;
+                this.getActiveCorner = getActiveCorner;
             }
 
             public void Draw(ICanvas canvas, RectF dirtyRect)
@@ -329,12 +507,33 @@ namespace CollectIQ.Views
                     }
                 }
 
-                canvas.FillColor = Color.FromArgb("#FFD84D");
-                foreach (PointF? p in mapped)
+                int active = getActiveCorner();
+                for (int i = 0; i < mapped.Length; i++)
                 {
-                    if (!p.HasValue) continue;
-                    canvas.FillCircle(p.Value.X, p.Value.Y, 9);
+                    if (!mapped[i].HasValue) continue;
+                    PointF p = mapped[i]!.Value;
+                    canvas.FillColor = i == active ? Color.FromArgb("#FFEA00") : Color.FromArgb("#39FF14");
+                    canvas.FillCircle(p.X, p.Y, i == active ? 12 : 9);
+                    canvas.StrokeColor = Colors.Black;
+                    canvas.StrokeSize = 2;
+                    canvas.DrawCircle(p.X, p.Y, i == active ? 12 : 9);
                 }
+            }
+        }
+
+        private sealed class PrecisionCrosshairDrawable : IDrawable
+        {
+            public void Draw(ICanvas canvas, RectF dirtyRect)
+            {
+                float cx = dirtyRect.X + (dirtyRect.Width / 2f);
+                float cy = dirtyRect.Y + (dirtyRect.Height / 2f);
+                canvas.StrokeColor = Color.FromArgb("#FFEA00");
+                canvas.StrokeSize = 2;
+                canvas.DrawLine(cx - 28, cy, cx + 28, cy);
+                canvas.DrawLine(cx, cy - 28, cx, cy + 28);
+                canvas.DrawCircle(cx, cy, 9);
+                canvas.FillColor = Color.FromArgb("#FFEA00");
+                canvas.FillCircle(cx, cy, 2.5f);
             }
         }
     }

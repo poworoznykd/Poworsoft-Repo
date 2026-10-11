@@ -9,6 +9,7 @@ namespace CollectIQ.Interfaces
             string neutralReferencePath,
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
             IReadOnlyList<CardPoint>? manualReferenceCorners = null,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners = null,
             IProgress<SurfaceInspectionProgress>? progress = null,
             CancellationToken cancellationToken = default);
 

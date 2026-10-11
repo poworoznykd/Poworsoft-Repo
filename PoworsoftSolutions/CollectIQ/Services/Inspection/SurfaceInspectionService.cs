@@ -52,6 +52,7 @@ namespace CollectIQ.Services.Inspection
             string neutralReferencePath,
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
             IReadOnlyList<CardPoint>? manualReferenceCorners = null,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners = null,
             IProgress<SurfaceInspectionProgress>? progress = null,
             CancellationToken cancellationToken = default)
         {
@@ -96,6 +97,8 @@ namespace CollectIQ.Services.Inspection
                     "Reference",
                     outputDirectory,
                     manualReferenceCorners,
+                    manualFrameCorners,
+                    false,
                     progress,
                     cancellationToken);
                 registrationTimer.Stop();

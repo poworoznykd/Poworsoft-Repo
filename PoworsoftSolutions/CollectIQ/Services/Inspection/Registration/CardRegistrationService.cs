@@ -43,6 +43,8 @@ namespace CollectIQ.Services.Inspection.Registration
             string referenceKey,
             string outputDirectory,
             IReadOnlyList<CardPoint>? manualReferenceCorners = null,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners = null,
+            bool stopAfterGeometry = false,
             IProgress<SurfaceInspectionProgress>? progress = null,
             CancellationToken cancellationToken = default)
         {
@@ -60,7 +62,7 @@ namespace CollectIQ.Services.Inspection.Registration
                     referenceKey,
                     captures[referenceKey],
                     outputDirectory,
-                    manualReferenceCorners,
+                    GetManualCornersForFrame(referenceKey, manualReferenceCorners, manualFrameCorners),
                     null,
                     3,
                     progress,
@@ -93,7 +95,7 @@ namespace CollectIQ.Services.Inspection.Registration
                     key,
                     path,
                     outputDirectory,
-                    null,
+                    GetManualCornersForFrame(key, null, manualFrameCorners),
                     normalizedReferenceCorners,
                     starts[i],
                     progress,
@@ -104,6 +106,27 @@ namespace CollectIQ.Services.Inspection.Registration
             List<RegisteredCardFrame> directionalFrames = preferredOrder
                 .Select(key => frames[key])
                 .ToList();
+
+            if (stopAfterGeometry)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Surface/Registration",
+                    "GEOMETRY REVIEW READY",
+                    $"Elapsed={total.Elapsed.TotalSeconds:0.00}s; " +
+                    string.Join("; ", frames.Values.Select(f => $"{f.Key}={f.Geometry.Confidence * 100.0:0}%")));
+
+                double geometryOnlyQuality = frames.Values.Count == 0
+                    ? 0.0
+                    : frames.Values.Average(frame => frame.Geometry.Confidence * 100.0);
+
+                return new CardRegistrationResult
+                {
+                    Frames = frames,
+                    EdgeOverlayPath = reference.DetectionOverlayPath,
+                    AlignmentAveragePath = reference.RegisteredImagePath,
+                    OverallQuality = geometryOnlyQuality
+                };
+            }
 
             progress?.Report(new SurfaceInspectionProgress
             {
@@ -278,13 +301,15 @@ namespace CollectIQ.Services.Inspection.Registration
             double confidence;
             string findMessage;
 
-            if (manualCorners is not null && key.Equals("Reference", StringComparison.OrdinalIgnoreCase))
+            if (manualCorners is not null)
             {
                 corners = manualCorners.Select(p => new CardPoint(
                     p.X * Math.Max(preview.Width - 1, 1),
                     p.Y * Math.Max(preview.Height - 1, 1))).ToArray();
                 confidence = 1.0;
-                findMessage = "Using the four reference corners you supplied manually.";
+                findMessage = key.Equals("Reference", StringComparison.OrdinalIgnoreCase)
+                    ? "Using the four reference corners you confirmed manually."
+                    : $"Using the four {label} corners you reviewed/confirmed manually.";
             }
             else
             {
@@ -333,7 +358,8 @@ namespace CollectIQ.Services.Inspection.Registration
             // If an independent light-image lock jumped far away from the neutral
             // geometry, reject it and inherit the reference geometry. Moving glare
             // must not redefine the physical card.
-            if (!key.Equals("Reference", StringComparison.OrdinalIgnoreCase) &&
+            if (manualCorners is null &&
+                !key.Equals("Reference", StringComparison.OrdinalIgnoreCase) &&
                 normalizedReferenceCorners is not null && confidence > 0.72)
             {
                 CardPoint[] detectedNormalized = NormalizeCorners(corners, preview.Width, preview.Height);
@@ -388,6 +414,7 @@ namespace CollectIQ.Services.Inspection.Registration
             {
                 Key = key,
                 SourcePath = inputPath,
+                PreviewImagePath = previewPath,
                 DetectionOverlayPath = overlayPath,
                 RegisteredImagePath = registeredPath,
                 EdgeImagePath = edgePath,
@@ -402,6 +429,20 @@ namespace CollectIQ.Services.Inspection.Registration
                 Luminance = luminance,
                 AlignmentConfidence = key.Equals("Reference", StringComparison.OrdinalIgnoreCase) ? 100.0 : 0.0
             };
+        }
+
+        private static IReadOnlyList<CardPoint>? GetManualCornersForFrame(
+            string key,
+            IReadOnlyList<CardPoint>? manualReferenceCorners,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners)
+        {
+            if (manualFrameCorners is not null && manualFrameCorners.TryGetValue(key, out IReadOnlyList<CardPoint>? frameCorners))
+                return frameCorners;
+
+            if (key.Equals("Reference", StringComparison.OrdinalIgnoreCase))
+                return manualReferenceCorners;
+
+            return null;
         }
 
         private static Mat LoadBoundedOpenCvPreview(

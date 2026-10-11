@@ -11,6 +11,8 @@ namespace CollectIQ.Interfaces
             string referenceKey,
             string outputDirectory,
             IReadOnlyList<CardPoint>? manualReferenceCorners = null,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners = null,
+            bool stopAfterGeometry = false,
             IProgress<SurfaceInspectionProgress>? progress = null,
             CancellationToken cancellationToken = default);
     }
