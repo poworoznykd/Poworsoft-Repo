@@ -29,9 +29,16 @@ namespace CollectIQ.Views
             SetImageIfPresent(NormalMapImage, result.NormalMapImagePath);
             SetImageIfPresent(CurvatureImage, result.CurvatureImagePath);
             SetImageIfPresent(ReferenceResidualImage, result.ReferenceResidualImagePath);
+            SetImageIfPresent(SlopeXImage, result.SlopeXImagePath);
+            SetImageIfPresent(SlopeYImage, result.SlopeYImagePath);
+            SetImageIfPresent(ScratchResponseImage, result.ScratchResponseImagePath);
+            SetImageIfPresent(DentResponseImage, result.DentResponseImagePath);
 
             if (result.Mode == SurfaceInspectionMode.ExternalLight)
             {
+                SetImageIfPresent(ReferenceDetectionImage, result.Diagnostics.ReferenceDetectionOverlayPath);
+                SetImageIfPresent(ReferenceRegisteredImage, result.Diagnostics.ReferenceRegisteredImagePath);
+
                 if (File.Exists(result.Diagnostics.EdgeOverlayPath))
                     EdgeOverlayImage.Source = ImageSource.FromFile(result.Diagnostics.EdgeOverlayPath);
 
@@ -59,6 +66,8 @@ namespace CollectIQ.Views
             NormalMapSection.IsVisible = external;
             CurvatureSection.IsVisible = external;
             ReferenceResidualSection.IsVisible = external;
+            SlopeSection.IsVisible = external;
+            DefectEvidenceSection.IsVisible = external;
             TiltAlignmentSection.IsVisible = tilt;
 
             DefectTitleLabel.IsVisible = !tilt || tiltHasCombinedOutputs;
