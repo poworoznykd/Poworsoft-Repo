@@ -122,7 +122,7 @@ namespace CollectIQ.Views
                 string title = $"{frame.Key.ToUpperInvariant()} IMAGE — PRECISION CORNER REVIEW";
                 string subtitle = "The current corners are already loaded. Select TL/TR/BL/BR, tap the large image for a coarse move, then use the magnified crosshair and 1-pixel arrows for exact placement.";
 
-                var picker = new SurfaceReferenceCornerPickerPage(
+                var picker = new CardCornerEditorPage(
                     frame.PreviewImagePath,
                     title,
                     subtitle,

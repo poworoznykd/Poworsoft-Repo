@@ -411,7 +411,7 @@ namespace CollectIQ.Views
                     ? ex.PreviewImagePath
                     : neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing.");
 
-                var picker = new SurfaceReferenceCornerPickerPage(pickerPath);
+                var picker = new CardCornerEditorPage(pickerPath);
                 await Navigation.PushModalAsync(picker);
                 CardPoint[]? corners = await picker.WaitForCornersAsync();
                 if (corners is null)

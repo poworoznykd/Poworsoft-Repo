@@ -77,10 +77,21 @@
                                FontSize="16"
                                FontAttributes="Bold" />
                         <Label x:Name="ManualCornerInstructionLabel"
-                               Text="Tap TOP LEFT on the physical card."
+                               Text="Automatic Card Lock did not finish. Use the precision editor below for the same manual corner workflow used by Surface."
                                TextColor="#DCFCE7"
                                FontSize="12"
                                LineBreakMode="WordWrap" />
+
+                        <Button Text="OPEN PRECISION 4-CORNER EDITOR"
+                                Clicked="OnOpenPrecisionCornerEditorClicked"
+                                CornerRadius="18"
+                                BackgroundColor="#15803D"
+                                TextColor="White"
+                                FontAttributes="Bold" />
+
+                        <Label Text="Legacy tap/zoom picker remains below as a backup."
+                               TextColor="#86EFAC"
+                               FontSize="10" />
 
                         <Grid x:Name="ManualCornerPickerSurface"
                               HeightRequest="520"

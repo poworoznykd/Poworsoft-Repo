@@ -13,6 +13,7 @@ namespace CollectIQ.Views
         private bool cameraReady;
         private bool captureInProgress;
         private bool showingCapturedImage;
+        private string? currentCenteringImagePath;
         private CancellationTokenSource? cameraStartCancellationTokenSource;
 
         private double measurementScale = 1.0;
@@ -197,6 +198,7 @@ namespace CollectIQ.Views
                 if (!File.Exists(path) || new FileInfo(path).Length < 1024)
                     throw new IOException("The camera returned an empty image.");
 
+                currentCenteringImagePath = path;
                 try { CenteringCameraView.StopCameraPreview(); } catch { }
                 cameraReady = false;
 
@@ -269,6 +271,7 @@ namespace CollectIQ.Views
                 await using (FileStream output = new(path, FileMode.Create, FileAccess.Write, FileShare.None))
                     await source.CopyToAsync(output);
 
+                currentCenteringImagePath = path;
                 ReleaseCamera();
                 ViewModel.LoadCapturedImage(path);
                 showingCapturedImage = true;
@@ -308,6 +311,41 @@ namespace CollectIQ.Views
             CenteringResultImage.IsVisible = false;
             CameraStatusLabel.IsVisible = true;
             CaptureInstructionLabel.Text = "Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare.";
+        }
+
+        private async void OnOpenPrecisionCornerEditorClicked(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(currentCenteringImagePath) || !File.Exists(currentCenteringImagePath))
+            {
+                await DisplayAlert("Centering", "The captured card image is no longer available. Retake or reload the photo and try again.", "OK");
+                return;
+            }
+
+            var editor = new CardCornerEditorPage(
+                currentCenteringImagePath,
+                "CENTERING — PRECISION 4-CORNER CARD LOCK",
+                "Automatic Card Lock did not finish. Set the four PHYSICAL outside card corners. Use the large image for coarse placement, then the magnified crosshair and 1-pixel arrows for exact placement.",
+                "USE THESE 4 CORNERS → TRUEFORM");
+
+            await Navigation.PushModalAsync(editor);
+            CardPoint[]? relativeCorners = await editor.WaitForCornersAsync();
+            if (relativeCorners is null)
+                return;
+
+            CaptureInstructionLabel.Text = "Using your precision 4 corners → Card Lock → TrueForm → 8-slider centering…";
+            await ViewModel.ContinueWithManualOuterCornersAsync(relativeCorners);
+
+            if (ViewModel.HasAnalysis)
+            {
+                CaptureInstructionLabel.Text = "TrueForm created from your precision four corners. Fine-tune centering with the 8 sliders.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
+                OnToggleGuideLockClicked(this, EventArgs.Empty);
+            }
+            else
+            {
+                await DisplayAlert("Centering", "TrueForm was not created from those four corners. Reopen the precision editor and adjust the card corners.", "OK");
+            }
         }
 
         private static readonly string[] ManualCornerNames =
