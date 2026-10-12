@@ -34,6 +34,9 @@ namespace CollectIQ.Views
         private string? canonicalImagePath;
         private string? orientedFullImagePath;
         private CardPoint[]? detectedOuterCorners;
+        private string? detectedCornerPreviewPath;
+        private int detectedSourceWidth;
+        private int detectedSourceHeight;
         private string? overlayDisplayPath;
         private string? outputDirectory;
         private ImageSource? cardImageSource;
@@ -150,6 +153,23 @@ namespace CollectIQ.Views
         {
             get => manualPreviewImageSource;
             private set => SetProperty(ref manualPreviewImageSource, value);
+        }
+
+        public string? DetectedCornerPreviewPath => detectedCornerPreviewPath;
+        public string? CurrentCardLockImagePath { get; private set; }
+        public string? CurrentTrueFormImagePath { get; private set; }
+
+        public CardPoint[]? GetDetectedOuterCornersNormalized()
+        {
+            if (detectedOuterCorners is null || detectedOuterCorners.Length != 4 ||
+                detectedSourceWidth <= 1 || detectedSourceHeight <= 1)
+                return null;
+
+            return detectedOuterCorners
+                .Select(p => new CardPoint(
+                    p.X / Math.Max(detectedSourceWidth - 1f, 1f),
+                    p.Y / Math.Max(detectedSourceHeight - 1f, 1f)))
+                .ToArray();
         }
 
         public ImageSource? CardLockImageSource
@@ -396,6 +416,11 @@ namespace CollectIQ.Views
             canonicalImagePath = null;
             orientedFullImagePath = null;
             detectedOuterCorners = null;
+            detectedCornerPreviewPath = null;
+            detectedSourceWidth = 0;
+            detectedSourceHeight = 0;
+            CurrentCardLockImagePath = null;
+            CurrentTrueFormImagePath = null;
             overlayDisplayPath = null;
             MeasurementImageSource = null;
             HasMeasurementImage = false;
@@ -473,7 +498,10 @@ namespace CollectIQ.Views
 
                     if (!string.IsNullOrWhiteSpace(progress.PreviewImagePath) &&
                         File.Exists(progress.PreviewImagePath))
+                    {
+                        detectedCornerPreviewPath = progress.PreviewImagePath;
                         ManualPreviewImageSource = ImageSource.FromFile(progress.PreviewImagePath);
+                    }
 
                     if (!string.IsNullOrWhiteSpace(progress.EdgeImagePath) &&
                         File.Exists(progress.EdgeImagePath))
@@ -520,14 +548,18 @@ namespace CollectIQ.Views
                 orientedFullImagePath = normalized.SourcePreviewPath;
                 canonicalImagePath = normalized.NormalizedImagePath;
                 detectedOuterCorners = normalized.SourceCorners;
+                detectedSourceWidth = normalized.SourceWidth;
+                detectedSourceHeight = normalized.SourceHeight;
 
                 // Preserve the original capture for comparison while exposing the
                 // normalized image separately as TrueForm View.
                 CardImageSource = ImageSource.FromFile(selectedImagePath);
                 OriginalImageSource = ImageSource.FromFile(selectedImagePath);
                 CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                CurrentCardLockImagePath = normalized.DetectionOverlayPath;
                 HasCardLockImage = true;
                 TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                CurrentTrueFormImagePath = canonicalImagePath;
                 HasTrueFormImage = true;
                 AnalysisStageText = "TrueForm complete. Measuring the printed/image frame…";
 
@@ -700,12 +732,16 @@ namespace CollectIQ.Views
                 orientedFullImagePath = normalized.SourcePreviewPath;
                 canonicalImagePath = normalized.NormalizedImagePath;
                 detectedOuterCorners = normalized.SourceCorners;
+                detectedSourceWidth = normalized.SourceWidth;
+                detectedSourceHeight = normalized.SourceHeight;
 
                 CardImageSource = ImageSource.FromFile(selectedImagePath);
                 OriginalImageSource = ImageSource.FromFile(selectedImagePath);
                 CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                CurrentCardLockImagePath = normalized.DetectionOverlayPath;
                 HasCardLockImage = true;
                 TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                CurrentTrueFormImagePath = canonicalImagePath;
                 HasTrueFormImage = true;
 
                 AnalysisStageText = "Measuring printed/image frame on TrueForm…";
@@ -793,11 +829,18 @@ namespace CollectIQ.Views
         /// The automatic detector is not rerun; the supplied TL, TR, BR, BL
         /// quadrilateral becomes the Card Lock sent directly into TrueForm.
         /// </summary>
-        public async Task ContinueWithManualOuterCornersAsync(CardPoint[] relativeCorners)
+        public async Task ContinueWithManualOuterCornersAsync(
+            CardPoint[] relativeCorners,
+            string? preparedImagePath = null,
+            bool allowLegacyFallback = true)
         {
+            string normalizationInputPath = !string.IsNullOrWhiteSpace(preparedImagePath) && File.Exists(preparedImagePath)
+                ? preparedImagePath
+                : selectedImagePath ?? string.Empty;
+
             if (IsBusy ||
-                string.IsNullOrWhiteSpace(selectedImagePath) ||
-                !File.Exists(selectedImagePath))
+                string.IsNullOrWhiteSpace(normalizationInputPath) ||
+                !File.Exists(normalizationInputPath))
                 return;
 
             IsBusy = true;
@@ -840,25 +883,29 @@ namespace CollectIQ.Views
                     "Centering",
                     "Manual four-corner normalization",
                     cancellationToken => normalizationService.NormalizeFromRelativeCornersAsync(
-                        selectedImagePath,
+                        normalizationInputPath,
                         manualOutputDirectory,
                         relativeCorners,
                         CanonicalWidth,
                         CanonicalHeight,
                         progressReporter,
                         cancellationToken),
-                    TimeSpan.FromSeconds(120));
+                    TimeSpan.FromSeconds(preparedImagePath is null ? 120 : 35));
 
                 rawDisplayPath = normalized.SourcePreviewPath;
                 orientedFullImagePath = normalized.SourcePreviewPath;
                 canonicalImagePath = normalized.NormalizedImagePath;
                 detectedOuterCorners = normalized.SourceCorners;
+                detectedSourceWidth = normalized.SourceWidth;
+                detectedSourceHeight = normalized.SourceHeight;
 
                 CardImageSource = ImageSource.FromFile(selectedImagePath);
                 OriginalImageSource = ImageSource.FromFile(selectedImagePath);
                 CardLockImageSource = ImageSource.FromFile(normalized.DetectionOverlayPath);
+                CurrentCardLockImagePath = normalized.DetectionOverlayPath;
                 HasCardLockImage = true;
                 TrueFormImageSource = ImageSource.FromFile(canonicalImagePath);
+                CurrentTrueFormImagePath = canonicalImagePath;
                 HasTrueFormImage = true;
 
                 AnalysisStageText = "Measuring printed/image frame on TrueForm…";
@@ -920,9 +967,11 @@ namespace CollectIQ.Views
                     "MANUAL FOUR-CORNER NORMALIZATION TIMEOUT",
                     exception: ex);
 
-                NeedsManualOuterCard = true;
-                StatusMessage =
-                    $"The four-corner transform did not finish while: {AnalysisStageText}. Your selected corners can be adjusted and retried.";
+                NeedsManualOuterCard = allowLegacyFallback;
+                HasAnalysis = false;
+                StatusMessage = allowLegacyFallback
+                    ? $"The four-corner transform did not finish while: {AnalysisStageText}. Your selected corners can be adjusted and retried."
+                    : $"The confirmed four-corner transform did not finish while: {AnalysisStageText}. Return to the precision corner review and retry; CollectIQ will not switch to the old legacy picker.";
             }
             catch (Exception ex)
             {
@@ -931,9 +980,11 @@ namespace CollectIQ.Views
                     "MANUAL FOUR-CORNER NORMALIZATION FAILED",
                     exception: ex);
 
-                NeedsManualOuterCard = true;
-                StatusMessage =
-                    $"Could not create TrueForm from the four selected corners: {ex.Message}";
+                NeedsManualOuterCard = allowLegacyFallback;
+                HasAnalysis = false;
+                StatusMessage = allowLegacyFallback
+                    ? $"Could not create TrueForm from the four selected corners: {ex.Message}"
+                    : $"Could not create TrueForm from the confirmed corners: {ex.Message}. CollectIQ will keep the precision workflow instead of opening the old legacy picker.";
             }
             finally
             {

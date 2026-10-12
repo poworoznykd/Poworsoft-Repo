@@ -77,7 +77,7 @@
                                FontSize="16"
                                FontAttributes="Bold" />
                         <Label x:Name="ManualCornerInstructionLabel"
-                               Text="Automatic Card Lock did not finish. Use the precision editor below for the same manual corner workflow used by Surface."
+                               Text="Automatic Card Lock did not finish. The precision editor opens automatically and now starts with all four corner handles ready, matching the Surface workflow."
                                TextColor="#DCFCE7"
                                FontSize="12"
                                LineBreakMode="WordWrap" />
@@ -89,11 +89,12 @@
                                 TextColor="White"
                                 FontAttributes="Bold" />
 
-                        <Label Text="Legacy tap/zoom picker remains below as a backup."
+                        <Label Text="Use TL / TR / BL / BR in the precision editor: tap the general location first, then finish with the magnified crosshair and arrows."
                                TextColor="#86EFAC"
                                FontSize="10" />
 
                         <Grid x:Name="ManualCornerPickerSurface"
+                              IsVisible="False"
                               HeightRequest="520"
                               HorizontalOptions="Fill"
                               IsClippedToBounds="True"
@@ -165,7 +166,7 @@
                         <Label Text="Yellow markers are your selected physical-card corners. Thin green lines show the exact quadrilateral that will be flattened into TrueForm. Select any named corner above and tap again to correct it."
                                TextColor="#BBF7D0" FontSize="10" LineBreakMode="WordWrap" />
 
-                        <Button x:Name="ManualCornerUseButton"
+                        <Button x:Name="ManualCornerUseButton" IsVisible="False"
                                 Text="USE THESE 4 CORNERS → TRUEFORM"
                                 Clicked="OnUseManualCornersClicked"
                                 IsEnabled="False"

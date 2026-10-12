@@ -1,6 +1,10 @@
 using System.Diagnostics;
 using CollectIQ.Helpers;
+using CollectIQ.Interfaces;
+using CollectIQ.Models.Inspection;
 using CollectIQ.Models.Inspection.Geometry;
+using CollectIQ.Models.Inspection.Registration;
+using CollectIQ.Services.Inspection;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Storage;
@@ -10,6 +14,7 @@ namespace CollectIQ.Views
     public partial class InspectCenteringPage : ContentPage
     {
         private InspectCenteringViewModel ViewModel => (InspectCenteringViewModel)BindingContext;
+        private readonly ICardRegistrationService cardRegistrationService;
         private bool cameraReady;
         private bool captureInProgress;
         private bool showingCapturedImage;
@@ -47,6 +52,9 @@ namespace CollectIQ.Views
             InitializeComponent();
             BindingContext = ServiceHelper.Services?.GetService(typeof(InspectCenteringViewModel)) as InspectCenteringViewModel
                 ?? new InspectCenteringViewModel();
+            cardRegistrationService =
+                ServiceHelper.Services?.GetService(typeof(ICardRegistrationService)) as ICardRegistrationService
+                ?? throw new InvalidOperationException("Card registration service is not registered.");
 
             manualCornerDrawable = new ManualCornerDrawable(manualOuterCorners);
             ManualCornerPickerOverlay.Drawable = manualCornerDrawable;
@@ -75,7 +83,18 @@ namespace CollectIQ.Views
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            showingCapturedImage = false;
+
+            // Returning from the Centering review/precision editor must preserve
+            // the captured card.  The previous behavior restarted the camera as
+            // soon as the modal closed, while the confirmed-corner continuation
+            // was still running in the background.
+            if (showingCapturedImage)
+            {
+                ReleaseCamera();
+                ShowCapturedImage();
+                return;
+            }
+
             ShowLiveCamera();
             await RestartCameraAsync();
         }
@@ -209,24 +228,17 @@ namespace CollectIQ.Views
                 CenteringShutterButton.IsEnabled = true;
                 CaptureInstructionLabel.Text = "STEP 2 — Photo captured. Watch the INSPECTION STAGE below while CollectIQ detects, locks and normalizes the card…";
 
-                // Analyze immediately. The user should not have to discover another button.
-                await ViewModel.AnalyzeLoadedImageAsync();
+                // Centering now uses the exact same fast one-frame card-lock preparation
+                // as Surface. Auto-find first, review/adjust, then run Centering from the
+                // confirmed four corners. This avoids the older duplicate geometry path.
+                bool completed = await RunSurfaceStyleCenteringGeometryAsync(path);
+                if (!completed)
+                    return;
 
-                if (ViewModel.HasAnalysis)
-                {
-                    CaptureInstructionLabel.Text =
-                        "STEP 3 — Automatic centering is complete. Review Original Capture → Card Lock View → TrueForm View → Centering Map. Use ADJUST CENTERING only if a guide needs correction.";
-                    UpdateGuideSurfaceSize();
-                    UpdateGuideVisuals();
-                }
-                else
-                {
-                    CaptureInstructionLabel.Text = ViewModel.NeedsManualOuterCard
-                        ? "Automatic Card Lock did not finish. Use the 4-CORNER CARD LOCK below instead of retaking."
-                        : "Centering could not create the normalized card. Read the RESULT below.";
-                    if (ViewModel.NeedsManualOuterCard)
-                        PrepareManualCornerPicker();
-                }
+                CaptureInstructionLabel.Text =
+                    "STEP 3 — Card Lock confirmed. Review TrueForm → Centering Map. Use ADJUST CENTERING only if a final measurement guide needs correction.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
             }
             catch (OperationCanceledException)
             {
@@ -278,24 +290,15 @@ namespace CollectIQ.Views
                 ShowCapturedImage();
                 CenteringShutterButton.Text = "↻  RETAKE WITH CAMERA";
                 CenteringShutterButton.IsEnabled = true;
-                CaptureInstructionLabel.Text = "Loaded photo — automatic card detection and normalization are running now…";
-                await ViewModel.AnalyzeLoadedImageAsync();
+                CaptureInstructionLabel.Text = "Loaded photo — using the Surface-style one-frame Card Lock now…";
+                bool completed = await RunSurfaceStyleCenteringGeometryAsync(path);
+                if (!completed)
+                    return;
 
-                if (ViewModel.HasAnalysis)
-                {
-                    CaptureInstructionLabel.Text =
-                        "Automatic centering is complete. Review Original Capture → Card Lock View → TrueForm View → Centering Map. Manual adjustment is optional.";
-                    UpdateGuideSurfaceSize();
-                    UpdateGuideVisuals();
-                }
-                else
-                {
-                    CaptureInstructionLabel.Text = ViewModel.NeedsManualOuterCard
-                        ? "Automatic Card Lock did not finish. Use the 4-CORNER CARD LOCK below."
-                        : "Centering could not create the normalized card. Read the RESULT below.";
-                    if (ViewModel.NeedsManualOuterCard)
-                        PrepareManualCornerPicker();
-                }
+                CaptureInstructionLabel.Text =
+                    "Card Lock confirmed. Review TrueForm → Centering Map. Final measurement adjustment is optional.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
             }
             catch (Exception ex)
             {
@@ -313,26 +316,155 @@ namespace CollectIQ.Views
             CaptureInstructionLabel.Text = "Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare.";
         }
 
+        private async Task<bool> RunSurfaceStyleCenteringGeometryAsync(string imagePath)
+        {
+            string outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "Centering",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_surface_style_lock");
+            Directory.CreateDirectory(outputDirectory);
+
+            var progress = new Progress<SurfaceInspectionProgress>(item =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    CaptureInstructionLabel.Text = $"CARD LOCK — {item.Stage}: {item.Message}";
+                    CameraStatusLabel.Text = item.Stage;
+                });
+            });
+
+            try
+            {
+                RegisteredCardFrame frame = await InspectionExecution.RunAsync(
+                    "Centering",
+                    "Surface-style one-frame card lock",
+                    cancellationToken => cardRegistrationService.RegisterSingleFrameAsync(
+                        imagePath,
+                        "Reference",
+                        outputDirectory,
+                        null,
+                        progress,
+                        cancellationToken),
+                    TimeSpan.FromSeconds(35));
+
+                var review = new CenteringSurfaceGeometryReviewPage(frame);
+                await Navigation.PushModalAsync(review);
+                CardPoint[]? confirmedCorners = await review.WaitForCornersAsync();
+                if (confirmedCorners is null)
+                {
+                    CaptureInstructionLabel.Text = "Centering is waiting for a confirmed four-corner Card Lock.";
+                    return false;
+                }
+
+                CaptureInstructionLabel.Text = "Confirmed corners → TrueForm → centering measurement…";
+                await ViewModel.ContinueWithManualOuterCornersAsync(
+                    confirmedCorners,
+                    frame.PreviewImagePath,
+                    allowLegacyFallback: false);
+                return ViewModel.HasAnalysis;
+            }
+            catch (SurfaceReferenceCardNotFoundException ex)
+            {
+                string previewPath = !string.IsNullOrWhiteSpace(ex.PreviewImagePath) && File.Exists(ex.PreviewImagePath)
+                    ? ex.PreviewImagePath
+                    : imagePath;
+
+                var editor = new CardCornerEditorPage(
+                    previewPath,
+                    "CENTERING — PRECISION 4-CORNER CARD LOCK",
+                    "Automatic Card Lock could not confidently find the card. Select TL/TR/BL/BR, tap the general corner position, then use the magnified crosshair and arrows exactly like Surface.",
+                    "USE THESE 4 CORNERS → CENTERING",
+                    new CardPoint[]
+                    {
+                        new(0.18f, 0.16f),
+                        new(0.82f, 0.16f),
+                        new(0.82f, 0.84f),
+                        new(0.18f, 0.84f)
+                    });
+
+                await Navigation.PushModalAsync(editor);
+                CardPoint[]? manualCorners = await editor.WaitForCornersAsync();
+                if (manualCorners is null)
+                    return false;
+
+                CaptureInstructionLabel.Text = "Using your four precision corners → TrueForm → centering measurement…";
+                await ViewModel.ContinueWithManualOuterCornersAsync(
+                    manualCorners,
+                    previewPath,
+                    allowLegacyFallback: false);
+                return ViewModel.HasAnalysis;
+            }
+        }
+
+        private async Task<bool> ConfirmAutomaticCenteringGeometryAsync()
+        {
+            if (!ViewModel.HasAnalysis)
+                return false;
+
+            CardPoint[]? autoCorners = ViewModel.GetDetectedOuterCornersNormalized();
+            string? previewPath = ViewModel.DetectedCornerPreviewPath;
+            if (autoCorners is null || string.IsNullOrWhiteSpace(previewPath) || !File.Exists(previewPath))
+                return true;
+
+            string? overlayPath = ViewModel.CurrentCardLockImagePath;
+            string? trueFormPath = ViewModel.CurrentTrueFormImagePath;
+            if (string.IsNullOrWhiteSpace(overlayPath) || string.IsNullOrWhiteSpace(trueFormPath))
+                return true;
+
+            var review = new CenteringGeometryReviewPage(
+                previewPath,
+                overlayPath,
+                trueFormPath,
+                autoCorners);
+
+            await Navigation.PushModalAsync(review);
+            CardPoint[]? confirmedCorners = await review.WaitForCornersAsync();
+            if (confirmedCorners is null)
+            {
+                CaptureInstructionLabel.Text = "Centering is waiting for you to confirm the four physical card corners.";
+                return false;
+            }
+
+            CaptureInstructionLabel.Text = "Confirmed corners → rebuilding Card Lock → TrueForm → centering…";
+            await ViewModel.ContinueWithManualOuterCornersAsync(confirmedCorners);
+            return ViewModel.HasAnalysis;
+        }
+
         private async void OnOpenPrecisionCornerEditorClicked(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(currentCenteringImagePath) || !File.Exists(currentCenteringImagePath))
+            await OpenPrecisionManualFallbackAsync();
+        }
+
+        private async Task OpenPrecisionManualFallbackAsync()
+        {
+            string? editorPath = ViewModel.DetectedCornerPreviewPath;
+            if (string.IsNullOrWhiteSpace(editorPath) || !File.Exists(editorPath))
+                editorPath = currentCenteringImagePath;
+
+            if (string.IsNullOrWhiteSpace(editorPath) || !File.Exists(editorPath))
             {
                 await DisplayAlert("Centering", "The captured card image is no longer available. Retake or reload the photo and try again.", "OK");
                 return;
             }
 
+            IReadOnlyList<CardPoint> initialCorners = GetCenteringPrecisionInitialCorners();
+
             var editor = new CardCornerEditorPage(
-                currentCenteringImagePath,
+                editorPath,
                 "CENTERING — PRECISION 4-CORNER CARD LOCK",
-                "Automatic Card Lock did not finish. Set the four PHYSICAL outside card corners. Use the large image for coarse placement, then the magnified crosshair and 1-pixel arrows for exact placement.",
-                "USE THESE 4 CORNERS → TRUEFORM");
+                "STEP 1: choose TL, TR, BL or BR and tap the GENERAL corner location in the large image. STEP 2: use the magnified crosshair and 1-pixel arrows to place that corner exactly. Repeat for all four corners, just like Surface.",
+                "USE THESE 4 CORNERS → TRUEFORM",
+                initialCorners);
 
             await Navigation.PushModalAsync(editor);
             CardPoint[]? relativeCorners = await editor.WaitForCornersAsync();
             if (relativeCorners is null)
+            {
+                CaptureInstructionLabel.Text = "Centering still needs four physical card corners. Tap OPEN PRECISION 4-CORNER EDITOR whenever you are ready.";
                 return;
+            }
 
-            CaptureInstructionLabel.Text = "Using your precision 4 corners → Card Lock → TrueForm → 8-slider centering…";
+            CaptureInstructionLabel.Text = "Using your precision 4 corners → Card Lock → TrueForm → centering…";
             await ViewModel.ContinueWithManualOuterCornersAsync(relativeCorners);
 
             if (ViewModel.HasAnalysis)
@@ -346,6 +478,31 @@ namespace CollectIQ.Views
             {
                 await DisplayAlert("Centering", "TrueForm was not created from those four corners. Reopen the precision editor and adjust the card corners.", "OK");
             }
+        }
+
+        private IReadOnlyList<CardPoint> GetCenteringPrecisionInitialCorners()
+        {
+            CardPoint[]? detected = ViewModel.GetDetectedOuterCornersNormalized();
+            if (detected is not null && detected.Length >= 4)
+            {
+                bool usable = detected.Take(4).All(p =>
+                    p.X >= 0f && p.X <= 1f &&
+                    p.Y >= 0f && p.Y <= 1f);
+                if (usable)
+                    return detected.Take(4).ToArray();
+            }
+
+            // When automatic Card Lock has no complete quad, preload four coarse
+            // points instead of opening the precision editor with empty corners.
+            // They are only starting handles; the user taps the actual TL/TR/BL/BR
+            // positions in the large image and then refines each one with arrows.
+            return new CardPoint[]
+            {
+                new(0.18f, 0.16f), // TL
+                new(0.82f, 0.16f), // TR
+                new(0.82f, 0.84f), // BR
+                new(0.18f, 0.84f)  // BL
+            };
         }
 
         private static readonly string[] ManualCornerNames =

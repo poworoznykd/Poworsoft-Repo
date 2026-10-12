@@ -11,7 +11,9 @@ namespace CollectIQ.Views
 
         private readonly TaskCompletionSource<Dictionary<string, IReadOnlyList<CardPoint>>?> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Dictionary<string, IReadOnlyList<CardPoint>> frameCorners = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Image> flatImages = new(StringComparer.OrdinalIgnoreCase);
         private readonly CardRegistrationResult registration;
+        private int orientationQuarterTurns;
 
         public SurfaceGeometryReviewPage(CardRegistrationResult registration)
         {
@@ -42,6 +44,28 @@ namespace CollectIQ.Views
                 FontSize = 13
             });
 
+            content.Children.Add(new Label
+            {
+                Text = "CARD ORIENTATION",
+                TextColor = Colors.White,
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 14
+            });
+            content.Children.Add(new Label
+            {
+                Text = "All five flat images must point the same upright direction. If the camera orientation came through wrong, rotate the whole five-image set here before photometric processing.",
+                TextColor = Color.FromArgb("#9FB3C8"),
+                FontSize = 12
+            });
+
+            var rotateLeft = new Button { Text = "↺ LEFT", BackgroundColor = Color.FromArgb("#253047"), TextColor = Colors.White, CornerRadius = 14 };
+            var rotate180 = new Button { Text = "↻ 180°", BackgroundColor = Color.FromArgb("#253047"), TextColor = Colors.White, CornerRadius = 14 };
+            var rotateRight = new Button { Text = "RIGHT ↻", BackgroundColor = Color.FromArgb("#253047"), TextColor = Colors.White, CornerRadius = 14 };
+            rotateLeft.Clicked += async (_, _) => await RotateAllAsync(-1);
+            rotate180.Clicked += async (_, _) => await RotateAllAsync(2);
+            rotateRight.Clicked += async (_, _) => await RotateAllAsync(1);
+            content.Children.Add(new HorizontalStackLayout { Spacing = 8, Children = { rotateLeft, rotate180, rotateRight } });
+
             foreach (string key in new[] { "Reference", "Top", "Right", "Bottom", "Left" })
             {
                 if (registration.Frames.TryGetValue(key, out RegisteredCardFrame? frame))
@@ -59,7 +83,11 @@ namespace CollectIQ.Views
             };
             continueButton.Clicked += async (_, _) =>
             {
-                completion.TrySetResult(new Dictionary<string, IReadOnlyList<CardPoint>>(frameCorners, StringComparer.OrdinalIgnoreCase));
+                Dictionary<string, IReadOnlyList<CardPoint>> finalCorners = frameCorners.ToDictionary(
+                    item => item.Key,
+                    item => (IReadOnlyList<CardPoint>)ApplyQuarterTurns(item.Value, orientationQuarterTurns),
+                    StringComparer.OrdinalIgnoreCase);
+                completion.TrySetResult(finalCorners);
                 await Navigation.PopModalAsync();
             };
 
@@ -109,6 +137,7 @@ namespace CollectIQ.Views
                 Aspect = Aspect.AspectFit,
                 HeightRequest = 180
             };
+            flatImages[frame.Key] = flatImage;
 
             var adjustButton = new Button
             {
@@ -142,7 +171,7 @@ namespace CollectIQ.Views
                 try
                 {
                     frameCorners[frame.Key] = result;
-                    ReviewImages refreshed = await Task.Run(() => RebuildReviewImages(frame, result));
+                    ReviewImages refreshed = await Task.Run(() => RebuildReviewImages(frame, result, orientationQuarterTurns));
 
                     frame.DetectionOverlayPath = refreshed.OverlayPath;
                     frame.RegisteredImagePath = refreshed.FlatPath;
@@ -200,7 +229,7 @@ namespace CollectIQ.Views
             };
         }
 
-        private static ReviewImages RebuildReviewImages(RegisteredCardFrame frame, IReadOnlyList<CardPoint> normalizedCorners)
+        private static ReviewImages RebuildReviewImages(RegisteredCardFrame frame, IReadOnlyList<CardPoint> normalizedCorners, int quarterTurns = 0)
         {
             if (string.IsNullOrWhiteSpace(frame.PreviewImagePath) || !File.Exists(frame.PreviewImagePath))
                 throw new FileNotFoundException("The bounded review image is no longer available.", frame.PreviewImagePath);
@@ -251,8 +280,11 @@ namespace CollectIQ.Views
                 Cv2.ImWrite(overlayPath, overlay, new[] { (int)ImwriteFlags.JpegQuality, 94 });
             }
 
-            Point2f[] src = pixelCorners
-                .Select(p => new Point2f((float)p.X, (float)p.Y))
+            CardPoint[] orientedNormalized = ApplyQuarterTurns(normalizedCorners, quarterTurns);
+            Point2f[] src = orientedNormalized
+                .Select(p => new Point2f(
+                    p.X * Math.Max(source.Width - 1, 1),
+                    p.Y * Math.Max(source.Height - 1, 1)))
                 .ToArray();
             Point2f[] dst =
             {
@@ -268,6 +300,32 @@ namespace CollectIQ.Views
             Cv2.ImWrite(flatPath, flat, new[] { (int)ImwriteFlags.JpegQuality, 94 });
 
             return new ReviewImages(overlayPath, flatPath, pixelCorners);
+        }
+
+        private async Task RotateAllAsync(int delta)
+        {
+            orientationQuarterTurns = ((orientationQuarterTurns + delta) % 4 + 4) % 4;
+
+            foreach (string key in new[] { "Reference", "Top", "Right", "Bottom", "Left" })
+            {
+                if (!registration.Frames.TryGetValue(key, out RegisteredCardFrame? frame) ||
+                    !frameCorners.TryGetValue(key, out IReadOnlyList<CardPoint>? corners) ||
+                    !flatImages.TryGetValue(key, out Image? image))
+                    continue;
+
+                ReviewImages refreshed = await Task.Run(() => RebuildReviewImages(frame, corners, orientationQuarterTurns));
+                image.Source = ImageSource.FromFile(refreshed.FlatPath);
+                frame.RegisteredImagePath = refreshed.FlatPath;
+            }
+        }
+
+        private static CardPoint[] ApplyQuarterTurns(IReadOnlyList<CardPoint> corners, int turns)
+        {
+            int shift = ((turns % 4) + 4) % 4;
+            return Enumerable.Range(0, 4)
+                .Select(i => corners[(i - shift + 4) % 4])
+                .Select(p => new CardPoint(p.X, p.Y))
+                .ToArray();
         }
 
         private static IReadOnlyList<CardPoint> Normalize(RegisteredCardFrame frame)

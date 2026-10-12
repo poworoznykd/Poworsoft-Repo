@@ -260,22 +260,24 @@ namespace CollectIQ.Services.Inspection.Geometry
                 }
                 else
                 {
+                    // Centering must stay responsive. The precision four-corner editor is
+                    // now the deliberate recovery path, so do not enter the old multi-pass
+                    // segmentation fallback that could run for a minute on Android.
                     progress?.Report(new CardNormalizationProgress
                     {
-                        Stage = "DETECT",
-                        Message = "Fitting outer card edges from the bounded image…"
+                        Stage = "AUTO_CARD_LOCK_NOT_FOUND",
+                        Message = "Fast automatic Card Lock did not find one reliable outer rectangle. Opening the precision 4-corner editor instead of running a long fallback…",
+                        PreviewImagePath = manualPreviewPath,
+                        EdgeImagePath = edgePath,
+                        RectangleImagePath = rectanglePath
                     });
-                    CardGeometryResult boundedGeometry = geometryService.DetectCard(preview);
                     geometry = new CardGeometryResult
                     {
-                        Success = boundedGeometry.Success,
-                        Corners = boundedGeometry.Success && boundedGeometry.Corners.Length == 4
-                            ? ScaleCorners(boundedGeometry.Corners,
-                                preview.Width, preview.Height, source.Width, source.Height)
-                            : Array.Empty<CardPoint>(),
+                        Success = false,
+                        Corners = Array.Empty<CardPoint>(),
                         SourceWidth = source.Width,
                         SourceHeight = source.Height,
-                        Confidence = boundedGeometry.Confidence
+                        Confidence = 0.0
                     };
                 }
             }
@@ -446,6 +448,8 @@ namespace CollectIQ.Services.Inspection.Geometry
                 NormalizedImagePath = normalizedPath,
                 SourceCorners = geometry.Corners.ToArray(),
                 GeometryConfidence = geometry.Confidence,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
                 NormalizedWidth = normalizedWidth,
                 NormalizedHeight = normalizedHeight,
                 NormalizedCardLeft = normalizedCardLeft,
@@ -584,6 +588,8 @@ namespace CollectIQ.Services.Inspection.Geometry
                 NormalizedImagePath = normalizedPath,
                 SourceCorners = sourceCorners,
                 GeometryConfidence = 1.0,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
                 NormalizedWidth = normalizedWidth,
                 NormalizedHeight = normalizedHeight,
                 NormalizedCardLeft = normalizedCardLeft,
@@ -714,6 +720,8 @@ namespace CollectIQ.Services.Inspection.Geometry
                 NormalizedImagePath = normalizedPath,
                 SourceCorners = sourceCorners,
                 GeometryConfidence = 1.0,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
                 NormalizedWidth = normalizedWidth,
                 NormalizedHeight = normalizedHeight,
                 NormalizedCardLeft = normalizedCardLeft,
@@ -922,6 +930,35 @@ namespace CollectIQ.Services.Inspection.Geometry
                 .ToArray();
         }
 
+        private static CardPoint[] OrderCornersForPortraitWarp(IReadOnlyList<CardPoint> corners)
+        {
+            if (corners.Count != 4)
+                throw new ArgumentException("Four ordered card corners are required.", nameof(corners));
+
+            static double Distance(CardPoint a, CardPoint b)
+            {
+                double dx = b.X - a.X;
+                double dy = b.Y - a.Y;
+                return Math.Sqrt((dx * dx) + (dy * dy));
+            }
+
+            double topBottom = (Distance(corners[0], corners[1]) + Distance(corners[2], corners[3])) * 0.5;
+            double leftRight = (Distance(corners[1], corners[2]) + Distance(corners[3], corners[0])) * 0.5;
+
+            if (topBottom <= leftRight)
+                return corners.Select(p => new CardPoint(p.X, p.Y)).ToArray();
+
+            // The physical card is sideways in the image. Rotate the source-corner
+            // sequence one quarter-turn before mapping it to the portrait TrueForm.
+            return new[]
+            {
+                new CardPoint(corners[3].X, corners[3].Y),
+                new CardPoint(corners[0].X, corners[0].Y),
+                new CardPoint(corners[1].X, corners[1].Y),
+                new CardPoint(corners[2].X, corners[2].Y)
+            };
+        }
+
         /// <summary>
         /// Uses OpenCV's native perspective warp for the normalized card.
         /// The four input corners must be ordered TL, TR, BR, BL.
@@ -945,12 +982,13 @@ namespace CollectIQ.Services.Inspection.Geometry
 
             using Mat sourceBgr = CreateBgrMat(source);
 
+            CardPoint[] portraitCorners = OrderCornersForPortraitWarp(sourceCorners);
             Point2f[] src =
             {
-                new(sourceCorners[0].X, sourceCorners[0].Y),
-                new(sourceCorners[1].X, sourceCorners[1].Y),
-                new(sourceCorners[2].X, sourceCorners[2].Y),
-                new(sourceCorners[3].X, sourceCorners[3].Y)
+                new(portraitCorners[0].X, portraitCorners[0].Y),
+                new(portraitCorners[1].X, portraitCorners[1].Y),
+                new(portraitCorners[2].X, portraitCorners[2].Y),
+                new(portraitCorners[3].X, portraitCorners[3].Y)
             };
 
             Point2f[] dst =

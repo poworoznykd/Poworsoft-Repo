@@ -18,6 +18,8 @@ namespace CollectIQ.Models.Inspection.Geometry
         public string NormalizedImagePath { get; init; } = string.Empty;
         public CardPoint[] SourceCorners { get; init; } = Array.Empty<CardPoint>();
         public double GeometryConfidence { get; init; }
+        public int SourceWidth { get; init; }
+        public int SourceHeight { get; init; }
         public int NormalizedWidth { get; init; }
         public int NormalizedHeight { get; init; }
 

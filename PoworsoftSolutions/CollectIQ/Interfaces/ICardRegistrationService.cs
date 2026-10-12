@@ -6,6 +6,14 @@ namespace CollectIQ.Interfaces
 {
     public interface ICardRegistrationService
     {
+
+        Task<RegisteredCardFrame> RegisterSingleFrameAsync(
+            string imagePath,
+            string key,
+            string outputDirectory,
+            IReadOnlyList<CardPoint>? manualCorners = null,
+            IProgress<SurfaceInspectionProgress>? progress = null,
+            CancellationToken cancellationToken = default);
         Task<CardRegistrationResult> RegisterAsync(
             IReadOnlyDictionary<string, string> captures,
             string referenceKey,

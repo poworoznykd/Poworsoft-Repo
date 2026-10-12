@@ -38,6 +38,29 @@ namespace CollectIQ.Services.Inspection.Registration
             _ = geometryService;
         }
 
+        public Task<RegisteredCardFrame> RegisterSingleFrameAsync(
+            string imagePath,
+            string key,
+            string outputDirectory,
+            IReadOnlyList<CardPoint>? manualCorners = null,
+            IProgress<SurfaceInspectionProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+                throw new FileNotFoundException("The card image could not be found.", imagePath);
+
+            Directory.CreateDirectory(outputDirectory);
+            return ProcessFrameAsync(
+                key,
+                imagePath,
+                outputDirectory,
+                manualCorners,
+                null,
+                3,
+                progress,
+                cancellationToken);
+        }
+
         public async Task<CardRegistrationResult> RegisterAsync(
             IReadOnlyDictionary<string, string> captures,
             string referenceKey,
@@ -679,11 +702,32 @@ namespace CollectIQ.Services.Inspection.Registration
             Cv2.ImWrite(outputPath, overlay, new[] { (int)ImwriteFlags.JpegQuality, 94 });
         }
 
+        private static CardPoint[] OrderCornersForPortraitWarp(IReadOnlyList<CardPoint> corners)
+        {
+            if (corners.Count != 4)
+                throw new ArgumentException("Four card corners are required.", nameof(corners));
+
+            double topBottom = (Distance(corners[0], corners[1]) + Distance(corners[2], corners[3])) * 0.5;
+            double leftRight = (Distance(corners[1], corners[2]) + Distance(corners[3], corners[0])) * 0.5;
+
+            if (topBottom <= leftRight)
+                return corners.Select(p => new CardPoint(p.X, p.Y)).ToArray();
+
+            return new[]
+            {
+                new CardPoint(corners[3].X, corners[3].Y),
+                new CardPoint(corners[0].X, corners[0].Y),
+                new CardPoint(corners[1].X, corners[1].Y),
+                new CardPoint(corners[2].X, corners[2].Y)
+            };
+        }
+
         private static Mat WarpPerspectiveToCanonical(Mat source, IReadOnlyList<CardPoint> sourceCorners)
         {
             int padX = Math.Max(4, (int)Math.Round(CanonicalWidth * 0.03));
             int padY = Math.Max(4, (int)Math.Round(CanonicalHeight * 0.03));
-            Point2f[] src = sourceCorners.Select(p => new Point2f(p.X, p.Y)).ToArray();
+            CardPoint[] portraitCorners = OrderCornersForPortraitWarp(sourceCorners);
+            Point2f[] src = portraitCorners.Select(p => new Point2f(p.X, p.Y)).ToArray();
             Point2f[] dst =
             {
                 new(padX, padY),
