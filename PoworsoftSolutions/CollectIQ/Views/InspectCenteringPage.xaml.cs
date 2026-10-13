@@ -1,6 +1,12 @@
 using System.Diagnostics;
 using CollectIQ.Helpers;
+using CollectIQ.Interfaces;
+using CollectIQ.Models.Inspection;
+using CollectIQ.Models.Inspection.Geometry;
+using CollectIQ.Models.Inspection.Registration;
+using CollectIQ.Services.Inspection;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Storage;
 
 namespace CollectIQ.Views
@@ -8,9 +14,11 @@ namespace CollectIQ.Views
     public partial class InspectCenteringPage : ContentPage
     {
         private InspectCenteringViewModel ViewModel => (InspectCenteringViewModel)BindingContext;
+        private readonly ICardRegistrationService cardRegistrationService;
         private bool cameraReady;
         private bool captureInProgress;
         private bool showingCapturedImage;
+        private string? currentCenteringImagePath;
         private CancellationTokenSource? cameraStartCancellationTokenSource;
 
         private double measurementScale = 1.0;
@@ -20,6 +28,22 @@ namespace CollectIQ.Views
         private double measurementPanStartX;
         private double measurementPanStartY;
 
+        private int activeGuideStartPixel;
+        private bool suppressManualCenteringSliderEvents;
+
+        private readonly Point?[] manualOuterCorners = new Point?[4];
+        private int activeManualOuterCornerIndex;
+        private ManualCornerDrawable? manualCornerDrawable;
+
+        private double manualCornerScale = 1.0;
+        private double manualCornerScaleAtGestureStart = 1.0;
+        private double manualCornerTranslationX;
+        private double manualCornerTranslationY;
+        private double manualCornerPanStartX;
+        private double manualCornerPanStartY;
+        private bool manualCornerPanMoved;
+        private DateTime manualCornerIgnoreTapUntilUtc;
+
         private Image? MeasurementImageControl =>
             this.FindByName<Image>("CenteringMeasurementImage");
 
@@ -28,12 +52,49 @@ namespace CollectIQ.Views
             InitializeComponent();
             BindingContext = ServiceHelper.Services?.GetService(typeof(InspectCenteringViewModel)) as InspectCenteringViewModel
                 ?? new InspectCenteringViewModel();
+            cardRegistrationService =
+                ServiceHelper.Services?.GetService(typeof(ICardRegistrationService)) as ICardRegistrationService
+                ?? throw new InvalidOperationException("Card registration service is not registered.");
+
+            manualCornerDrawable = new ManualCornerDrawable(manualOuterCorners);
+            ManualCornerPickerOverlay.Drawable = manualCornerDrawable;
+
+            ViewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(InspectCenteringViewModel.HasAnalysis) ||
+                    args.PropertyName == nameof(InspectCenteringViewModel.IsManualMode) ||
+                    args.PropertyName?.EndsWith("GuidePixel", StringComparison.Ordinal) == true)
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        UpdateGuideVisuals();
+                        UpdateManualCenteringEditorVisuals();
+                    });
+                }
+
+                if (args.PropertyName == nameof(InspectCenteringViewModel.NeedsManualOuterCard) ||
+                    args.PropertyName?.StartsWith("ManualOuter", StringComparison.Ordinal) == true)
+                {
+                    MainThread.BeginInvokeOnMainThread(UpdateManualOuterGuideVisuals);
+                }
+            };
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            showingCapturedImage = false;
+
+            // Returning from the Centering review/precision editor must preserve
+            // the captured card.  The previous behavior restarted the camera as
+            // soon as the modal closed, while the confirmed-corner continuation
+            // was still running in the background.
+            if (showingCapturedImage)
+            {
+                ReleaseCamera();
+                ShowCapturedImage();
+                return;
+            }
+
             ShowLiveCamera();
             await RestartCameraAsync();
         }
@@ -156,6 +217,7 @@ namespace CollectIQ.Views
                 if (!File.Exists(path) || new FileInfo(path).Length < 1024)
                     throw new IOException("The camera returned an empty image.");
 
+                currentCenteringImagePath = path;
                 try { CenteringCameraView.StopCameraPreview(); } catch { }
                 cameraReady = false;
 
@@ -164,11 +226,19 @@ namespace CollectIQ.Views
                 ShowCapturedImage();
                 CenteringShutterButton.Text = "↻  RETAKE PHOTO";
                 CenteringShutterButton.IsEnabled = true;
-                CaptureInstructionLabel.Text = "STEP 2 — Photo captured. CollectIQ is analyzing the outer card and inner frame now…";
+                CaptureInstructionLabel.Text = "STEP 2 — Photo captured. Watch the INSPECTION STAGE below while CollectIQ detects, locks and normalizes the card…";
 
-                // Analyze immediately. The user should not have to discover another button.
-                await ViewModel.AnalyzeLoadedImageAsync();
-                CaptureInstructionLabel.Text = "STEP 3 — Review the purple/yellow guides and centering scores below. If a line is off, use Manual Adjustments; otherwise you are done.";
+                // Centering now uses the exact same fast one-frame card-lock preparation
+                // as Surface. Auto-find first, review/adjust, then run Centering from the
+                // confirmed four corners. This avoids the older duplicate geometry path.
+                bool completed = await RunSurfaceStyleCenteringGeometryAsync(path);
+                if (!completed)
+                    return;
+
+                CaptureInstructionLabel.Text =
+                    "STEP 3 — Card Lock confirmed. Review TrueForm → Centering Map. Use ADJUST CENTERING only if a final measurement guide needs correction.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
             }
             catch (OperationCanceledException)
             {
@@ -213,15 +283,22 @@ namespace CollectIQ.Views
                 await using (FileStream output = new(path, FileMode.Create, FileAccess.Write, FileShare.None))
                     await source.CopyToAsync(output);
 
+                currentCenteringImagePath = path;
                 ReleaseCamera();
                 ViewModel.LoadCapturedImage(path);
                 showingCapturedImage = true;
                 ShowCapturedImage();
                 CenteringShutterButton.Text = "↻  RETAKE WITH CAMERA";
                 CenteringShutterButton.IsEnabled = true;
-                CaptureInstructionLabel.Text = "Loaded photo — CollectIQ is analyzing it now…";
-                await ViewModel.AnalyzeLoadedImageAsync();
-                CaptureInstructionLabel.Text = "Review the centering guides and scores below. Retake or use Manual Adjustments if needed.";
+                CaptureInstructionLabel.Text = "Loaded photo — using the Surface-style one-frame Card Lock now…";
+                bool completed = await RunSurfaceStyleCenteringGeometryAsync(path);
+                if (!completed)
+                    return;
+
+                CaptureInstructionLabel.Text =
+                    "Card Lock confirmed. Review TrueForm → Centering Map. Final measurement adjustment is optional.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
             }
             catch (Exception ex)
             {
@@ -237,6 +314,847 @@ namespace CollectIQ.Views
             CenteringResultImage.IsVisible = false;
             CameraStatusLabel.IsVisible = true;
             CaptureInstructionLabel.Text = "Place ONE card on a plain, contrasting background. Keep all four card edges visible and avoid glare.";
+        }
+
+        private async Task<bool> RunSurfaceStyleCenteringGeometryAsync(string imagePath)
+        {
+            string outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "Centering",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_surface_style_lock");
+            Directory.CreateDirectory(outputDirectory);
+
+            var progress = new Progress<SurfaceInspectionProgress>(item =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    CaptureInstructionLabel.Text = $"CARD LOCK — {item.Stage}: {item.Message}";
+                    CameraStatusLabel.Text = item.Stage;
+                });
+            });
+
+            try
+            {
+                RegisteredCardFrame frame = await InspectionExecution.RunAsync(
+                    "Centering",
+                    "Surface-style one-frame card lock",
+                    cancellationToken => cardRegistrationService.RegisterSingleFrameAsync(
+                        imagePath,
+                        "Reference",
+                        outputDirectory,
+                        null,
+                        progress,
+                        cancellationToken),
+                    TimeSpan.FromSeconds(35));
+
+                var review = new CenteringSurfaceGeometryReviewPage(frame);
+                await Navigation.PushModalAsync(review);
+                CardPoint[]? confirmedCorners = await review.WaitForCornersAsync();
+                if (confirmedCorners is null)
+                {
+                    CaptureInstructionLabel.Text = "Centering is waiting for a confirmed four-corner Card Lock.";
+                    return false;
+                }
+
+                CaptureInstructionLabel.Text = "Confirmed corners → TrueForm → centering measurement…";
+                await ViewModel.ContinueWithManualOuterCornersAsync(
+                    confirmedCorners,
+                    frame.PreviewImagePath,
+                    allowLegacyFallback: false);
+                return ViewModel.HasAnalysis;
+            }
+            catch (SurfaceReferenceCardNotFoundException ex)
+            {
+                string previewPath = !string.IsNullOrWhiteSpace(ex.PreviewImagePath) && File.Exists(ex.PreviewImagePath)
+                    ? ex.PreviewImagePath
+                    : imagePath;
+
+                var editor = new CardCornerEditorPage(
+                    previewPath,
+                    "CENTERING — PRECISION 4-CORNER CARD LOCK",
+                    "Automatic Card Lock could not confidently find the card. Select TL/TR/BL/BR, tap the general corner position, then use the magnified crosshair and arrows exactly like Surface.",
+                    "USE THESE 4 CORNERS → CENTERING",
+                    new CardPoint[]
+                    {
+                        new(0.18f, 0.16f),
+                        new(0.82f, 0.16f),
+                        new(0.82f, 0.84f),
+                        new(0.18f, 0.84f)
+                    });
+
+                await Navigation.PushModalAsync(editor);
+                CardPoint[]? manualCorners = await editor.WaitForCornersAsync();
+                if (manualCorners is null)
+                    return false;
+
+                CaptureInstructionLabel.Text = "Using your four precision corners → TrueForm → centering measurement…";
+                await ViewModel.ContinueWithManualOuterCornersAsync(
+                    manualCorners,
+                    previewPath,
+                    allowLegacyFallback: false);
+                return ViewModel.HasAnalysis;
+            }
+        }
+
+        private async Task<bool> ConfirmAutomaticCenteringGeometryAsync()
+        {
+            if (!ViewModel.HasAnalysis)
+                return false;
+
+            CardPoint[]? autoCorners = ViewModel.GetDetectedOuterCornersNormalized();
+            string? previewPath = ViewModel.DetectedCornerPreviewPath;
+            if (autoCorners is null || string.IsNullOrWhiteSpace(previewPath) || !File.Exists(previewPath))
+                return true;
+
+            string? overlayPath = ViewModel.CurrentCardLockImagePath;
+            string? trueFormPath = ViewModel.CurrentTrueFormImagePath;
+            if (string.IsNullOrWhiteSpace(overlayPath) || string.IsNullOrWhiteSpace(trueFormPath))
+                return true;
+
+            var review = new CenteringGeometryReviewPage(
+                previewPath,
+                overlayPath,
+                trueFormPath,
+                autoCorners);
+
+            await Navigation.PushModalAsync(review);
+            CardPoint[]? confirmedCorners = await review.WaitForCornersAsync();
+            if (confirmedCorners is null)
+            {
+                CaptureInstructionLabel.Text = "Centering is waiting for you to confirm the four physical card corners.";
+                return false;
+            }
+
+            CaptureInstructionLabel.Text = "Confirmed corners → rebuilding Card Lock → TrueForm → centering…";
+            await ViewModel.ContinueWithManualOuterCornersAsync(confirmedCorners);
+            return ViewModel.HasAnalysis;
+        }
+
+        private async void OnOpenPrecisionCornerEditorClicked(object sender, EventArgs e)
+        {
+            await OpenPrecisionManualFallbackAsync();
+        }
+
+        private async Task OpenPrecisionManualFallbackAsync()
+        {
+            string? editorPath = ViewModel.DetectedCornerPreviewPath;
+            if (string.IsNullOrWhiteSpace(editorPath) || !File.Exists(editorPath))
+                editorPath = currentCenteringImagePath;
+
+            if (string.IsNullOrWhiteSpace(editorPath) || !File.Exists(editorPath))
+            {
+                await DisplayAlert("Centering", "The captured card image is no longer available. Retake or reload the photo and try again.", "OK");
+                return;
+            }
+
+            IReadOnlyList<CardPoint> initialCorners = GetCenteringPrecisionInitialCorners();
+
+            var editor = new CardCornerEditorPage(
+                editorPath,
+                "CENTERING — PRECISION 4-CORNER CARD LOCK",
+                "STEP 1: choose TL, TR, BL or BR and tap the GENERAL corner location in the large image. STEP 2: use the magnified crosshair and 1-pixel arrows to place that corner exactly. Repeat for all four corners, just like Surface.",
+                "USE THESE 4 CORNERS → TRUEFORM",
+                initialCorners);
+
+            await Navigation.PushModalAsync(editor);
+            CardPoint[]? relativeCorners = await editor.WaitForCornersAsync();
+            if (relativeCorners is null)
+            {
+                CaptureInstructionLabel.Text = "Centering still needs four physical card corners. Tap OPEN PRECISION 4-CORNER EDITOR whenever you are ready.";
+                return;
+            }
+
+            CaptureInstructionLabel.Text = "Using your precision 4 corners → Card Lock → TrueForm → centering…";
+            await ViewModel.ContinueWithManualOuterCornersAsync(relativeCorners);
+
+            if (ViewModel.HasAnalysis)
+            {
+                CaptureInstructionLabel.Text = "TrueForm created from your precision four corners. Fine-tune centering with the 8 sliders.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
+                OnToggleGuideLockClicked(this, EventArgs.Empty);
+            }
+            else
+            {
+                await DisplayAlert("Centering", "TrueForm was not created from those four corners. Reopen the precision editor and adjust the card corners.", "OK");
+            }
+        }
+
+        private IReadOnlyList<CardPoint> GetCenteringPrecisionInitialCorners()
+        {
+            CardPoint[]? detected = ViewModel.GetDetectedOuterCornersNormalized();
+            if (detected is not null && detected.Length >= 4)
+            {
+                bool usable = detected.Take(4).All(p =>
+                    p.X >= 0f && p.X <= 1f &&
+                    p.Y >= 0f && p.Y <= 1f);
+                if (usable)
+                    return detected.Take(4).ToArray();
+            }
+
+            // When automatic Card Lock has no complete quad, preload four coarse
+            // points instead of opening the precision editor with empty corners.
+            // They are only starting handles; the user taps the actual TL/TR/BL/BR
+            // positions in the large image and then refines each one with arrows.
+            return new CardPoint[]
+            {
+                new(0.18f, 0.16f), // TL
+                new(0.82f, 0.16f), // TR
+                new(0.82f, 0.84f), // BR
+                new(0.18f, 0.84f)  // BL
+            };
+        }
+
+        private static readonly string[] ManualCornerNames =
+        {
+            "TOP LEFT", "TOP RIGHT", "BOTTOM RIGHT", "BOTTOM LEFT"
+        };
+
+        private void PrepareManualCornerPicker()
+        {
+            for (int i = 0; i < manualOuterCorners.Length; i++)
+                manualOuterCorners[i] = null;
+
+            activeManualOuterCornerIndex = 0;
+            ManualCornerUseButton.IsEnabled = false;
+            ManualCornerInstructionLabel.Text =
+                "Pinch to zoom, drag to pan, then tap TOP LEFT on the physical card.";
+            ResetManualCornerView();
+            ManualCornerPickerOverlay.Invalidate();
+        }
+
+        private void OnManualCornerSelectionClicked(object sender, EventArgs e)
+        {
+            if (sender is not Button button ||
+                button.CommandParameter is not string value ||
+                !int.TryParse(value, out int index) ||
+                index < 0 || index > 3)
+                return;
+
+            activeManualOuterCornerIndex = index;
+            ManualCornerInstructionLabel.Text =
+                $"Tap {ManualCornerNames[index]} on the physical card.";
+        }
+
+        private void OnManualCornerPickerTapped(object sender, TappedEventArgs e)
+        {
+            if (!ViewModel.NeedsManualOuterCard ||
+                DateTime.UtcNow < manualCornerIgnoreTapUntilUtc ||
+                ManualCornerPickerSurface.Width <= 1 ||
+                ManualCornerPickerSurface.Height <= 1 ||
+                ManualCornerTransformLayer.Width <= 1 ||
+                ManualCornerTransformLayer.Height <= 1)
+                return;
+
+            Point? position = e.GetPosition(ManualCornerPickerSurface);
+            if (position is null)
+                return;
+
+            double surfaceCenterX = ManualCornerPickerSurface.Width / 2.0;
+            double surfaceCenterY = ManualCornerPickerSurface.Height / 2.0;
+            double layerCenterX = ManualCornerTransformLayer.Width / 2.0;
+            double layerCenterY = ManualCornerTransformLayer.Height / 2.0;
+
+            // Undo the current pan/zoom so every selected point is stored in
+            // the original static image's normalized coordinate space.
+            double imageX =
+                ((position.Value.X - surfaceCenterX - manualCornerTranslationX) / manualCornerScale) +
+                layerCenterX;
+            double imageY =
+                ((position.Value.Y - surfaceCenterY - manualCornerTranslationY) / manualCornerScale) +
+                layerCenterY;
+
+            if (imageX < 0 || imageX > ManualCornerTransformLayer.Width ||
+                imageY < 0 || imageY > ManualCornerTransformLayer.Height)
+            {
+                ManualCornerInstructionLabel.Text =
+                    "That tap is outside the image. Pan the card into view and tap the physical corner again.";
+                return;
+            }
+
+            double x = Math.Clamp(imageX / ManualCornerTransformLayer.Width, 0.0, 1.0);
+            double y = Math.Clamp(imageY / ManualCornerTransformLayer.Height, 0.0, 1.0);
+            manualOuterCorners[activeManualOuterCornerIndex] = new Point(x, y);
+
+            bool complete = manualOuterCorners.All(p => p.HasValue);
+            ManualCornerUseButton.IsEnabled = complete;
+
+            if (!complete)
+            {
+                for (int offset = 1; offset <= 4; offset++)
+                {
+                    int candidate = (activeManualOuterCornerIndex + offset) % 4;
+                    if (!manualOuterCorners[candidate].HasValue)
+                    {
+                        activeManualOuterCornerIndex = candidate;
+                        break;
+                    }
+                }
+
+                ManualCornerInstructionLabel.Text =
+                    $"Corner saved. Zoom/pan as needed, then tap {ManualCornerNames[activeManualOuterCornerIndex]}.";
+            }
+            else
+            {
+                ManualCornerInstructionLabel.Text =
+                    "All four corners are set. Check the green quadrilateral, correct any named corner if needed, then use these 4 corners.";
+            }
+
+            ManualCornerPickerOverlay.Invalidate();
+        }
+
+        private void OnManualCornerPickerSurfaceSizeChanged(object sender, EventArgs e)
+        {
+            // The transformed layer fills the picker viewport.  Reapply the
+            // stored transform after layout so the overlay remains registered.
+            ApplyManualCornerTransform();
+        }
+
+        private void OnManualCornerPickerPinchUpdated(object sender, PinchGestureUpdatedEventArgs e)
+        {
+            if (!ViewModel.NeedsManualOuterCard)
+                return;
+
+            if (e.Status == GestureStatus.Started)
+            {
+                manualCornerScaleAtGestureStart = manualCornerScale;
+                CenteringPageScroll.Orientation = ScrollOrientation.Neither;
+                return;
+            }
+
+            if (e.Status == GestureStatus.Running)
+            {
+                manualCornerScale = Math.Clamp(
+                    manualCornerScaleAtGestureStart * e.Scale,
+                    1.0,
+                    8.0);
+                ClampManualCornerTranslation();
+                ApplyManualCornerTransform();
+                return;
+            }
+
+            CenteringPageScroll.Orientation = ScrollOrientation.Vertical;
+            manualCornerIgnoreTapUntilUtc = DateTime.UtcNow.AddMilliseconds(180);
+        }
+
+        private void OnManualCornerPickerPanUpdated(object sender, PanUpdatedEventArgs e)
+        {
+            if (!ViewModel.NeedsManualOuterCard)
+                return;
+
+            if (e.StatusType == GestureStatus.Started)
+            {
+                manualCornerPanStartX = manualCornerTranslationX;
+                manualCornerPanStartY = manualCornerTranslationY;
+                manualCornerPanMoved = false;
+                CenteringPageScroll.Orientation = ScrollOrientation.Neither;
+                return;
+            }
+
+            if (e.StatusType == GestureStatus.Running)
+            {
+                if (Math.Abs(e.TotalX) > 3 || Math.Abs(e.TotalY) > 3)
+                    manualCornerPanMoved = true;
+
+                manualCornerTranslationX = manualCornerPanStartX + e.TotalX;
+                manualCornerTranslationY = manualCornerPanStartY + e.TotalY;
+                ClampManualCornerTranslation();
+                ApplyManualCornerTransform();
+                return;
+            }
+
+            CenteringPageScroll.Orientation = ScrollOrientation.Vertical;
+            if (manualCornerPanMoved)
+                manualCornerIgnoreTapUntilUtc = DateTime.UtcNow.AddMilliseconds(180);
+        }
+
+        private void OnResetManualCornerViewClicked(object sender, EventArgs e)
+        {
+            ResetManualCornerView();
+        }
+
+        private void ResetManualCornerView()
+        {
+            manualCornerScale = 1.0;
+            manualCornerScaleAtGestureStart = 1.0;
+            manualCornerTranslationX = 0.0;
+            manualCornerTranslationY = 0.0;
+            manualCornerPanStartX = 0.0;
+            manualCornerPanStartY = 0.0;
+            manualCornerPanMoved = false;
+            manualCornerIgnoreTapUntilUtc = DateTime.MinValue;
+            CenteringPageScroll.Orientation = ScrollOrientation.Vertical;
+            ApplyManualCornerTransform();
+        }
+
+        private void ClampManualCornerTranslation()
+        {
+            if (ManualCornerPickerSurface.Width <= 1 ||
+                ManualCornerPickerSurface.Height <= 1)
+                return;
+
+            // At 1x the image is centered and locked.  As it grows, allow only
+            // the amount of travel needed to bring any zoomed image edge back
+            // to the viewport edge.
+            double maxX = Math.Max(0.0,
+                (ManualCornerPickerSurface.Width * manualCornerScale -
+                 ManualCornerPickerSurface.Width) / 2.0);
+            double maxY = Math.Max(0.0,
+                (ManualCornerPickerSurface.Height * manualCornerScale -
+                 ManualCornerPickerSurface.Height) / 2.0);
+
+            manualCornerTranslationX = Math.Clamp(manualCornerTranslationX, -maxX, maxX);
+            manualCornerTranslationY = Math.Clamp(manualCornerTranslationY, -maxY, maxY);
+        }
+
+        private void ApplyManualCornerTransform()
+        {
+            if (ManualCornerTransformLayer == null)
+                return;
+
+            ManualCornerTransformLayer.Scale = manualCornerScale;
+            ManualCornerTransformLayer.TranslationX = manualCornerTranslationX;
+            ManualCornerTransformLayer.TranslationY = manualCornerTranslationY;
+        }
+
+        private async void OnUseManualCornersClicked(object sender, EventArgs e)
+        {
+            if (manualOuterCorners.Any(p => !p.HasValue))
+            {
+                ManualCornerInstructionLabel.Text = "Set all four card corners before continuing.";
+                return;
+            }
+
+            CardPoint[] relativeCorners = manualOuterCorners
+                .Select(p => new CardPoint((float)p!.Value.X, (float)p.Value.Y))
+                .ToArray();
+
+            ManualCornerUseButton.IsEnabled = false;
+            CaptureInstructionLabel.Text =
+                "Using your 4 corners → Card Lock → TrueForm → 8-slider centering…";
+
+            await ViewModel.ContinueWithManualOuterCornersAsync(relativeCorners);
+
+            if (ViewModel.HasAnalysis)
+            {
+                CaptureInstructionLabel.Text =
+                    "TrueForm created from your four corners. Fine-tune centering with the 8 sliders.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
+
+                // The four-corner picker only recovers physical geometry. Once
+                // TrueForm exists, always continue into the existing editor.
+                OnToggleGuideLockClicked(this, EventArgs.Empty);
+            }
+            else
+            {
+                ManualCornerUseButton.IsEnabled = true;
+                ManualCornerInstructionLabel.Text =
+                    "TrueForm was not created. Adjust any incorrect corner and try again.";
+            }
+        }
+
+        private int manualOuterGuideStartPixel;
+        private bool manualGuideEditing;
+
+        private void OnManualGuideEditClicked(object sender, EventArgs e)
+        {
+            SetManualGuideEditing(!manualGuideEditing);
+        }
+
+        private void SetManualGuideEditing(bool enabled)
+        {
+            manualGuideEditing = enabled;
+            // Resolve these optional controls from the XAML namescope instead of
+            // relying on generated fields that can be stale after a XAML edit.
+            ScrollView? pageScroll = this.FindByName<ScrollView>("CenteringPageScroll");
+            if (pageScroll != null)
+            {
+                pageScroll.Orientation = enabled
+                    ? ScrollOrientation.Neither
+                    : ScrollOrientation.Vertical;
+            }
+
+            Button? editButton = this.FindByName<Button>("ManualGuideEditButton");
+            if (editButton != null)
+            {
+                editButton.Text = enabled
+                    ? "DONE MOVING LINES — ENABLE PAGE SCROLL"
+                    : "EDIT GREEN LINES — LOCK PAGE SCROLL";
+            }
+        }
+
+
+        private void OnManualOuterSliderValueChanged(object sender, ValueChangedEventArgs e)
+        {
+            if (sender is not Slider slider || !ViewModel.NeedsManualOuterCard)
+                return;
+
+            string? guideName = slider.AutomationId switch
+            {
+                "ManualOuterLeftSlider" => "Left",
+                "ManualOuterRightSlider" => "Right",
+                "ManualOuterTopSlider" => "Top",
+                "ManualOuterBottomSlider" => "Bottom",
+                _ => null
+            };
+
+            if (guideName == null)
+                return;
+
+            ViewModel.SetManualOuterGuide(guideName, e.NewValue);
+            UpdateManualOuterGuideVisuals();
+        }
+
+        private void OnManualOuterGuideSurfaceSizeChanged(object sender, EventArgs e)
+        {
+            UpdateManualOuterGuideVisuals();
+        }
+
+        private void UpdateManualOuterGuideVisuals()
+        {
+            if (ManualOuterGuideSurface == null ||
+                ManualOuterGuideSurface.Width <= 1 ||
+                ManualOuterGuideSurface.Height <= 1)
+                return;
+
+            ManualOuterLeftGuide.TranslationX =
+                (ViewModel.ManualOuterLeft * ManualOuterGuideSurface.Width) -
+                (ManualOuterLeftGuide.WidthRequest / 2.0);
+
+            ManualOuterRightGuide.TranslationX =
+                (ViewModel.ManualOuterRight * ManualOuterGuideSurface.Width) -
+                (ManualOuterRightGuide.WidthRequest / 2.0);
+
+            ManualOuterTopGuide.TranslationY =
+                (ViewModel.ManualOuterTop * ManualOuterGuideSurface.Height) -
+                (ManualOuterTopGuide.HeightRequest / 2.0);
+
+            ManualOuterBottomGuide.TranslationY =
+                (ViewModel.ManualOuterBottom * ManualOuterGuideSurface.Height) -
+                (ManualOuterBottomGuide.HeightRequest / 2.0);
+        }
+
+        private void HandleManualOuterGuidePan(
+            string guideName,
+            bool vertical,
+            PanUpdatedEventArgs e)
+        {
+            if (!ViewModel.NeedsManualOuterCard ||
+                !manualGuideEditing ||
+                ManualOuterGuideSurface == null)
+                return;
+
+            double displaySize = vertical
+                ? ManualOuterGuideSurface.Width
+                : ManualOuterGuideSurface.Height;
+
+            if (displaySize <= 1)
+                return;
+
+            if (e.StatusType == GestureStatus.Started)
+            {
+                manualOuterGuideStartPixel = (int)Math.Round(
+                    ViewModel.GetManualOuterGuide(guideName) * displaySize);
+                return;
+            }
+
+            if (e.StatusType == GestureStatus.Running)
+            {
+                double delta = vertical ? e.TotalX : e.TotalY;
+                double normalized =
+                    (manualOuterGuideStartPixel + delta) / displaySize;
+
+                ViewModel.SetManualOuterGuide(guideName, normalized);
+                UpdateManualOuterGuideVisuals();
+            }
+        }
+
+        private void OnManualOuterLeftPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleManualOuterGuidePan("Left", true, e);
+
+        private void OnManualOuterRightPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleManualOuterGuidePan("Right", true, e);
+
+        private void OnManualOuterTopPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleManualOuterGuidePan("Top", false, e);
+
+        private void OnManualOuterBottomPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleManualOuterGuidePan("Bottom", false, e);
+
+        private async void OnContinueManualOuterEdgesClicked(object sender, EventArgs e)
+        {
+            SetManualGuideEditing(false);
+            CaptureInstructionLabel.Text =
+                "Using your manual card edges → Card Lock → TrueForm → automatic centering…";
+
+            await ViewModel.ContinueWithManualOuterEdgesAsync();
+
+            if (ViewModel.HasAnalysis)
+            {
+                CaptureInstructionLabel.Text =
+                    "Centering complete from your manual Card Lock. Review TrueForm and Centering Map; ADJUST CENTERING remains available.";
+                UpdateGuideSurfaceSize();
+                UpdateGuideVisuals();
+            }
+            else
+            {
+                CaptureInstructionLabel.Text =
+                    "TrueForm was not created. Your four manual outer-card lines are still available below—adjust them and retry.";
+                UpdateManualOuterGuideVisuals();
+            }
+        }
+
+        private void OnCenteringGuideHostSizeChanged(object sender, EventArgs e)
+        {
+            UpdateGuideSurfaceSize();
+            UpdateGuideVisuals();
+        }
+
+        private void UpdateGuideSurfaceSize()
+        {
+            if (CenteringGuideHost == null || CenteringGuideSurface == null)
+                return;
+
+            double availableWidth = CenteringGuideHost.Width;
+            if (availableWidth <= 20)
+                return;
+
+            // Normalized inspection card is exactly 5:7.
+            double width = Math.Min(availableWidth, 460.0 * 5.0 / 7.0);
+            double height = width * 7.0 / 5.0;
+
+            if (height > 460.0)
+            {
+                height = 460.0;
+                width = height * 5.0 / 7.0;
+            }
+
+            CenteringGuideSurface.WidthRequest = width;
+            CenteringGuideSurface.HeightRequest = height;
+        }
+
+        private void UpdateGuideVisuals()
+        {
+            if (!ViewModel.HasAnalysis ||
+                CenteringGuideSurface == null ||
+                CenteringGuideSurface.Width <= 1 ||
+                CenteringGuideSurface.Height <= 1)
+                return;
+
+            double xScale = CenteringGuideSurface.Width / ViewModel.CanonicalWidthPixels;
+            double yScale = CenteringGuideSurface.Height / ViewModel.CanonicalHeightPixels;
+
+            SetVerticalGuide(OuterLeftGuide, ViewModel.OuterLeftGuidePixel * xScale);
+            SetVerticalGuide(OuterRightGuide, ViewModel.OuterRightGuidePixel * xScale);
+            SetHorizontalGuide(OuterTopGuide, ViewModel.OuterTopGuidePixel * yScale);
+            SetHorizontalGuide(OuterBottomGuide, ViewModel.OuterBottomGuidePixel * yScale);
+
+            SetVerticalGuide(InnerLeftGuide, ViewModel.InnerLeftGuidePixel * xScale);
+            SetVerticalGuide(InnerRightGuide, ViewModel.InnerRightGuidePixel * xScale);
+            SetHorizontalGuide(InnerTopGuide, ViewModel.InnerTopGuidePixel * yScale);
+            SetHorizontalGuide(InnerBottomGuide, ViewModel.InnerBottomGuidePixel * yScale);
+        }
+
+        private static void SetVerticalGuide(VisualElement guide, double x)
+        {
+            guide.TranslationX = x - (guide.WidthRequest / 2.0);
+        }
+
+        private static void SetHorizontalGuide(VisualElement guide, double y)
+        {
+            guide.TranslationY = y - (guide.HeightRequest / 2.0);
+        }
+
+        private void HandleGuidePan(
+            string guideName,
+            bool vertical,
+            PanUpdatedEventArgs e)
+        {
+            if (!ViewModel.HasAnalysis || !ViewModel.IsManualMode)
+                return;
+
+            if (e.StatusType == GestureStatus.Started)
+            {
+                activeGuideStartPixel = ViewModel.GetGuidePosition(guideName);
+                return;
+            }
+
+            if (e.StatusType == GestureStatus.Running)
+            {
+                double displaySize = vertical
+                    ? CenteringGuideSurface.Width
+                    : CenteringGuideSurface.Height;
+
+                int canonicalSize = vertical
+                    ? ViewModel.CanonicalWidthPixels
+                    : ViewModel.CanonicalHeightPixels;
+
+                if (displaySize <= 1)
+                    return;
+
+                double displayDelta = vertical ? e.TotalX : e.TotalY;
+                int canonicalDelta = (int)Math.Round(displayDelta * canonicalSize / displaySize);
+
+                ViewModel.SetGuidePosition(
+                    guideName,
+                    activeGuideStartPixel + canonicalDelta);
+
+                UpdateGuideVisuals();
+            }
+        }
+
+        private void OnOuterLeftPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("OuterLeft", true, e);
+
+        private void OnOuterRightPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("OuterRight", true, e);
+
+        private void OnOuterTopPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("OuterTop", false, e);
+
+        private void OnOuterBottomPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("OuterBottom", false, e);
+
+        private void OnInnerLeftPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("InnerLeft", true, e);
+
+        private void OnInnerRightPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("InnerRight", true, e);
+
+        private void OnInnerTopPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("InnerTop", false, e);
+
+        private void OnInnerBottomPanUpdated(object sender, PanUpdatedEventArgs e) =>
+            HandleGuidePan("InnerBottom", false, e);
+
+        private void OnResetGuidesClicked(object sender, EventArgs e)
+        {
+            ViewModel.ResetManualGuides();
+            UpdateGuideVisuals();
+        }
+
+        private void OnToggleGuideLockClicked(object sender, EventArgs e)
+        {
+            if (!ViewModel.HasAnalysis)
+                return;
+
+            // Manual correction gets its own full-screen editor. The underlying page
+            // remains covered, so ScrollView gestures cannot steal slider movement.
+            ViewModel.IsManualMode = true;
+            ManualCenteringOverlay.IsVisible = true;
+            ViewModel.StatusMessage =
+                "Manual correction enabled. The TrueForm card is locked in place. Use the 8 sliders, then tap LOCK MANUAL LINES.";
+
+            // Let the full-screen overlay receive its actual phone dimensions before
+            // sizing the centered 5:7 card.
+            Dispatcher.Dispatch(() =>
+            {
+                UpdateManualCenteringCardSize();
+                UpdateManualCenteringEditorVisuals();
+            });
+        }
+
+        private void OnManualCenteringCardHostSizeChanged(object sender, EventArgs e)
+        {
+            UpdateManualCenteringCardSize();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void UpdateManualCenteringCardSize()
+        {
+            if (ManualCenteringCardHost == null || ManualCenteringGuideSurface == null)
+                return;
+
+            double availableWidth = ManualCenteringCardHost.Width;
+            double availableHeight = ManualCenteringCardHost.Height;
+            if (availableWidth <= 20 || availableHeight <= 20)
+                return;
+
+            // TrueForm is 5:7. Fit the largest centered card that leaves a small
+            // safety inset from the phone edges; never zoom or pan the editor image.
+            double width = Math.Min(availableWidth - 8, (availableHeight - 8) * 5.0 / 7.0);
+            double height = width * 7.0 / 5.0;
+
+            if (height > availableHeight - 8)
+            {
+                height = availableHeight - 8;
+                width = height * 5.0 / 7.0;
+            }
+
+            ManualCenteringGuideSurface.WidthRequest = Math.Max(120, width);
+            ManualCenteringGuideSurface.HeightRequest = Math.Max(168, height);
+        }
+
+        private void OnManualCenteringGuideSurfaceSizeChanged(object sender, EventArgs e)
+        {
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void UpdateManualCenteringEditorVisuals()
+        {
+            if (!ViewModel.HasAnalysis || ManualCenteringGuideSurface == null ||
+                ManualCenteringGuideSurface.Width <= 1 || ManualCenteringGuideSurface.Height <= 1)
+                return;
+
+            double xScale = ManualCenteringGuideSurface.Width / ViewModel.CanonicalWidthPixels;
+            double yScale = ManualCenteringGuideSurface.Height / ViewModel.CanonicalHeightPixels;
+
+            SetVerticalGuide(EditOuterLeftGuide, ViewModel.OuterLeftGuidePixel * xScale);
+            SetVerticalGuide(EditOuterRightGuide, ViewModel.OuterRightGuidePixel * xScale);
+            SetHorizontalGuide(EditOuterTopGuide, ViewModel.OuterTopGuidePixel * yScale);
+            SetHorizontalGuide(EditOuterBottomGuide, ViewModel.OuterBottomGuidePixel * yScale);
+            SetVerticalGuide(EditInnerLeftGuide, ViewModel.InnerLeftGuidePixel * xScale);
+            SetVerticalGuide(EditInnerRightGuide, ViewModel.InnerRightGuidePixel * xScale);
+            SetHorizontalGuide(EditInnerTopGuide, ViewModel.InnerTopGuidePixel * yScale);
+            SetHorizontalGuide(EditInnerBottomGuide, ViewModel.InnerBottomGuidePixel * yScale);
+
+            suppressManualCenteringSliderEvents = true;
+            try
+            {
+                EditOuterLeftSlider.Value = ViewModel.OuterLeftGuidePixel;
+                EditOuterRightSlider.Value = ViewModel.OuterRightGuidePixel;
+                EditOuterTopSlider.Value = ViewModel.OuterTopGuidePixel;
+                EditOuterBottomSlider.Value = ViewModel.OuterBottomGuidePixel;
+                EditInnerLeftSlider.Value = ViewModel.InnerLeftGuidePixel;
+                EditInnerRightSlider.Value = ViewModel.InnerRightGuidePixel;
+                EditInnerTopSlider.Value = ViewModel.InnerTopGuidePixel;
+                EditInnerBottomSlider.Value = ViewModel.InnerBottomGuidePixel;
+            }
+            finally
+            {
+                suppressManualCenteringSliderEvents = false;
+            }
+        }
+
+        private void OnManualCenteringSliderValueChanged(object sender, ValueChangedEventArgs e)
+        {
+            if (suppressManualCenteringSliderEvents || !ViewModel.HasAnalysis || !ViewModel.IsManualMode)
+                return;
+
+            if (sender is not Slider slider || string.IsNullOrWhiteSpace(slider.AutomationId))
+                return;
+
+            ViewModel.SetGuidePosition(slider.AutomationId, (int)Math.Round(e.NewValue));
+            UpdateGuideVisuals();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void OnManualCenteringRestoreAutoClicked(object sender, EventArgs e)
+        {
+            ViewModel.ResetManualGuides();
+            ViewModel.IsManualMode = true;
+            UpdateGuideVisuals();
+            UpdateManualCenteringEditorVisuals();
+        }
+
+        private void OnManualCenteringLockClicked(object sender, EventArgs e)
+        {
+            ViewModel.IsManualMode = false;
+            ManualCenteringOverlay.IsVisible = false;
+            ViewModel.StatusMessage =
+                "Manual lines locked. The current guide positions and centering result are preserved.";
+            UpdateGuideVisuals();
         }
 
         private void ShowCapturedImage()
@@ -349,6 +1267,49 @@ namespace CollectIQ.Views
                 image.Scale = 1.0;
                 image.TranslationX = 0;
                 image.TranslationY = 0;
+            }
+        }
+
+        private sealed class ManualCornerDrawable : IDrawable
+        {
+            private readonly Point?[] points;
+
+            public ManualCornerDrawable(Point?[] points)
+            {
+                this.points = points;
+            }
+
+            public void Draw(ICanvas canvas, RectF dirtyRect)
+            {
+                PointF?[] actual = points
+                    .Select(p => p.HasValue
+                        ? new PointF(
+                            (float)(p.Value.X * dirtyRect.Width),
+                            (float)(p.Value.Y * dirtyRect.Height))
+                        : (PointF?)null)
+                    .ToArray();
+
+                canvas.StrokeColor = Color.FromArgb("#22FF66");
+                canvas.StrokeSize = 2;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    if (actual[i].HasValue && actual[i + 1].HasValue)
+                        canvas.DrawLine(actual[i]!.Value, actual[i + 1]!.Value);
+                }
+
+                if (actual[3].HasValue && actual[0].HasValue && points.All(p => p.HasValue))
+                    canvas.DrawLine(actual[3]!.Value, actual[0]!.Value);
+
+                canvas.FillColor = Color.FromArgb("#FFD60A");
+                for (int i = 0; i < actual.Length; i++)
+                {
+                    if (!actual[i].HasValue)
+                        continue;
+
+                    PointF p = actual[i]!.Value;
+                    canvas.FillCircle(p.X, p.Y, 9);
+                }
             }
         }
 

@@ -14,6 +14,10 @@ namespace CollectIQ.Models.Inspection
         public string NormalMapImagePath { get; set; } = string.Empty;
         public string CurvatureImagePath { get; set; } = string.Empty;
         public string ReferenceResidualImagePath { get; set; } = string.Empty;
+        public string SlopeXImagePath { get; set; } = string.Empty;
+        public string SlopeYImagePath { get; set; } = string.Empty;
+        public string ScratchResponseImagePath { get; set; } = string.Empty;
+        public string DentResponseImagePath { get; set; } = string.Empty;
         public string HeatmapImagePath { get; set; } = string.Empty;
         public string DefectOverlayImagePath { get; set; } = string.Empty;
         public string DefectMaskImagePath { get; set; } = string.Empty;

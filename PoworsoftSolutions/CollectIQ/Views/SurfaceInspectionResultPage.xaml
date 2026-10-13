@@ -32,20 +32,21 @@
                 <VerticalStackLayout x:Name="TiltViewsContainer" Spacing="12" />
             </VerticalStackLayout>
 
-            <Label x:Name="DefectTitleLabel" Text="Detected defects" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Label x:Name="DefectDescriptionLabel" Text="Red pixels are regions supported by multiple photometric defect signals. Yellow boxes explicitly mark the strongest spatially supported candidate regions." TextColor="#64748B" FontSize="10" />
+            <Label x:Name="DefectTitleLabel" Text="Potential physical surface defects" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="DefectDescriptionLabel" Text="The final overlay marks spatially-supported candidates after shape, lighting, and artwork suppression checks. Yellow labels indicate scratch/scuff evidence; orange-red labels indicate dent/impression evidence." TextColor="#64748B" FontSize="10" />
             <Border x:Name="DefectOverlayBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
                 <Image x:Name="DefectOverlayImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
-            <Label x:Name="HeatmapTitleLabel" Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
-            <Label x:Name="HeatmapDescriptionLabel" Text="Combined curvature, relief, neutral/albedo residual and opposing-light evidence" TextColor="#64748B" FontSize="10" />
+            <Label x:Name="HeatmapTitleLabel" Text="Photometric surface evidence" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="HeatmapDescriptionLabel" Text="Blue is quiet. Cyan/yellow/red show increasingly strong photometric surface evidence after artwork and clipped-light penalties." TextColor="#64748B" FontSize="10" />
             <Border x:Name="HeatmapBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8">
                 <Image x:Name="HeatmapImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
             <VerticalStackLayout x:Name="ReliefSection" Spacing="6">
-                <Label x:Name="ReliefTitleLabel" Text="Directional relief" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label x:Name="ReliefTitleLabel" Text="Photometric relief — reconstructed surface shape" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label Text="A virtual grazing light is applied to the reconstructed normal field. Shallow dents, ridges and scratches should become visible even when printed artwork is busy." TextColor="#64748B" FontSize="10" />
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
                     <Image x:Name="ReliefImage" Aspect="AspectFit" HeightRequest="500" />
                 </Border>
@@ -61,6 +62,7 @@
 
             <VerticalStackLayout x:Name="NormalMapSection" Spacing="6">
                 <Label Text="Photometric normal map" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label Text="Color encodes the local surface direction reconstructed from opposing light pairs. Smooth printed regions should vary gently; physical shape changes bend the color field." TextColor="#64748B" FontSize="10" />
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
                     <Image x:Name="NormalMapImage" Aspect="AspectFit" HeightRequest="500" />
                 </Border>
@@ -68,6 +70,7 @@
 
             <VerticalStackLayout x:Name="CurvatureSection" Spacing="6">
                 <Label Text="Surface curvature / dent response" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label Text="This is the blue→yellow→red shape map: warm regions are where the reconstructed normal changes coherently across space, the signature expected from dents, impressions and raised defects." TextColor="#64748B" FontSize="10" />
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="8">
                     <Image x:Name="CurvatureImage" Aspect="AspectFit" HeightRequest="500" />
                 </Border>
@@ -80,12 +83,56 @@
                 </Border>
             </VerticalStackLayout>
 
+
+            <VerticalStackLayout x:Name="SlopeSection" Spacing="6">
+                <Label Text="Photometric X / Y surface slope" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label Text="Red/blue encode opposite signed surface response from LEFT↔RIGHT and TOP↔BOTTOM lighting." TextColor="#64748B" FontSize="10" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Border Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                        <Image x:Name="SlopeXImage" Aspect="AspectFit" HeightRequest="250" />
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                        <Image x:Name="SlopeYImage" Aspect="AspectFit" HeightRequest="250" />
+                    </Border>
+                </Grid>
+            </VerticalStackLayout>
+
+            <VerticalStackLayout x:Name="DefectEvidenceSection" Spacing="6">
+                <Label Text="Scratch vs dent evidence" TextColor="#F8FAFC" FontAttributes="Bold" />
+                <Label Text="Scratch evidence favors sharp directional normal changes. Dent evidence favors broader multi-scale curvature. Stable printed edges are suppressed before these maps are fused." TextColor="#64748B" FontSize="10" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                        <Label Text="SCRATCH / SCUFF" TextColor="#9FB3C8" FontSize="10" />
+                        <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                            <Image x:Name="ScratchResponseImage" Aspect="AspectFit" HeightRequest="250" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="4">
+                        <Label Text="DENT / CURVATURE" TextColor="#9FB3C8" FontSize="10" />
+                        <Border Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                            <Image x:Name="DentResponseImage" Aspect="AspectFit" HeightRequest="250" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Grid>
+            </VerticalStackLayout>
+
             <Border x:Name="AlignmentDiagnosticsSection" Style="{StaticResource AuroraGlassBorder}" Padding="12">
                 <VerticalStackLayout Spacing="10">
                     <Label Text="ALIGNMENT DIAGNOSTICS" TextColor="#86FF70" FontAttributes="Bold" FontSize="13" />
                     <Label Text="Use these views to confirm whether the four directional captures were detected, normalized and aligned correctly before trusting the anomaly heatmap."
                            TextColor="#9FB3C8"
                            FontSize="11" />
+
+                    <Label Text="Neutral reference Card Lock" TextColor="#F8FAFC" FontAttributes="Bold" />
+                    <Label Text="These four corners own the geometry for all four directional-light images." TextColor="#64748B" FontSize="10" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Border Grid.Column="0" Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                            <Image x:Name="ReferenceDetectionImage" Aspect="AspectFit" HeightRequest="240" />
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource AuroraGlassBorder}" Padding="6">
+                            <Image x:Name="ReferenceRegisteredImage" Aspect="AspectFit" HeightRequest="240" />
+                        </Border>
+                    </Grid>
 
                     <Label Text="Color edge overlay" TextColor="#F8FAFC" FontAttributes="Bold" />
                     <Label Text="Top=Red • Right=Green • Bottom=Blue • Left=Yellow/Red+Green"

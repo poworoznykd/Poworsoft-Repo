@@ -11,7 +11,10 @@
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models.Inspection;
+using CollectIQ.Models.Inspection.Geometry;
 using CollectIQ.Navigation;
+using CollectIQ.Services.Inspection;
+using CollectIQ.Models.Inspection.Registration;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using System.Diagnostics;
@@ -21,6 +24,7 @@ namespace CollectIQ.Views
     public partial class InspectSurfacePage : ContentPage
     {
         private readonly ISurfaceInspectionService surfaceInspectionService;
+        private readonly ICardRegistrationService cardRegistrationService;
         private readonly Dictionary<SurfaceLightDirection, string> directionalCaptures = new();
         private readonly List<string> tiltCaptures = new();
         private SurfaceInspectionMode mode = SurfaceInspectionMode.ExternalLight;
@@ -30,6 +34,8 @@ namespace CollectIQ.Views
         private bool captureInProgress;
         private bool cameraReady;
         private CancellationTokenSource? cameraStartCancellationTokenSource;
+        private CardPoint[]? manualSurfaceReferenceCorners;
+        private Dictionary<string, IReadOnlyList<CardPoint>>? confirmedSurfaceFrameCorners;
 
         public InspectSurfacePage()
         {
@@ -37,6 +43,9 @@ namespace CollectIQ.Views
             surfaceInspectionService =
                 ServiceHelper.Services?.GetService(typeof(ISurfaceInspectionService)) as ISurfaceInspectionService
                 ?? throw new InvalidOperationException("Surface inspection service is not registered.");
+            cardRegistrationService =
+                ServiceHelper.Services?.GetService(typeof(ICardRegistrationService)) as ICardRegistrationService
+                ?? throw new InvalidOperationException("Card registration service is not registered.");
             UpdateCaptureStep();
         }
 
@@ -274,6 +283,8 @@ namespace CollectIQ.Views
             directionalCaptures.Clear();
             tiltCaptures.Clear();
             neutralReferencePath = null;
+            manualSurfaceReferenceCorners = null;
+            confirmedSurfaceFrameCorners = null;
             capturingReference = true;
             currentDirection = SurfaceLightDirection.Top;
             CapturedCountLabel.Text = mode switch
@@ -290,31 +301,225 @@ namespace CollectIQ.Views
         {
             CapturePanel.IsVisible = false;
             ProcessingPanel.IsVisible = true;
+            ProcessingStageLabel.Text = "STARTING SURFACE INSPECTION";
+            ProcessingMessageLabel.Text = "Preparing the five captured images…";
+            ProcessingProgressBar.Progress = 0;
+            ProcessingOverlayImage.Source = null;
+            ProcessingRegisteredImage.Source = null;
+            ProcessingCombinedImage.Source = null;
+            ProcessingDerivedImage.Source = null;
+            ProcessingCombinedSection.IsVisible = false;
+            ProcessingDerivedSection.IsVisible = false;
             HeaderStatusLabel.Text = "Analyzing surface images";
+
+            string inspectionName = $"Surface/{mode}";
+            bool navigationStarted = false;
+
+            await InspectionDiagnosticLogger.StartRunAsync(
+                inspectionName,
+                $"Reference={neutralReferencePath ?? "(none)"}; Directional={directionalCaptures.Count}; Tilt={tiltCaptures.Count}");
 
             try
             {
-                SurfaceCameraView.StopCameraPreview();
-                SurfaceInspectionResult result = mode switch
+                try { SurfaceCameraView.StopCameraPreview(); } catch { }
+
+                TimeSpan timeout = mode switch
                 {
-                    SurfaceInspectionMode.ExternalLight => await surfaceInspectionService.AnalyzeAsync(
-                        neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing."),
-                        directionalCaptures),
-                    SurfaceInspectionMode.SinglePhoto => await surfaceInspectionService.AnalyzeSinglePhotoAsync(
-                        neutralReferencePath ?? throw new InvalidOperationException("The card image is missing.")),
-                    SurfaceInspectionMode.TiltSweep => await surfaceInspectionService.AnalyzeTiltSweepAsync(tiltCaptures),
-                    _ => throw new InvalidOperationException("Unknown surface inspection mode.")
+                    SurfaceInspectionMode.ExternalLight => TimeSpan.FromSeconds(120),
+                    SurfaceInspectionMode.SinglePhoto => TimeSpan.FromSeconds(60),
+                    SurfaceInspectionMode.TiltSweep => TimeSpan.FromSeconds(240),
+                    _ => TimeSpan.FromSeconds(120)
                 };
 
+                if (mode == SurfaceInspectionMode.ExternalLight && confirmedSurfaceFrameCorners is null)
+                {
+                    ProcessingStageLabel.Text = "SURFACE GEOMETRY REVIEW";
+                    ProcessingMessageLabel.Text = "CollectIQ is finding and flattening all five card images so you can confirm the corners before photometric processing begins.";
+                    ProcessingProgressBar.Progress = 0;
+
+                    CardRegistrationResult geometryReview = await InspectionExecution.RunAsync(
+                        inspectionName,
+                        "Surface geometry review",
+                        RunGeometryReviewAsync,
+                        TimeSpan.FromSeconds(90));
+
+                    ProcessingStageLabel.Text = "REVIEW AUTO-FOUND CARD CORNERS";
+                    ProcessingMessageLabel.Text = "Check the 4 corners on REFERENCE, TOP, RIGHT, BOTTOM and LEFT. Adjust any image that looks off, then continue to the photometric inspection.";
+                    ProcessingProgressBar.Progress = 0.78;
+
+                    var reviewPage = new SurfaceGeometryReviewPage(geometryReview);
+                    await Navigation.PushModalAsync(reviewPage);
+                    Dictionary<string, IReadOnlyList<CardPoint>>? reviewedCorners = await reviewPage.WaitForResultAsync();
+                    if (reviewedCorners is null)
+                    {
+                        CapturePanel.IsVisible = true;
+                        ProcessingPanel.IsVisible = false;
+                        HeaderStatusLabel.Text = "Surface geometry review cancelled";
+                        return;
+                    }
+
+                    confirmedSurfaceFrameCorners = reviewedCorners;
+                    if (reviewedCorners.TryGetValue("Reference", out IReadOnlyList<CardPoint>? refCorners))
+                        manualSurfaceReferenceCorners = refCorners.ToArray();
+
+                    ProcessingStageLabel.Text = "SURFACE GEOMETRY CONFIRMED";
+                    ProcessingMessageLabel.Text = "Great. CollectIQ will now use these exact corners for all five images and start the photometric defect inspection.";
+                }
+
+                SurfaceInspectionResult result = await InspectionExecution.RunAsync(
+                    inspectionName,
+                    "Surface analysis",
+                    async cancellationToken =>
+                    {
+                        return mode switch
+                        {
+                            SurfaceInspectionMode.ExternalLight => await surfaceInspectionService.AnalyzeAsync(
+                                neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing."),
+                                directionalCaptures,
+                                manualSurfaceReferenceCorners,
+                                confirmedSurfaceFrameCorners,
+                                new Progress<SurfaceInspectionProgress>(UpdateSurfaceProgress),
+                                cancellationToken),
+
+                            SurfaceInspectionMode.SinglePhoto => await surfaceInspectionService.AnalyzeSinglePhotoAsync(
+                                neutralReferencePath ?? throw new InvalidOperationException("The card image is missing."),
+                                cancellationToken),
+
+                            SurfaceInspectionMode.TiltSweep => await surfaceInspectionService.AnalyzeTiltSweepAsync(
+                                tiltCaptures,
+                                cancellationToken),
+
+                            _ => throw new InvalidOperationException("Unknown surface inspection mode.")
+                        };
+                    },
+                    timeout);
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "NAVIGATING TO RESULT");
+
+                navigationStarted = true;
                 await Navigation.PushAsync(new SurfaceInspectionResultPage(result));
+            }
+            catch (SurfaceReferenceCardNotFoundException ex) when (mode == SurfaceInspectionMode.ExternalLight)
+            {
+                await InspectionDiagnosticLogger.WriteAsync(inspectionName, "REFERENCE CARD LOCK FAILED", exception: ex);
+                ProcessingStageLabel.Text = "REFERENCE CARD NOT FOUND";
+                ProcessingMessageLabel.Text = "Set the four physical reference corners once, then Surface will continue automatically.";
+
+                string pickerPath = !string.IsNullOrWhiteSpace(ex.PreviewImagePath) && File.Exists(ex.PreviewImagePath)
+                    ? ex.PreviewImagePath
+                    : neutralReferencePath ?? throw new InvalidOperationException("The neutral reference capture is missing.");
+
+                var picker = new CardCornerEditorPage(pickerPath);
+                await Navigation.PushModalAsync(picker);
+                CardPoint[]? corners = await picker.WaitForCornersAsync();
+                if (corners is null)
+                {
+                    CapturePanel.IsVisible = true;
+                    HeaderStatusLabel.Text = "Surface reference needs four corners";
+                }
+                else
+                {
+                    manualSurfaceReferenceCorners = corners;
+                    ProcessingPanel.IsVisible = true;
+                    CapturePanel.IsVisible = false;
+                    await AnalyzeAsync();
+                    navigationStarted = true;
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SurfaceInspection] {ex}");
-                ProcessingPanel.IsVisible = false;
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "ANALYSIS FAILED",
+                    exception: ex);
+
                 CapturePanel.IsVisible = true;
-                await DisplayAlert("Analysis Failed", $"The surface images could not be analyzed: {ex.Message}", "OK");
+                HeaderStatusLabel.Text = "Surface analysis failed";
+
+                string message = ex is TimeoutException
+                    ? ex.Message + " The inspection was stopped instead of loading forever. Retake the image(s) and try again."
+                    : $"The surface images could not be analyzed: {ex.Message}";
+
+                await DisplayAlert("Analysis Failed", message, "OK");
             }
+            finally
+            {
+                ProcessingPanel.IsVisible = false;
+
+                if (!navigationStarted)
+                {
+                    CapturePanel.IsVisible = true;
+                    CaptureButton.IsEnabled = true;
+                }
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    inspectionName,
+                    "PROCESSING STATE RELEASED");
+            }
+        }
+
+        private async Task<CardRegistrationResult> RunGeometryReviewAsync(CancellationToken cancellationToken)
+        {
+            if (neutralReferencePath is null)
+                throw new InvalidOperationException("The neutral reference capture is missing.");
+
+            string outputDirectory = Path.Combine(
+                FileSystem.AppDataDirectory,
+                "SurfaceGeometryReview",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+            Directory.CreateDirectory(outputDirectory);
+
+            Dictionary<string, string> registrationInputs = directionalCaptures.ToDictionary(
+                item => item.Key.ToString(),
+                item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
+            registrationInputs["Reference"] = neutralReferencePath;
+
+            return await cardRegistrationService.RegisterAsync(
+                registrationInputs,
+                "Reference",
+                outputDirectory,
+                manualSurfaceReferenceCorners,
+                confirmedSurfaceFrameCorners,
+                true,
+                new Progress<SurfaceInspectionProgress>(UpdateSurfaceProgress),
+                cancellationToken);
+        }
+
+        private void UpdateSurfaceProgress(SurfaceInspectionProgress progress)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                ProcessingStageLabel.Text = string.IsNullOrWhiteSpace(progress.Stage)
+                    ? "SURFACE INSPECTION"
+                    : progress.Stage;
+                ProcessingMessageLabel.Text = progress.Message;
+                ProcessingProgressBar.Progress = Math.Clamp(progress.Percent / 100.0, 0.0, 1.0);
+                HeaderStatusLabel.Text = $"Surface • {progress.Percent}%";
+
+                string overlay = !string.IsNullOrWhiteSpace(progress.OverlayImagePath)
+                    ? progress.OverlayImagePath
+                    : progress.SourceImagePath;
+                if (!string.IsNullOrWhiteSpace(overlay) && File.Exists(overlay))
+                    ProcessingOverlayImage.Source = ImageSource.FromFile(overlay);
+
+                if (!string.IsNullOrWhiteSpace(progress.RegisteredImagePath) && File.Exists(progress.RegisteredImagePath))
+                    ProcessingRegisteredImage.Source = ImageSource.FromFile(progress.RegisteredImagePath);
+
+                if (!string.IsNullOrWhiteSpace(progress.CombinedImagePath) && File.Exists(progress.CombinedImagePath))
+                {
+                    ProcessingCombinedSection.IsVisible = true;
+                    ProcessingCombinedImage.Source = ImageSource.FromFile(progress.CombinedImagePath);
+                }
+
+                if (!string.IsNullOrWhiteSpace(progress.DerivedImagePath) && File.Exists(progress.DerivedImagePath))
+                {
+                    ProcessingDerivedSection.IsVisible = true;
+                    ProcessingDerivedImage.Source = ImageSource.FromFile(progress.DerivedImagePath);
+                }
+            });
         }
 
         private void UpdateCaptureStep()
@@ -357,7 +562,7 @@ namespace CollectIQ.Views
             int step = (int)currentDirection + 2;
             CaptureStepLabel.Text = $"{step} OF 5 — {currentDirection.ToString().ToUpperInvariant()} LIGHT";
             CaptureButton.Text = $"CAPTURE {currentDirection.ToString().ToUpperInvariant()}";
-            CaptureInstructionLabel.Text = "Keep the phone and card fixed. Move only the external light to the indicated side. CollectIQ re-detects the physical rectangle and maps it into the same canonical card matrix.";
+            CaptureInstructionLabel.Text = "Keep the PHONE and CARD fixed. Move only the external light to the indicated side. Surface will reuse the REFERENCE card corners instead of rediscovering the card under glare.";
             HeaderStatusLabel.Text = "External light photometric capture";
             TopLightMarker.TextColor = currentDirection == SurfaceLightDirection.Top ? active : inactive;
             RightLightMarker.TextColor = currentDirection == SurfaceLightDirection.Right ? active : inactive;

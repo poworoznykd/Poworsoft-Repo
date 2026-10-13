@@ -36,7 +36,7 @@
                            TextColor="#F8FAFC"
                            FontSize="24"
                            FontAttributes="Bold" />
-                    <Label Text="Keep the card still and make sure all four physical edges stay visible. First capture a neutral reference image; CollectIQ uses that image to establish the physical card geometry, then relocates those same four sides in each directional-light capture before perspective correction and fine alignment."
+                    <Label Text="Keep the phone and card fixed after the neutral reference. CollectIQ finds the physical card ONCE in the reference, then reuses those same four normalized corners for TOP, RIGHT, BOTTOM and LEFT before a small fine-alignment correction."
                            TextColor="#CBD5E1"
                            FontSize="12" />
 
@@ -79,7 +79,7 @@ TILT"
                                        FontAttributes="Bold" />
                                 <Label Grid.Column="1" Text="MVP" TextColor="#39FF14" FontSize="10" />
                             </Grid>
-                            <Label Text="Use another phone flashlight, small LED, or movable desk light. The first image is captured with the directional light moved away under normal room lighting. Then keep the card fixed while the light moves to Top, Right, Bottom and Left. You can hand-hold the camera and normal movement is expected."
+                            <Label Text="Use another phone flashlight, small LED, or movable desk light. The first image is captured with the directional light moved away under normal room lighting. Then keep the card fixed while the light moves to Top, Right, Bottom and Left. For the best photometric result, brace or mount the phone and do not move the card; move only the external light."
                                    TextColor="#CBD5E1" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>
@@ -97,7 +97,7 @@ TILT"
                     <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                         <VerticalStackLayout Spacing="7">
                             <Label Text="Before you start" TextColor="#F8FAFC" FontAttributes="Bold" />
-                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat MATTE BLACK or MATTE WHITE background.&#10;• Fit the entire card inside the green guide as well as you can; no physical card edge may be outside the camera image.&#10;• The card does NOT need to be perfectly parallel to the phone.&#10;• Keep the card itself fixed; normal handheld phone movement is expected.&#10;• Keep the external light at roughly the same distance for all four images."
+                            <Label Text="• Remove sleeves/top loaders when safe.&#10;• Use a flat MATTE BLACK or MATTE WHITE background.&#10;• Fit the entire card inside the green guide as well as you can; no physical card edge may be outside the camera image.&#10;• The card does NOT need to be perfectly parallel to the phone.&#10;• Keep both the card AND phone fixed after the reference; move only the external light.&#10;• Keep the external light at roughly the same distance for all four images."
                                    TextColor="#9FB3C8" FontSize="11" />
                         </VerticalStackLayout>
                     </Border>
@@ -200,23 +200,56 @@ TILT"
                 </Grid>
             </Grid>
 
-            <!-- Processing panel. -->
-            <VerticalStackLayout x:Name="ProcessingPanel"
-                                 IsVisible="False"
-                                 Padding="24"
-                                 Spacing="14"
-                                 VerticalOptions="Center">
-                <ActivityIndicator IsRunning="True" Color="#39FF14" />
-                <Label Text="Building surface map…"
-                       TextColor="#F8FAFC"
-                       FontSize="20"
-                       FontAttributes="Bold"
-                       HorizontalTextAlignment="Center" />
-                <Label Text="Comparing directional illumination and highlighting localized surface changes."
-                       TextColor="#9FB3C8"
-                       FontSize="12"
-                       HorizontalTextAlignment="Center" />
-            </VerticalStackLayout>
+            <!-- Processing panel. Every expensive Surface stage reports here so the user can see exactly what succeeded. -->
+            <ScrollView x:Name="ProcessingPanel"
+                        IsVisible="False">
+                <VerticalStackLayout Padding="16,8,16,28" Spacing="12">
+                    <ActivityIndicator IsRunning="True" Color="#39FF14" />
+                    <Label x:Name="ProcessingStageLabel"
+                           Text="STARTING SURFACE INSPECTION"
+                           TextColor="#86FF70"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           HorizontalTextAlignment="Center" />
+                    <ProgressBar x:Name="ProcessingProgressBar"
+                                 Progress="0"
+                                 ProgressColor="#39FF14" />
+                    <Label x:Name="ProcessingMessageLabel"
+                           Text="Preparing the five captured images…"
+                           TextColor="#CBD5E1"
+                           FontSize="12"
+                           HorizontalTextAlignment="Center" />
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout Grid.Column="0" Spacing="5">
+                            <Label Text="CARD / CORNERS" TextColor="#F8FAFC" FontAttributes="Bold" FontSize="11" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="5">
+                                <Image x:Name="ProcessingOverlayImage" Aspect="AspectFit" HeightRequest="245" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="5">
+                            <Label Text="TRANSFORMED" TextColor="#F8FAFC" FontAttributes="Bold" FontSize="11" />
+                            <Border Style="{StaticResource AuroraGlassBorder}" Padding="5">
+                                <Image x:Name="ProcessingRegisteredImage" Aspect="AspectFit" HeightRequest="245" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <VerticalStackLayout x:Name="ProcessingCombinedSection" IsVisible="False" Spacing="5">
+                        <Label Text="COMBINED / ALIGNMENT" TextColor="#F8FAFC" FontAttributes="Bold" FontSize="11" />
+                        <Border Style="{StaticResource AuroraGlassBorder}" Padding="5">
+                            <Image x:Name="ProcessingCombinedImage" Aspect="AspectFit" HeightRequest="360" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout x:Name="ProcessingDerivedSection" IsVisible="False" Spacing="5">
+                        <Label Text="CURRENT PHOTOMETRIC OUTPUT" TextColor="#F8FAFC" FontAttributes="Bold" FontSize="11" />
+                        <Border Style="{StaticResource AuroraGlassBorder}" Padding="5">
+                            <Image x:Name="ProcessingDerivedImage" Aspect="AspectFit" HeightRequest="360" />
+                        </Border>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
         </Grid>
 
         <Label Grid.Row="2"

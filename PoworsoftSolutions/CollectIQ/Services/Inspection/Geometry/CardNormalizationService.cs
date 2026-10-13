@@ -1,0 +1,1481 @@
+using CollectIQ.Interfaces;
+using CollectIQ.Models.Inspection.Geometry;
+using OpenCvSharp;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using ImageSharpImage = SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>;
+
+namespace CollectIQ.Services.Inspection.Geometry
+{
+    /// <summary>
+    /// Common physical-card normalization used before every inspection type.
+    /// Detection is delegated to CardGeometryService; this class owns the
+    /// orientation, perspective flattening and fixed-ratio output.
+    /// </summary>
+    public sealed class CardNormalizationService : ICardNormalizationService
+    {
+        private const int WorkingMaximumDimension = 1200;
+        private readonly ICardGeometryService geometryService;
+
+        public CardNormalizationService(ICardGeometryService geometryService)
+        {
+            this.geometryService = geometryService;
+        }
+
+        public async Task<CardNormalizationResult> NormalizeAsync(
+            string imagePath,
+            string outputDirectory,
+            int normalizedWidth,
+            int normalizedHeight,
+            IProgress<CardNormalizationProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+                throw new FileNotFoundException("The inspection image could not be found.", imagePath);
+
+            if (normalizedWidth < 200 || normalizedHeight < 280)
+                throw new ArgumentOutOfRangeException(nameof(normalizedWidth), "The normalized inspection image is too small.");
+
+            Directory.CreateDirectory(outputDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Stopwatch totalTimer = Stopwatch.StartNew();
+            Stopwatch stageTimer = Stopwatch.StartNew();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "LOAD",
+                Message = "Loading captured image…"
+            });
+
+            await InspectionDiagnosticLogger.WriteAsync("CardNormalization", "LOAD START", imagePath);
+
+            using ImageSharpImage source = SixLabors.ImageSharp.Image.Load<Rgba32>(imagePath);
+
+            // Respect the camera/EXIF orientation exactly once. Do NOT rotate again
+            // based only on Width/Height; Android may already have encoded the
+            // correct visual orientation in the metadata.
+            source.Mutate(x => x.AutoOrient());
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "LOAD COMPLETE",
+                $"{source.Width}x{source.Height}; EXIF orientation applied once; " +
+                $"Elapsed={stageTimer.Elapsed.TotalSeconds:0.00}s");
+
+            stageTimer.Restart();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            CardGeometryResult geometry;
+
+            // Generate a bounded, auto-oriented preview before attempting any
+            // rectangle detector. Android must never render the full camera bitmap
+            // inside the interactive manual fallback.
+            using (ImageSharpImage preview = CreateBoundedPreview(source, 900))
+            {
+                string manualPreviewPath = Path.Combine(outputDirectory, "card_preview.jpg");
+                await using (FileStream manualPreviewStream = File.Create(manualPreviewPath))
+                {
+                    await preview.SaveAsync(
+                        manualPreviewStream,
+                        new JpegEncoder { Quality = 88 },
+                        cancellationToken);
+                }
+
+                progress?.Report(new CardNormalizationProgress
+                {
+                    Stage = "PREVIEW_READY",
+                    Message = "Card preview ready. Creating the Canny edge image…",
+                    PreviewImagePath = manualPreviewPath
+                });
+
+                // Same grayscale / Gaussian / Canny stages as the rectangle search,
+                // displayed BEFORE detection so a timeout cannot hide edge evidence.
+                using Mat previewBgr = CreateBgrMat(preview);
+                using Mat gray = new();
+                using Mat blurred = new();
+                using Mat edges = new();
+                Cv2.CvtColor(previewBgr, gray, ColorConversionCodes.BGR2GRAY);
+                Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
+                Cv2.Canny(blurred, edges, 75, 200);
+                string edgePath = Path.Combine(outputDirectory, "card_edges.jpg");
+                if (!Cv2.ImWrite(edgePath, edges))
+                    throw new IOException("Could not save the physical-edge preview.");
+
+                progress?.Report(new CardNormalizationProgress
+                {
+                    Stage = "EDGES_READY",
+                    Message = "Canny edge map ready. Checking rectangular contours…",
+                    PreviewImagePath = manualPreviewPath,
+                    EdgeImagePath = edgePath
+                });
+
+                // Visualize the actual quadrilateral candidates before choosing a card.
+                // This diagnostic is available even when every detector rejects the image.
+                using Mat candidates = previewBgr.Clone();
+                Cv2.FindContours(edges, out OpenCvSharp.Point[][] contours,
+                    out _, RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+                CardPoint[]? selectedPreviewCorners = null;
+                double bestScore = double.NegativeInfinity;
+                int candidatesDrawn = 0;
+                foreach (OpenCvSharp.Point[] contour in contours)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    double perimeter = Cv2.ArcLength(contour, true);
+                    if (perimeter < 80) continue;
+                    OpenCvSharp.Point[] quad = Cv2.ApproxPolyDP(contour, perimeter * 0.02, true);
+                    if (quad.Length != 4 || !Cv2.IsContourConvex(quad)) continue;
+                    double area = Math.Abs(Cv2.ContourArea(quad));
+                    double imageArea = preview.Width * (double)preview.Height;
+                    if (area < imageArea * 0.06 || area > imageArea * 0.94) continue;
+                    OpenCvSharp.Rect box = Cv2.BoundingRect(quad);
+                    if (box.X <= 1 || box.Y <= 1 || box.Right >= preview.Width - 1 ||
+                        box.Bottom >= preview.Height - 1) continue;
+                    double ratio = Math.Min(box.Width, box.Height) /
+                                   (double)Math.Max(box.Width, box.Height);
+                    if (ratio < 0.48 || ratio > 0.92) continue;
+                    CardPoint[]? ordered = OrderQuad(quad);
+                    if (ordered is null) continue;
+                    if (candidatesDrawn < 40)
+                    {
+                        Cv2.Polylines(candidates, new[] { quad }, true,
+                            new Scalar(255, 100, 255), 2);
+                        candidatesDrawn++;
+                    }
+                    double centerOffset = Math.Abs((box.X + box.Width / 2.0) / preview.Width - 0.5)
+                                        + Math.Abs((box.Y + box.Height / 2.0) / preview.Height - 0.5);
+                    double score = area / imageArea - 0.13 * Math.Abs(ratio - 2.5 / 3.5)
+                                   - 0.07 * centerOffset;
+                    if (score <= bestScore) continue;
+                    bestScore = score;
+                    selectedPreviewCorners = ordered;
+                }
+                if (selectedPreviewCorners is not null)
+                {
+                    OpenCvSharp.Point[] chosen = selectedPreviewCorners
+                        .Select(pt => new OpenCvSharp.Point((int)Math.Round(pt.X), (int)Math.Round(pt.Y)))
+                        .ToArray();
+                    Cv2.Polylines(candidates, new[] { chosen }, true, new Scalar(0, 255, 0), 1);
+                    foreach (OpenCvSharp.Point point in chosen)
+                        Cv2.Circle(candidates, point, 7, new Scalar(0, 255, 255), 2);
+                }
+                // One alternate automatic pass only. If the first Canny level did not
+                // produce a usable outer quadrilateral, retry with a lower threshold
+                // before falling back to the directional edge detector.
+                if (selectedPreviewCorners is null)
+                {
+                    progress?.Report(new CardNormalizationProgress
+                    {
+                        Stage = "RECTANGLE_RETRY",
+                        Message = "First rectangle pass was incomplete. Trying one alternate edge level…",
+                        PreviewImagePath = manualPreviewPath,
+                        EdgeImagePath = edgePath
+                    });
+
+                    using Mat retryEdges = new();
+                    Cv2.Canny(blurred, retryEdges, 45, 150);
+                    Cv2.FindContours(retryEdges, out OpenCvSharp.Point[][] retryContours,
+                        out _, RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+
+                    foreach (OpenCvSharp.Point[] contour in retryContours)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        double perimeter = Cv2.ArcLength(contour, true);
+                        if (perimeter < 80) continue;
+                        OpenCvSharp.Point[] quad = Cv2.ApproxPolyDP(contour, perimeter * 0.025, true);
+                        if (quad.Length != 4 || !Cv2.IsContourConvex(quad)) continue;
+
+                        double area = Math.Abs(Cv2.ContourArea(quad));
+                        double imageArea = preview.Width * (double)preview.Height;
+                        if (area < imageArea * 0.06 || area > imageArea * 0.94) continue;
+
+                        OpenCvSharp.Rect box = Cv2.BoundingRect(quad);
+                        if (box.X <= 1 || box.Y <= 1 || box.Right >= preview.Width - 1 ||
+                            box.Bottom >= preview.Height - 1) continue;
+
+                        double ratio = Math.Min(box.Width, box.Height) /
+                                       (double)Math.Max(box.Width, box.Height);
+                        if (ratio < 0.48 || ratio > 0.92) continue;
+
+                        CardPoint[]? ordered = OrderQuad(quad);
+                        if (ordered is null) continue;
+
+                        Cv2.Polylines(candidates, new[] { quad }, true,
+                            new Scalar(180, 80, 255), 1);
+
+                        double centerOffset =
+                            Math.Abs((box.X + box.Width / 2.0) / preview.Width - 0.5) +
+                            Math.Abs((box.Y + box.Height / 2.0) / preview.Height - 0.5);
+                        double score = area / imageArea
+                                     - 0.13 * Math.Abs(ratio - 2.5 / 3.5)
+                                     - 0.07 * centerOffset;
+                        if (score <= bestScore) continue;
+
+                        bestScore = score;
+                        selectedPreviewCorners = ordered;
+                    }
+
+                    if (selectedPreviewCorners is not null)
+                    {
+                        OpenCvSharp.Point[] chosen = selectedPreviewCorners
+                            .Select(pt => new OpenCvSharp.Point((int)Math.Round(pt.X), (int)Math.Round(pt.Y)))
+                            .ToArray();
+                        Cv2.Polylines(candidates, new[] { chosen }, true,
+                            new Scalar(0, 255, 0), 1);
+                        foreach (OpenCvSharp.Point point in chosen)
+                            Cv2.Circle(candidates, point, 6, new Scalar(0, 255, 255), 1);
+                    }
+                }
+
+                string rectanglePath = Path.Combine(outputDirectory, "rectangle_candidates.jpg");
+                if (!Cv2.ImWrite(rectanglePath, candidates))
+                    throw new IOException("Could not save rectangle detection view.");
+                progress?.Report(new CardNormalizationProgress
+                {
+                    Stage = "RECTANGLE_CANDIDATES_READY",
+                    Message = selectedPreviewCorners is null
+                        ? "Rectangle candidates shown; running four-edge fallback…"
+                        : "Rectangle candidate selected. Creating Card Lock…",
+                    RectangleImagePath = rectanglePath
+                });
+
+                // Do not send the full multi-megapixel photo through multiple
+                // segmentation and contour passes. Use this already-oriented 900px
+                // preview. The source-corner coordinates are scaled back afterward.
+                if (selectedPreviewCorners is not null)
+                {
+                    geometry = new CardGeometryResult
+                    {
+                        Success = true,
+                        Corners = ScaleCorners(selectedPreviewCorners,
+                            preview.Width, preview.Height, source.Width, source.Height),
+                        SourceWidth = source.Width,
+                        SourceHeight = source.Height,
+                        Confidence = Math.Clamp(bestScore, 0.05, 1.0)
+                    };
+                }
+                else
+                {
+                    // Centering must stay responsive. The precision four-corner editor is
+                    // now the deliberate recovery path, so do not enter the old multi-pass
+                    // segmentation fallback that could run for a minute on Android.
+                    progress?.Report(new CardNormalizationProgress
+                    {
+                        Stage = "AUTO_CARD_LOCK_NOT_FOUND",
+                        Message = "Fast automatic Card Lock did not find one reliable outer rectangle. Opening the precision 4-corner editor instead of running a long fallback…",
+                        PreviewImagePath = manualPreviewPath,
+                        EdgeImagePath = edgePath,
+                        RectangleImagePath = rectanglePath
+                    });
+                    geometry = new CardGeometryResult
+                    {
+                        Success = false,
+                        Corners = Array.Empty<CardPoint>(),
+                        SourceWidth = source.Width,
+                        SourceHeight = source.Height,
+                        Confidence = 0.0
+                    };
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization", "RECTANGLE DETECTION COMPLETE",
+                $"Success={geometry.Success}; Confidence={geometry.Confidence:0.000}; " +
+                $"Elapsed={stageTimer.Elapsed.TotalSeconds:0.00}s");
+
+
+            if (!geometry.Success || geometry.Corners.Length != 4)
+            {
+                throw new InvalidOperationException(
+                    "CollectIQ could not find one complete physical card rectangle. " +
+                    "Keep all four card edges visible on a plain contrasting background.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "PREPARE",
+                Message = "Preparing the detected card for normalization…"
+            });
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "BUILD WORKING IMAGE START",
+                $"Source={source.Width}x{source.Height}; Max={WorkingMaximumDimension}");
+
+            using ImageSharpImage working = CreateBoundedPreview(
+                source,
+                WorkingMaximumDimension);
+
+            CardPoint[] workingCorners = ScaleCorners(
+                geometry.Corners,
+                source.Width,
+                source.Height,
+                working.Width,
+                working.Height);
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "BUILD WORKING IMAGE COMPLETE",
+                $"Working={working.Width}x{working.Height}; " +
+                $"Elapsed={stageTimer.Elapsed.TotalSeconds:0.00}s");
+
+            stageTimer.Restart();
+
+            // The original capture already exists and is shown directly in the
+            // UI. Do not spend time encoding a second source-preview PNG before
+            // Card Lock / TrueForm.
+            string previewPath = imagePath;
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "SOURCE PREVIEW REUSE",
+                "Using the original capture directly; no duplicate PNG encode.");
+
+            stageTimer.Restart();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "CARD_LOCK",
+                Message = "Creating Card Lock View so you can verify the detected card…"
+            });
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "CARD LOCK OVERLAY START");
+
+            string detectionOverlayPath =
+                Path.Combine(outputDirectory, "card_lock_view.jpg");
+
+            using (ImageSharpImage detectionOverlay = working.Clone())
+            {
+                DrawDetectedCardOverlay(
+                    detectionOverlay,
+                    workingCorners,
+                    new Rgba32(0, 255, 70, 255));
+
+                await using FileStream detectionOverlayStream =
+                    File.Create(detectionOverlayPath);
+
+                // Card Lock is a visual checkpoint, not the measurement source.
+                // JPEG is dramatically cheaper to encode than a large PNG on
+                // Android and is more than sufficient for the detection proof.
+                await detectionOverlay.SaveAsync(
+                    detectionOverlayStream,
+                    new JpegEncoder { Quality = 92 },
+                    cancellationToken);
+            }
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "CARD LOCK OVERLAY COMPLETE",
+                $"{detectionOverlayPath}; Elapsed={stageTimer.Elapsed.TotalSeconds:0.00}s");
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "CARD_LOCK_COMPLETE",
+                Message = "Card Lock complete. The neon-green rectangle and four corner targets are the exact geometry CollectIQ found. TrueForm starts next.",
+                CardLockImagePath = detectionOverlayPath
+            });
+
+            // Card Lock is an explicit user-visible checkpoint. Give the UI event
+            // loop a short opportunity to render it before the transform begins.
+            await Task.Delay(150, cancellationToken);
+
+            stageTimer.Restart();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "TRUEFORM",
+                Message = "Flattening and scaling the detected card into TrueForm View…"
+            });
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "PERSPECTIVE NORMALIZATION START",
+                $"Working={working.Width}x{working.Height}; Output={normalizedWidth}x{normalizedHeight}");
+
+            string normalizedPath = Path.Combine(outputDirectory, "normalized_card.png");
+
+            // Preserve a small safety margin around the detected card. The physical
+            // card is mapped to an inset rectangle rather than the image boundary,
+            // so a slightly-too-tight detector cannot permanently crop an edge.
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
+            WarpPerspectiveWithOpenCv(
+                working,
+                workingCorners,
+                normalizedWidth,
+                normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
+                normalizedPath,
+                cancellationToken);
+
+            await InspectionDiagnosticLogger.WriteAsync(
+                "CardNormalization",
+                "PERSPECTIVE NORMALIZATION COMPLETE",
+                $"{normalizedPath}; Elapsed={stageTimer.Elapsed.TotalSeconds:0.00}s; " +
+                $"Total={totalTimer.Elapsed.TotalSeconds:0.00}s");
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "TRUEFORM_COMPLETE",
+                Message = "TrueForm View created. Measuring the printed/image frame for automatic centering…",
+                CardLockImagePath = detectionOverlayPath,
+                TrueFormImagePath = normalizedPath
+            });
+
+            return new CardNormalizationResult
+            {
+                SourcePreviewPath = previewPath,
+                DetectionOverlayPath = detectionOverlayPath,
+                NormalizedImagePath = normalizedPath,
+                SourceCorners = geometry.Corners.ToArray(),
+                GeometryConfidence = geometry.Confidence,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
+                NormalizedWidth = normalizedWidth,
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
+            };
+        }
+
+        public async Task<CardNormalizationResult> NormalizeFromRelativeRectangleAsync(
+            string imagePath,
+            string outputDirectory,
+            double left,
+            double right,
+            double top,
+            double bottom,
+            int normalizedWidth,
+            int normalizedHeight,
+            IProgress<CardNormalizationProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+                throw new FileNotFoundException("The inspection image could not be found.", imagePath);
+
+            left = Math.Clamp(left, 0.0, 0.95);
+            right = Math.Clamp(right, 0.05, 1.0);
+            top = Math.Clamp(top, 0.0, 0.95);
+            bottom = Math.Clamp(bottom, 0.05, 1.0);
+
+            if (right - left < 0.12 || bottom - top < 0.12)
+                throw new InvalidOperationException("The manual card rectangle is too small.");
+
+            Directory.CreateDirectory(outputDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_LOAD",
+                Message = "Using your four green card-edge lines…"
+            });
+
+            using ImageSharpImage source = SixLabors.ImageSharp.Image.Load<Rgba32>(imagePath);
+            source.Mutate(x => x.AutoOrient());
+
+            CardPoint[] sourceCorners =
+            {
+                new((float)(left * (source.Width - 1)),  (float)(top * (source.Height - 1))),
+                new((float)(right * (source.Width - 1)), (float)(top * (source.Height - 1))),
+                new((float)(right * (source.Width - 1)), (float)(bottom * (source.Height - 1))),
+                new((float)(left * (source.Width - 1)),  (float)(bottom * (source.Height - 1)))
+            };
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CARD_LOCK",
+                Message = "Creating Card Lock from your manual outer-card lines…"
+            });
+
+            using ImageSharpImage working = CreateBoundedPreview(source, WorkingMaximumDimension);
+            CardPoint[] workingCorners = ScaleCorners(
+                sourceCorners,
+                source.Width,
+                source.Height,
+                working.Width,
+                working.Height);
+
+            string detectionOverlayPath = Path.Combine(
+                outputDirectory,
+                "manual_card_lock_view.jpg");
+
+            using (ImageSharpImage detectionOverlay = working.Clone())
+            {
+                DrawDetectedCardOverlay(
+                    detectionOverlay,
+                    workingCorners,
+                    new Rgba32(0, 255, 70, 255));
+
+                await using FileStream overlayStream = File.Create(detectionOverlayPath);
+                await detectionOverlay.SaveAsync(
+                    overlayStream,
+                    new JpegEncoder { Quality = 92 },
+                    cancellationToken);
+            }
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CARD_LOCK_COMPLETE",
+                Message = "Manual Card Lock complete. The green rectangle is exactly what will be flattened next.",
+                CardLockImagePath = detectionOverlayPath
+            });
+
+            await Task.Delay(100, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_TRUEFORM",
+                Message = "Flattening your manual card rectangle into TrueForm View…"
+            });
+
+            string normalizedPath = Path.Combine(
+                outputDirectory,
+                "manual_normalized_card.png");
+
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
+            WarpPerspectiveWithOpenCv(
+                working,
+                workingCorners,
+                normalizedWidth,
+                normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
+                normalizedPath,
+                cancellationToken);
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_TRUEFORM_COMPLETE",
+                Message = "TrueForm created from your card edges. Measuring centering next…",
+                CardLockImagePath = detectionOverlayPath,
+                TrueFormImagePath = normalizedPath
+            });
+
+            return new CardNormalizationResult
+            {
+                SourcePreviewPath = imagePath,
+                DetectionOverlayPath = detectionOverlayPath,
+                NormalizedImagePath = normalizedPath,
+                SourceCorners = sourceCorners,
+                GeometryConfidence = 1.0,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
+                NormalizedWidth = normalizedWidth,
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
+            };
+        }
+
+        public async Task<CardNormalizationResult> NormalizeFromRelativeCornersAsync(
+            string imagePath,
+            string outputDirectory,
+            CardPoint[] relativeCorners,
+            int normalizedWidth,
+            int normalizedHeight,
+            IProgress<CardNormalizationProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+                throw new FileNotFoundException("The inspection image could not be found.", imagePath);
+
+            if (relativeCorners == null || relativeCorners.Length != 4)
+                throw new InvalidOperationException("Exactly four manual card corners are required.");
+
+            CardPoint[] clamped = relativeCorners
+                .Select(p => new CardPoint(
+                    (float)Math.Clamp(p.X, 0.0, 1.0),
+                    (float)Math.Clamp(p.Y, 0.0, 1.0)))
+                .ToArray();
+
+            ValidateManualCornerQuadrilateral(clamped);
+
+            Directory.CreateDirectory(outputDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_LOAD",
+                Message = "Using your four physical-card corners…"
+            });
+
+            using ImageSharpImage source = SixLabors.ImageSharp.Image.Load<Rgba32>(imagePath);
+            source.Mutate(x => x.AutoOrient());
+
+            CardPoint[] sourceCorners = clamped
+                .Select(p => new CardPoint(
+                    p.X * (source.Width - 1),
+                    p.Y * (source.Height - 1)))
+                .ToArray();
+
+            using ImageSharpImage working = CreateBoundedPreview(source, WorkingMaximumDimension);
+            CardPoint[] workingCorners = ScaleCorners(
+                sourceCorners,
+                source.Width,
+                source.Height,
+                working.Width,
+                working.Height);
+
+            string detectionOverlayPath = Path.Combine(
+                outputDirectory,
+                "manual_corner_card_lock_view.jpg");
+
+            using (ImageSharpImage detectionOverlay = working.Clone())
+            {
+                DrawDetectedCardOverlay(
+                    detectionOverlay,
+                    workingCorners,
+                    new Rgba32(0, 255, 70, 255));
+
+                await using FileStream overlayStream = File.Create(detectionOverlayPath);
+                await detectionOverlay.SaveAsync(
+                    overlayStream,
+                    new JpegEncoder { Quality = 92 },
+                    cancellationToken);
+            }
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_CARD_LOCK_COMPLETE",
+                Message = "Manual Card Lock complete. Your four selected corners are exactly what TrueForm will flatten.",
+                CardLockImagePath = detectionOverlayPath
+            });
+
+            await Task.Delay(100, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string normalizedPath = Path.Combine(
+                outputDirectory,
+                "manual_corner_normalized_card.png");
+
+            int cardPadX = Math.Max(4, (int)Math.Round(normalizedWidth * 0.03));
+            int cardPadY = Math.Max(4, (int)Math.Round(normalizedHeight * 0.03));
+            int normalizedCardLeft = cardPadX;
+            int normalizedCardRight = normalizedWidth - 1 - cardPadX;
+            int normalizedCardTop = cardPadY;
+            int normalizedCardBottom = normalizedHeight - 1 - cardPadY;
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_TRUEFORM",
+                Message = "Flattening your four selected corners into TrueForm View…"
+            });
+
+            WarpPerspectiveWithOpenCv(
+                working,
+                workingCorners,
+                normalizedWidth,
+                normalizedHeight,
+                normalizedCardLeft,
+                normalizedCardRight,
+                normalizedCardTop,
+                normalizedCardBottom,
+                normalizedPath,
+                cancellationToken);
+
+            progress?.Report(new CardNormalizationProgress
+            {
+                Stage = "MANUAL_CORNER_TRUEFORM_COMPLETE",
+                Message = "TrueForm created from your four corners. Measuring centering next…",
+                CardLockImagePath = detectionOverlayPath,
+                TrueFormImagePath = normalizedPath
+            });
+
+            return new CardNormalizationResult
+            {
+                SourcePreviewPath = imagePath,
+                DetectionOverlayPath = detectionOverlayPath,
+                NormalizedImagePath = normalizedPath,
+                SourceCorners = sourceCorners,
+                GeometryConfidence = 1.0,
+                SourceWidth = source.Width,
+                SourceHeight = source.Height,
+                NormalizedWidth = normalizedWidth,
+                NormalizedHeight = normalizedHeight,
+                NormalizedCardLeft = normalizedCardLeft,
+                NormalizedCardRight = normalizedCardRight,
+                NormalizedCardTop = normalizedCardTop,
+                NormalizedCardBottom = normalizedCardBottom
+            };
+        }
+
+        private static void ValidateManualCornerQuadrilateral(CardPoint[] points)
+        {
+            static double Cross(CardPoint a, CardPoint b, CardPoint c) =>
+                ((b.X - a.X) * (c.Y - b.Y)) - ((b.Y - a.Y) * (c.X - b.X));
+
+            static double Distance(CardPoint a, CardPoint b)
+            {
+                double dx = b.X - a.X;
+                double dy = b.Y - a.Y;
+                return Math.Sqrt((dx * dx) + (dy * dy));
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (Distance(points[i], points[(i + 1) % 4]) < 0.05)
+                    throw new InvalidOperationException("Two selected card corners are too close together.");
+            }
+
+            double c0 = Cross(points[0], points[1], points[2]);
+            double c1 = Cross(points[1], points[2], points[3]);
+            double c2 = Cross(points[2], points[3], points[0]);
+            double c3 = Cross(points[3], points[0], points[1]);
+
+            bool allPositive = c0 > 0 && c1 > 0 && c2 > 0 && c3 > 0;
+            bool allNegative = c0 < 0 && c1 < 0 && c2 < 0 && c3 < 0;
+            if (!allPositive && !allNegative)
+                throw new InvalidOperationException("The four card corners cross or are out of order. Use Top Left, Top Right, Bottom Right, Bottom Left.");
+
+            double area = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                CardPoint a = points[i];
+                CardPoint b = points[(i + 1) % 4];
+                area += (a.X * b.Y) - (b.X * a.Y);
+            }
+
+            if (Math.Abs(area) * 0.5 < 0.03)
+                throw new InvalidOperationException("The selected card area is too small. Tap the four outside corners of the physical card.");
+        }
+
+        private static ImageSharpImage CreateBoundedPreview(ImageSharpImage source, int maximumDimension)
+        {
+            int largest = Math.Max(source.Width, source.Height);
+            if (largest <= maximumDimension)
+                return source.Clone();
+
+            double scale = maximumDimension / (double)largest;
+            int width = Math.Max(1, (int)Math.Round(source.Width * scale));
+            int height = Math.Max(1, (int)Math.Round(source.Height * scale));
+
+            return source.Clone(context => context.Resize(new ResizeOptions
+            {
+                Size = new SixLabors.ImageSharp.Size(width, height),
+                Mode = SixLabors.ImageSharp.Processing.ResizeMode.Stretch,
+                Sampler = KnownResamplers.Bicubic
+            }));
+        }
+
+        /// <summary>
+        /// Draws the detected physical-card quadrilateral and four corner targets.
+        /// This is intentionally generated before perspective normalization so the
+        /// user can verify that CollectIQ locked onto the correct physical card.
+        /// </summary>
+        private static void DrawDetectedCardOverlay(
+            ImageSharpImage image,
+            IReadOnlyList<CardPoint> corners,
+            Rgba32 color)
+        {
+            if (corners.Count != 4)
+                return;
+
+            for (int i = 0; i < 4; i++)
+            {
+                CardPoint start = corners[i];
+                CardPoint end = corners[(i + 1) % 4];
+                DrawLine(
+                    image,
+                    (int)Math.Round(start.X),
+                    (int)Math.Round(start.Y),
+                    (int)Math.Round(end.X),
+                    (int)Math.Round(end.Y),
+                    color,
+                    2);
+            }
+
+            foreach (CardPoint corner in corners)
+            {
+                DrawCornerTarget(
+                    image,
+                    (int)Math.Round(corner.X),
+                    (int)Math.Round(corner.Y),
+                    color);
+            }
+        }
+
+        private static void DrawCornerTarget(
+            ImageSharpImage image,
+            int cx,
+            int cy,
+            Rgba32 color)
+        {
+            const int radius = 10;
+
+            DrawLine(image, cx - radius, cy, cx + radius, cy, color, 2);
+            DrawLine(image, cx, cy - radius, cx, cy + radius, color, 2);
+        }
+
+        private static void DrawLine(
+            ImageSharpImage image,
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            Rgba32 color,
+            int thickness)
+        {
+            int dx = Math.Abs(x2 - x1);
+            int sx = x1 < x2 ? 1 : -1;
+            int dy = -Math.Abs(y2 - y1);
+            int sy = y1 < y2 ? 1 : -1;
+            int error = dx + dy;
+
+            while (true)
+            {
+                DrawThickPoint(image, x1, y1, color, thickness);
+
+                if (x1 == x2 && y1 == y2)
+                    break;
+
+                int twiceError = 2 * error;
+
+                if (twiceError >= dy)
+                {
+                    error += dy;
+                    x1 += sx;
+                }
+
+                if (twiceError <= dx)
+                {
+                    error += dx;
+                    y1 += sy;
+                }
+            }
+        }
+
+        private static void DrawThickPoint(
+            ImageSharpImage image,
+            int cx,
+            int cy,
+            Rgba32 color,
+            int thickness)
+        {
+            int radius = Math.Max(1, thickness / 2);
+
+            for (int y = cy - radius; y <= cy + radius; y++)
+            {
+                if (y < 0 || y >= image.Height)
+                    continue;
+
+                for (int x = cx - radius; x <= cx + radius; x++)
+                {
+                    if (x < 0 || x >= image.Width)
+                        continue;
+
+                    image[x, y] = color;
+                }
+            }
+        }
+
+        private static CardPoint[]? OrderQuad(OpenCvSharp.Point[] points)
+        {
+            if (points.Length != 4) return null;
+            OpenCvSharp.Point tl = points.OrderBy(p => p.X + p.Y).First();
+            OpenCvSharp.Point br = points.OrderByDescending(p => p.X + p.Y).First();
+            OpenCvSharp.Point tr = points.OrderByDescending(p => p.X - p.Y).First();
+            OpenCvSharp.Point bl = points.OrderBy(p => p.X - p.Y).First();
+            if (new[] { tl, tr, br, bl }.Distinct().Count() != 4) return null;
+            return new[] {
+                new CardPoint(tl.X, tl.Y), new CardPoint(tr.X, tr.Y),
+                new CardPoint(br.X, br.Y), new CardPoint(bl.X, bl.Y) };
+        }
+
+        private static CardPoint[] ScaleCorners(
+            IReadOnlyList<CardPoint> corners,
+            int sourceWidth,
+            int sourceHeight,
+            int targetWidth,
+            int targetHeight)
+        {
+            double scaleX = targetWidth / (double)Math.Max(sourceWidth, 1);
+            double scaleY = targetHeight / (double)Math.Max(sourceHeight, 1);
+
+            return corners
+                .Select(point => new CardPoint(
+                    (float)(point.X * scaleX),
+                    (float)(point.Y * scaleY)))
+                .ToArray();
+        }
+
+        private static CardPoint[] OrderCornersForPortraitWarp(IReadOnlyList<CardPoint> corners)
+        {
+            if (corners.Count != 4)
+                throw new ArgumentException("Four ordered card corners are required.", nameof(corners));
+
+            static double Distance(CardPoint a, CardPoint b)
+            {
+                double dx = b.X - a.X;
+                double dy = b.Y - a.Y;
+                return Math.Sqrt((dx * dx) + (dy * dy));
+            }
+
+            double topBottom = (Distance(corners[0], corners[1]) + Distance(corners[2], corners[3])) * 0.5;
+            double leftRight = (Distance(corners[1], corners[2]) + Distance(corners[3], corners[0])) * 0.5;
+
+            if (topBottom <= leftRight)
+                return corners.Select(p => new CardPoint(p.X, p.Y)).ToArray();
+
+            // The physical card is sideways in the image. Rotate the source-corner
+            // sequence one quarter-turn before mapping it to the portrait TrueForm.
+            return new[]
+            {
+                new CardPoint(corners[3].X, corners[3].Y),
+                new CardPoint(corners[0].X, corners[0].Y),
+                new CardPoint(corners[1].X, corners[1].Y),
+                new CardPoint(corners[2].X, corners[2].Y)
+            };
+        }
+
+        /// <summary>
+        /// Uses OpenCV's native perspective warp for the normalized card.
+        /// The four input corners must be ordered TL, TR, BR, BL.
+        /// </summary>
+        private static void WarpPerspectiveWithOpenCv(
+            ImageSharpImage source,
+            IReadOnlyList<CardPoint> sourceCorners,
+            int width,
+            int height,
+            int cardLeft,
+            int cardRight,
+            int cardTop,
+            int cardBottom,
+            string outputPath,
+            CancellationToken cancellationToken)
+        {
+            if (sourceCorners.Count != 4)
+                throw new ArgumentException("Four ordered card corners are required.", nameof(sourceCorners));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using Mat sourceBgr = CreateBgrMat(source);
+
+            CardPoint[] portraitCorners = OrderCornersForPortraitWarp(sourceCorners);
+            Point2f[] src =
+            {
+                new(portraitCorners[0].X, portraitCorners[0].Y),
+                new(portraitCorners[1].X, portraitCorners[1].Y),
+                new(portraitCorners[2].X, portraitCorners[2].Y),
+                new(portraitCorners[3].X, portraitCorners[3].Y)
+            };
+
+            Point2f[] dst =
+            {
+                new(cardLeft, cardTop),
+                new(cardRight, cardTop),
+                new(cardRight, cardBottom),
+                new(cardLeft, cardBottom)
+            };
+
+            using Mat transform = Cv2.GetPerspectiveTransform(src, dst);
+            using Mat normalized = new();
+
+            Cv2.WarpPerspective(
+                sourceBgr,
+                normalized,
+                transform,
+                new OpenCvSharp.Size(width, height),
+                InterpolationFlags.Linear,
+                BorderTypes.Constant,
+                Scalar.Black);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (normalized.Empty())
+                throw new InvalidOperationException("OpenCV produced an empty TrueForm image.");
+
+            // A four-point homography removes projective camera perspective, but a
+            // phone lens and a slightly bowed card can leave the physical outer edge
+            // a few pixels curved inside the canonical frame.  Centering measurements
+            // need the physical card boundary to be geometrically straight, so run one
+            // guarded non-linear edge-straightening pass.  It only searches a narrow
+            // band around the already-known physical card boundary and automatically
+            // skips itself when the residual edge deviation is insignificant.
+            using Mat trueForm = StraightenResidualCardEdges(
+                normalized,
+                cardLeft,
+                cardRight,
+                cardTop,
+                cardBottom,
+                cancellationToken);
+
+            if (!Cv2.ImWrite(outputPath, trueForm))
+                throw new IOException("OpenCV could not save the TrueForm image.");
+        }
+
+        private static Mat StraightenResidualCardEdges(
+            Mat warped,
+            int cardLeft,
+            int cardRight,
+            int cardTop,
+            int cardBottom,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using Mat gray = new();
+            Cv2.CvtColor(warped, gray, ColorConversionCodes.BGR2GRAY);
+            using Mat gradX = new();
+            using Mat gradY = new();
+            Cv2.Sobel(gray, gradX, MatType.CV_32F, 1, 0, 3);
+            Cv2.Sobel(gray, gradY, MatType.CV_32F, 0, 1, 3);
+
+            int searchX = Math.Clamp((cardRight - cardLeft) / 30, 10, 24);
+            int searchY = Math.Clamp((cardBottom - cardTop) / 42, 10, 24);
+
+            float[] top = FindHorizontalBoundary(gradY, cardLeft, cardRight, cardTop, searchY);
+            float[] bottom = FindHorizontalBoundary(gradY, cardLeft, cardRight, cardBottom, searchY);
+            SmoothBoundary(top, 9);
+            SmoothBoundary(bottom, 9);
+
+            double verticalResidual = Math.Max(
+                RootMeanSquareOffset(top, cardTop),
+                RootMeanSquareOffset(bottom, cardBottom));
+
+            Mat vertical = warped.Clone();
+            try
+            {
+                if (verticalResidual >= 1.25)
+                {
+                    using Mat mapX = new(warped.Rows, warped.Cols, MatType.CV_32F);
+                    using Mat mapY = new(warped.Rows, warped.Cols, MatType.CV_32F);
+                    for (int y = 0; y < warped.Rows; y++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        for (int x = 0; x < warped.Cols; x++)
+                        {
+                            mapX.Set(y, x, (float)x);
+                            if (x < cardLeft || x > cardRight)
+                            {
+                                mapY.Set(y, x, (float)y);
+                                continue;
+                            }
+
+                            int index = Math.Clamp(x - cardLeft, 0, top.Length - 1);
+                            float sourceTop = top[index];
+                            float sourceBottom = bottom[index];
+                            if (sourceBottom <= sourceTop + 10)
+                            {
+                                mapY.Set(y, x, (float)y);
+                                continue;
+                            }
+
+                            if (y <= cardTop)
+                            {
+                                mapY.Set(y, x, sourceTop + (y - cardTop));
+                            }
+                            else if (y >= cardBottom)
+                            {
+                                mapY.Set(y, x, sourceBottom + (y - cardBottom));
+                            }
+                            else
+                            {
+                                float t = (y - cardTop) / (float)Math.Max(cardBottom - cardTop, 1);
+                                mapY.Set(y, x, sourceTop + (t * (sourceBottom - sourceTop)));
+                            }
+                        }
+                    }
+
+                    using Mat corrected = new();
+                    Cv2.Remap(
+                        warped,
+                        corrected,
+                        mapX,
+                        mapY,
+                        InterpolationFlags.Linear,
+                        BorderTypes.Constant,
+                        Scalar.Black);
+                    vertical.Dispose();
+                    vertical = corrected.Clone();
+                }
+
+                using Mat grayVertical = new();
+                Cv2.CvtColor(vertical, grayVertical, ColorConversionCodes.BGR2GRAY);
+                using Mat gradXVertical = new();
+                Cv2.Sobel(grayVertical, gradXVertical, MatType.CV_32F, 1, 0, 3);
+
+                float[] left = FindVerticalBoundary(gradXVertical, cardTop, cardBottom, cardLeft, searchX);
+                float[] right = FindVerticalBoundary(gradXVertical, cardTop, cardBottom, cardRight, searchX);
+                SmoothBoundary(left, 9);
+                SmoothBoundary(right, 9);
+
+                double horizontalResidual = Math.Max(
+                    RootMeanSquareOffset(left, cardLeft),
+                    RootMeanSquareOffset(right, cardRight));
+
+                if (horizontalResidual < 1.25)
+                    return vertical.Clone();
+
+                using Mat horizontalMapX = new(vertical.Rows, vertical.Cols, MatType.CV_32F);
+                using Mat horizontalMapY = new(vertical.Rows, vertical.Cols, MatType.CV_32F);
+                for (int y = 0; y < vertical.Rows; y++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    for (int x = 0; x < vertical.Cols; x++)
+                    {
+                        horizontalMapY.Set(y, x, (float)y);
+                        if (y < cardTop || y > cardBottom)
+                        {
+                            horizontalMapX.Set(y, x, (float)x);
+                            continue;
+                        }
+
+                        int index = Math.Clamp(y - cardTop, 0, left.Length - 1);
+                        float sourceLeft = left[index];
+                        float sourceRight = right[index];
+                        if (sourceRight <= sourceLeft + 10)
+                        {
+                            horizontalMapX.Set(y, x, (float)x);
+                            continue;
+                        }
+
+                        if (x <= cardLeft)
+                        {
+                            horizontalMapX.Set(y, x, sourceLeft + (x - cardLeft));
+                        }
+                        else if (x >= cardRight)
+                        {
+                            horizontalMapX.Set(y, x, sourceRight + (x - cardRight));
+                        }
+                        else
+                        {
+                            float t = (x - cardLeft) / (float)Math.Max(cardRight - cardLeft, 1);
+                            horizontalMapX.Set(y, x, sourceLeft + (t * (sourceRight - sourceLeft)));
+                        }
+                    }
+                }
+
+                Mat output = new();
+                Cv2.Remap(
+                    vertical,
+                    output,
+                    horizontalMapX,
+                    horizontalMapY,
+                    InterpolationFlags.Linear,
+                    BorderTypes.Constant,
+                    Scalar.Black);
+                return output;
+            }
+            finally
+            {
+                vertical.Dispose();
+            }
+        }
+
+        private static float[] FindHorizontalBoundary(
+            Mat gradient,
+            int left,
+            int right,
+            int expectedY,
+            int radius)
+        {
+            int count = Math.Max(right - left + 1, 1);
+            float[] result = new float[count];
+            int minY = Math.Max(1, expectedY - radius);
+            int maxY = Math.Min(gradient.Rows - 2, expectedY + radius);
+
+            for (int x = left; x <= right; x++)
+            {
+                int safeX = Math.Clamp(x, 1, gradient.Cols - 2);
+                float bestStrength = float.MinValue;
+                int bestY = expectedY;
+                for (int y = minY; y <= maxY; y++)
+                {
+                    float strength = Math.Abs(gradient.At<float>(y, safeX));
+                    // Prefer an edge close to the expected physical boundary when
+                    // several printed borders are present in the search strip.
+                    strength -= Math.Abs(y - expectedY) * 1.35f;
+                    if (strength > bestStrength)
+                    {
+                        bestStrength = strength;
+                        bestY = y;
+                    }
+                }
+                result[x - left] = bestY;
+            }
+            return result;
+        }
+
+        private static float[] FindVerticalBoundary(
+            Mat gradient,
+            int top,
+            int bottom,
+            int expectedX,
+            int radius)
+        {
+            int count = Math.Max(bottom - top + 1, 1);
+            float[] result = new float[count];
+            int minX = Math.Max(1, expectedX - radius);
+            int maxX = Math.Min(gradient.Cols - 2, expectedX + radius);
+
+            for (int y = top; y <= bottom; y++)
+            {
+                int safeY = Math.Clamp(y, 1, gradient.Rows - 2);
+                float bestStrength = float.MinValue;
+                int bestX = expectedX;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float strength = Math.Abs(gradient.At<float>(safeY, x));
+                    strength -= Math.Abs(x - expectedX) * 1.35f;
+                    if (strength > bestStrength)
+                    {
+                        bestStrength = strength;
+                        bestX = x;
+                    }
+                }
+                result[y - top] = bestX;
+            }
+            return result;
+        }
+
+        private static void SmoothBoundary(float[] values, int window)
+        {
+            if (values.Length < 3)
+                return;
+
+            int radius = Math.Max(1, window / 2);
+            float[] source = (float[])values.Clone();
+            for (int i = 0; i < values.Length; i++)
+            {
+                int from = Math.Max(0, i - radius);
+                int to = Math.Min(values.Length - 1, i + radius);
+                float[] sample = new float[to - from + 1];
+                Array.Copy(source, from, sample, 0, sample.Length);
+                Array.Sort(sample);
+                values[i] = sample[sample.Length / 2];
+            }
+        }
+
+        private static double RootMeanSquareOffset(float[] values, float expected)
+        {
+            if (values.Length == 0)
+                return 0.0;
+
+            double sum = 0.0;
+            for (int i = 0; i < values.Length; i++)
+            {
+                double delta = values[i] - expected;
+                sum += delta * delta;
+            }
+            return Math.Sqrt(sum / values.Length);
+        }
+
+        /// <summary>
+        /// Converts an ImageSharp RGBA image into an OpenCV BGR Mat once.
+        /// </summary>
+        private static Mat CreateBgrMat(ImageSharpImage image)
+        {
+            byte[] rgbaBytes = new byte[image.Width * image.Height * 4];
+            image.CopyPixelDataTo(rgbaBytes);
+
+            using Mat rgba = new(image.Height, image.Width, MatType.CV_8UC4);
+            Marshal.Copy(rgbaBytes, 0, rgba.Data, rgbaBytes.Length);
+
+            Mat bgr = new();
+            Cv2.CvtColor(rgba, bgr, ColorConversionCodes.RGBA2BGR);
+            return bgr;
+        }
+
+        private static ImageSharpImage WarpToRectangle(
+            ImageSharpImage source,
+            IReadOnlyList<CardPoint> sourceCorners,
+            int width,
+            int height,
+            CancellationToken cancellationToken)
+        {
+            CardPoint[] destinationCorners =
+            {
+                new(0, 0),
+                new(width - 1, 0),
+                new(width - 1, height - 1),
+                new(0, height - 1)
+            };
+
+            double[] destinationToSource = SolveHomography(destinationCorners, sourceCorners);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Rgba32[] sourcePixels = new Rgba32[source.Width * source.Height];
+            source.CopyPixelDataTo(sourcePixels);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            ImageSharpImage output = new(width, height);
+            output.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    if ((y & 31) == 0)
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                    Span<Rgba32> row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < width; x++)
+                    {
+                        if ((x & 255) == 0)
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                        MapProjective(destinationToSource, x, y, out float sx, out float sy);
+                        row[x] = SampleBilinear(sourcePixels, source.Width, source.Height, sx, sy);
+                    }
+                }
+            });
+
+            return output;
+        }
+
+        private static Rgba32 SampleBilinear(Rgba32[] pixels, int width, int height, float x, float y)
+        {
+            if (float.IsNaN(x) || float.IsNaN(y) || x < 0 || y < 0 || x > width - 1 || y > height - 1)
+                return new Rgba32(0, 0, 0, 255);
+
+            int x0 = (int)MathF.Floor(x);
+            int y0 = (int)MathF.Floor(y);
+            int x1 = Math.Min(x0 + 1, width - 1);
+            int y1 = Math.Min(y0 + 1, height - 1);
+            float tx = x - x0;
+            float ty = y - y0;
+
+            Rgba32 c00 = pixels[(y0 * width) + x0];
+            Rgba32 c10 = pixels[(y0 * width) + x1];
+            Rgba32 c01 = pixels[(y1 * width) + x0];
+            Rgba32 c11 = pixels[(y1 * width) + x1];
+
+            return new Rgba32(
+                Blend(Blend(c00.R, c10.R, tx), Blend(c01.R, c11.R, tx), ty),
+                Blend(Blend(c00.G, c10.G, tx), Blend(c01.G, c11.G, tx), ty),
+                Blend(Blend(c00.B, c10.B, tx), Blend(c01.B, c11.B, tx), ty),
+                Blend(Blend(c00.A, c10.A, tx), Blend(c01.A, c11.A, tx), ty));
+        }
+
+        private static byte Blend(byte a, byte b, float t) =>
+            (byte)Math.Clamp(MathF.Round(a + ((b - a) * t)), 0, 255);
+
+        private static void MapProjective(double[] matrix, float x, float y, out float sourceX, out float sourceY)
+        {
+            double denominator = (matrix[6] * x) + (matrix[7] * y) + matrix[8];
+            if (Math.Abs(denominator) < 1e-8)
+            {
+                sourceX = -1;
+                sourceY = -1;
+                return;
+            }
+
+            sourceX = (float)(((matrix[0] * x) + (matrix[1] * y) + matrix[2]) / denominator);
+            sourceY = (float)(((matrix[3] * x) + (matrix[4] * y) + matrix[5]) / denominator);
+        }
+
+        private static double[] SolveHomography(IReadOnlyList<CardPoint> destination, IReadOnlyList<CardPoint> source)
+        {
+            double[,] a = new double[8, 8];
+            double[] b = new double[8];
+
+            for (int i = 0; i < 4; i++)
+            {
+                double x = destination[i].X;
+                double y = destination[i].Y;
+                double u = source[i].X;
+                double v = source[i].Y;
+                int row = i * 2;
+
+                a[row, 0] = x; a[row, 1] = y; a[row, 2] = 1.0;
+                a[row, 6] = -u * x; a[row, 7] = -u * y; b[row] = u;
+                a[row + 1, 3] = x; a[row + 1, 4] = y; a[row + 1, 5] = 1.0;
+                a[row + 1, 6] = -v * x; a[row + 1, 7] = -v * y; b[row + 1] = v;
+            }
+
+            double[] h = SolveLinearSystem(a, b);
+            return new[] { h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1.0 };
+        }
+
+        private static double[] SolveLinearSystem(double[,] a, double[] b)
+        {
+            int n = b.Length;
+            double[,] augmented = new double[n, n + 1];
+
+            for (int row = 0; row < n; row++)
+            {
+                for (int col = 0; col < n; col++)
+                    augmented[row, col] = a[row, col];
+                augmented[row, n] = b[row];
+            }
+
+            for (int pivot = 0; pivot < n; pivot++)
+            {
+                int bestRow = pivot;
+                double bestValue = Math.Abs(augmented[pivot, pivot]);
+                for (int row = pivot + 1; row < n; row++)
+                {
+                    double value = Math.Abs(augmented[row, pivot]);
+                    if (value > bestValue)
+                    {
+                        bestValue = value;
+                        bestRow = row;
+                    }
+                }
+
+                if (bestValue < 1e-12)
+                    throw new InvalidOperationException("The detected card corners cannot form a stable perspective transform.");
+
+                if (bestRow != pivot)
+                {
+                    for (int col = pivot; col <= n; col++)
+                    {
+                        double temp = augmented[pivot, col];
+                        augmented[pivot, col] = augmented[bestRow, col];
+                        augmented[bestRow, col] = temp;
+                    }
+                }
+
+                double pivotValue = augmented[pivot, pivot];
+                for (int col = pivot; col <= n; col++)
+                    augmented[pivot, col] /= pivotValue;
+
+                for (int row = 0; row < n; row++)
+                {
+                    if (row == pivot) continue;
+                    double factor = augmented[row, pivot];
+                    if (Math.Abs(factor) < 1e-12) continue;
+                    for (int col = pivot; col <= n; col++)
+                        augmented[row, col] -= factor * augmented[pivot, col];
+                }
+            }
+
+            double[] result = new double[n];
+            for (int i = 0; i < n; i++)
+                result[i] = augmented[i, n];
+            return result;
+        }
+    }
+}

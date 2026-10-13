@@ -7,6 +7,8 @@ namespace CollectIQ.Models.Inspection
     public sealed class AlignmentDiagnostics
     {
         public List<InspectionDebugFrame> Frames { get; set; } = new();
+        public string ReferenceDetectionOverlayPath { get; set; } = string.Empty;
+        public string ReferenceRegisteredImagePath { get; set; } = string.Empty;
         public string EdgeOverlayPath { get; set; } = string.Empty;
         public string AlignmentAveragePath { get; set; } = string.Empty;
     }

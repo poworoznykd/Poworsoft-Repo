@@ -20,20 +20,76 @@ namespace CollectIQ.Services.Inspection
             this.geometryService = geometryService;
         }
 
-        public async Task<CardBoundaryInspectionResult> AnalyzeAsync(string imagePath, CancellationToken cancellationToken = default)
+        public Task<CardBoundaryInspectionResult> AnalyzeAsync(string imagePath, CancellationToken cancellationToken = default)
+            => AnalyzeCoreAsync(imagePath, null, cancellationToken);
+
+        public Task<CardBoundaryInspectionResult> AnalyzeWithNormalizedCornersAsync(
+            string imagePath,
+            IReadOnlyList<CardPoint> normalizedCorners,
+            CancellationToken cancellationToken = default)
+        {
+            if (normalizedCorners == null || normalizedCorners.Count != 4)
+                throw new ArgumentException("Exactly four normalized card corners are required.", nameof(normalizedCorners));
+
+            return AnalyzeCoreAsync(imagePath, normalizedCorners, cancellationToken);
+        }
+
+        private async Task<CardBoundaryInspectionResult> AnalyzeCoreAsync(
+            string imagePath,
+            IReadOnlyList<CardPoint>? normalizedCorners,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
                 throw new InvalidOperationException("Capture or load a card image first.");
 
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "LOAD IMAGE", imagePath);
+
             using ImageSharpImage source = await SixLabors.ImageSharp.Image.LoadAsync<Rgba32>(imagePath, cancellationToken);
             source.Mutate(x => x.AutoOrient());
 
-            // EXACT same physical-card detector used by the working Centering workflow.
-            CardGeometryResult geometry = geometryService.DetectCard(source);
-            if (!geometry.Success || geometry.Corners.Length != 4)
-                throw new InvalidOperationException("CollectIQ could not find all four physical outer card corners. Keep the entire card visible on a plain contrasting background and retake it.");
+            cancellationToken.ThrowIfCancellationRequested();
 
-            using ImageSharpImage canonical = WarpToCanonical(source, geometry.Corners);
+            CardPoint[] sourceCorners;
+            double detectionConfidence;
+
+            if (normalizedCorners != null)
+            {
+                sourceCorners = normalizedCorners
+                    .Select(p => new CardPoint(
+                        Math.Clamp(p.X, 0f, 1f) * (source.Width - 1),
+                        Math.Clamp(p.Y, 0f, 1f) * (source.Height - 1)))
+                    .ToArray();
+                detectionConfidence = 1.0;
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Boundary",
+                    "MANUAL CARD LOCK",
+                    string.Join(" | ", sourceCorners.Select(p => $"({p.X:0.0},{p.Y:0.0})")));
+            }
+            else
+            {
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Boundary",
+                    "DETECT CARD START",
+                    $"{source.Width}x{source.Height}");
+
+                // EXACT same physical-card detector used by the working Centering workflow.
+                CardGeometryResult geometry = geometryService.DetectCard(source);
+
+                await InspectionDiagnosticLogger.WriteAsync(
+                    "Boundary",
+                    "DETECT CARD COMPLETE",
+                    $"Success={geometry.Success}; Confidence={geometry.Confidence:0.000}");
+
+                if (!geometry.Success || geometry.Corners.Length != 4)
+                    throw new CardBoundaryGeometryException(
+                        "CollectIQ could not find all four physical outer card corners. Use the 4-corner fallback to set them precisely.");
+
+                sourceCorners = geometry.Corners;
+                detectionConfidence = geometry.Confidence;
+            }
+
+            using ImageSharpImage canonical = WarpToCanonical(source, sourceCorners);
             string outputDirectory = Path.Combine(FileSystem.AppDataDirectory, "BoundaryInspections", DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
             Directory.CreateDirectory(outputDirectory);
 
@@ -48,6 +104,9 @@ namespace CollectIQ.Services.Inspection
             {
                 await SaveAsync(padded, normalizedPath, cancellationToken);
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "SCORING START");
 
             float[] gray = ExtractLuminance(canonical);
             float[] chroma = ExtractChroma(canonical);
@@ -106,13 +165,15 @@ namespace CollectIQ.Services.Inspection
             string bottomClose = await SaveEdgeCloseupAsync(canonical, outputDirectory, "edge_bottom", EdgeSide.Bottom, edgeBand, cornerSize, bottomHot, cancellationToken);
             string leftClose = await SaveEdgeCloseupAsync(canonical, outputDirectory, "edge_left", EdgeSide.Left, edgeBand, cornerSize, leftHot, cancellationToken);
 
+            await InspectionDiagnosticLogger.WriteAsync("Boundary", "ANALYSIS COMPLETE");
+
             return new CardBoundaryInspectionResult
             {
                 NormalizedImagePath = normalizedPath,
                 ProcessingImagePath = canonicalPath,
                 EdgeOverlayPath = edgeOverlayPath,
                 CornerOverlayPath = cornerOverlayPath,
-                DetectionConfidence = geometry.Confidence * 100.0,
+                DetectionConfidence = detectionConfidence * 100.0,
                 TopEdge = top,
                 RightEdge = right,
                 BottomEdge = bottom,
@@ -595,6 +656,11 @@ namespace CollectIQ.Services.Inspection
             int n=b.Length;double[,] m=new double[n,n+1];for(int r=0;r<n;r++){for(int c=0;c<n;c++)m[r,c]=a[r,c];m[r,n]=b[r];}for(int c=0;c<n;c++){int pivot=c;for(int r=c+1;r<n;r++)if(Math.Abs(m[r,c])>Math.Abs(m[pivot,c]))pivot=r;if(pivot!=c)for(int k=c;k<=n;k++){double tmp=m[c,k];m[c,k]=m[pivot,k];m[pivot,k]=tmp;}double div=m[c,c];if(Math.Abs(div)<1e-12)throw new InvalidOperationException("Could not solve card perspective transform.");for(int k=c;k<=n;k++)m[c,k]/=div;for(int r=0;r<n;r++){if(r==c)continue;double f=m[r,c];for(int k=c;k<=n;k++)m[r,k]-=f*m[c,k];}}double[] x=new double[n];for(int i=0;i<n;i++)x[i]=m[i,n];return x;
         }
         private enum EdgeSide { Top,Right,Bottom,Left }
+    }
+
+    public sealed class CardBoundaryGeometryException : InvalidOperationException
+    {
+        public CardBoundaryGeometryException(string message) : base(message) { }
     }
 
     public sealed class CardBoundaryInspectionResult

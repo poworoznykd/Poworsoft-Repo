@@ -1,4 +1,5 @@
 using CollectIQ.Models.Inspection;
+using CollectIQ.Models.Inspection.Geometry;
 
 namespace CollectIQ.Interfaces
 {
@@ -7,6 +8,9 @@ namespace CollectIQ.Interfaces
         Task<SurfaceInspectionResult> AnalyzeAsync(
             string neutralReferencePath,
             IReadOnlyDictionary<SurfaceLightDirection, string> captures,
+            IReadOnlyList<CardPoint>? manualReferenceCorners = null,
+            IReadOnlyDictionary<string, IReadOnlyList<CardPoint>>? manualFrameCorners = null,
+            IProgress<SurfaceInspectionProgress>? progress = null,
             CancellationToken cancellationToken = default);
 
         Task<SurfaceInspectionResult> AnalyzeSinglePhotoAsync(
