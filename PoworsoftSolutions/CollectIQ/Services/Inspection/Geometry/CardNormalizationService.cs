@@ -1016,8 +1016,280 @@ namespace CollectIQ.Services.Inspection.Geometry
             if (normalized.Empty())
                 throw new InvalidOperationException("OpenCV produced an empty TrueForm image.");
 
-            if (!Cv2.ImWrite(outputPath, normalized))
+            // A four-point homography removes projective camera perspective, but a
+            // phone lens and a slightly bowed card can leave the physical outer edge
+            // a few pixels curved inside the canonical frame.  Centering measurements
+            // need the physical card boundary to be geometrically straight, so run one
+            // guarded non-linear edge-straightening pass.  It only searches a narrow
+            // band around the already-known physical card boundary and automatically
+            // skips itself when the residual edge deviation is insignificant.
+            using Mat trueForm = StraightenResidualCardEdges(
+                normalized,
+                cardLeft,
+                cardRight,
+                cardTop,
+                cardBottom,
+                cancellationToken);
+
+            if (!Cv2.ImWrite(outputPath, trueForm))
                 throw new IOException("OpenCV could not save the TrueForm image.");
+        }
+
+        private static Mat StraightenResidualCardEdges(
+            Mat warped,
+            int cardLeft,
+            int cardRight,
+            int cardTop,
+            int cardBottom,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using Mat gray = new();
+            Cv2.CvtColor(warped, gray, ColorConversionCodes.BGR2GRAY);
+            using Mat gradX = new();
+            using Mat gradY = new();
+            Cv2.Sobel(gray, gradX, MatType.CV_32F, 1, 0, 3);
+            Cv2.Sobel(gray, gradY, MatType.CV_32F, 0, 1, 3);
+
+            int searchX = Math.Clamp((cardRight - cardLeft) / 30, 10, 24);
+            int searchY = Math.Clamp((cardBottom - cardTop) / 42, 10, 24);
+
+            float[] top = FindHorizontalBoundary(gradY, cardLeft, cardRight, cardTop, searchY);
+            float[] bottom = FindHorizontalBoundary(gradY, cardLeft, cardRight, cardBottom, searchY);
+            SmoothBoundary(top, 9);
+            SmoothBoundary(bottom, 9);
+
+            double verticalResidual = Math.Max(
+                RootMeanSquareOffset(top, cardTop),
+                RootMeanSquareOffset(bottom, cardBottom));
+
+            Mat vertical = warped.Clone();
+            try
+            {
+                if (verticalResidual >= 1.25)
+                {
+                    using Mat mapX = new(warped.Rows, warped.Cols, MatType.CV_32F);
+                    using Mat mapY = new(warped.Rows, warped.Cols, MatType.CV_32F);
+                    for (int y = 0; y < warped.Rows; y++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        for (int x = 0; x < warped.Cols; x++)
+                        {
+                            mapX.Set(y, x, (float)x);
+                            if (x < cardLeft || x > cardRight)
+                            {
+                                mapY.Set(y, x, (float)y);
+                                continue;
+                            }
+
+                            int index = Math.Clamp(x - cardLeft, 0, top.Length - 1);
+                            float sourceTop = top[index];
+                            float sourceBottom = bottom[index];
+                            if (sourceBottom <= sourceTop + 10)
+                            {
+                                mapY.Set(y, x, (float)y);
+                                continue;
+                            }
+
+                            if (y <= cardTop)
+                            {
+                                mapY.Set(y, x, sourceTop + (y - cardTop));
+                            }
+                            else if (y >= cardBottom)
+                            {
+                                mapY.Set(y, x, sourceBottom + (y - cardBottom));
+                            }
+                            else
+                            {
+                                float t = (y - cardTop) / (float)Math.Max(cardBottom - cardTop, 1);
+                                mapY.Set(y, x, sourceTop + (t * (sourceBottom - sourceTop)));
+                            }
+                        }
+                    }
+
+                    using Mat corrected = new();
+                    Cv2.Remap(
+                        warped,
+                        corrected,
+                        mapX,
+                        mapY,
+                        InterpolationFlags.Linear,
+                        BorderTypes.Constant,
+                        Scalar.Black);
+                    vertical.Dispose();
+                    vertical = corrected.Clone();
+                }
+
+                using Mat grayVertical = new();
+                Cv2.CvtColor(vertical, grayVertical, ColorConversionCodes.BGR2GRAY);
+                using Mat gradXVertical = new();
+                Cv2.Sobel(grayVertical, gradXVertical, MatType.CV_32F, 1, 0, 3);
+
+                float[] left = FindVerticalBoundary(gradXVertical, cardTop, cardBottom, cardLeft, searchX);
+                float[] right = FindVerticalBoundary(gradXVertical, cardTop, cardBottom, cardRight, searchX);
+                SmoothBoundary(left, 9);
+                SmoothBoundary(right, 9);
+
+                double horizontalResidual = Math.Max(
+                    RootMeanSquareOffset(left, cardLeft),
+                    RootMeanSquareOffset(right, cardRight));
+
+                if (horizontalResidual < 1.25)
+                    return vertical.Clone();
+
+                using Mat horizontalMapX = new(vertical.Rows, vertical.Cols, MatType.CV_32F);
+                using Mat horizontalMapY = new(vertical.Rows, vertical.Cols, MatType.CV_32F);
+                for (int y = 0; y < vertical.Rows; y++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    for (int x = 0; x < vertical.Cols; x++)
+                    {
+                        horizontalMapY.Set(y, x, (float)y);
+                        if (y < cardTop || y > cardBottom)
+                        {
+                            horizontalMapX.Set(y, x, (float)x);
+                            continue;
+                        }
+
+                        int index = Math.Clamp(y - cardTop, 0, left.Length - 1);
+                        float sourceLeft = left[index];
+                        float sourceRight = right[index];
+                        if (sourceRight <= sourceLeft + 10)
+                        {
+                            horizontalMapX.Set(y, x, (float)x);
+                            continue;
+                        }
+
+                        if (x <= cardLeft)
+                        {
+                            horizontalMapX.Set(y, x, sourceLeft + (x - cardLeft));
+                        }
+                        else if (x >= cardRight)
+                        {
+                            horizontalMapX.Set(y, x, sourceRight + (x - cardRight));
+                        }
+                        else
+                        {
+                            float t = (x - cardLeft) / (float)Math.Max(cardRight - cardLeft, 1);
+                            horizontalMapX.Set(y, x, sourceLeft + (t * (sourceRight - sourceLeft)));
+                        }
+                    }
+                }
+
+                Mat output = new();
+                Cv2.Remap(
+                    vertical,
+                    output,
+                    horizontalMapX,
+                    horizontalMapY,
+                    InterpolationFlags.Linear,
+                    BorderTypes.Constant,
+                    Scalar.Black);
+                return output;
+            }
+            finally
+            {
+                vertical.Dispose();
+            }
+        }
+
+        private static float[] FindHorizontalBoundary(
+            Mat gradient,
+            int left,
+            int right,
+            int expectedY,
+            int radius)
+        {
+            int count = Math.Max(right - left + 1, 1);
+            float[] result = new float[count];
+            int minY = Math.Max(1, expectedY - radius);
+            int maxY = Math.Min(gradient.Rows - 2, expectedY + radius);
+
+            for (int x = left; x <= right; x++)
+            {
+                int safeX = Math.Clamp(x, 1, gradient.Cols - 2);
+                float bestStrength = float.MinValue;
+                int bestY = expectedY;
+                for (int y = minY; y <= maxY; y++)
+                {
+                    float strength = Math.Abs(gradient.At<float>(y, safeX));
+                    // Prefer an edge close to the expected physical boundary when
+                    // several printed borders are present in the search strip.
+                    strength -= Math.Abs(y - expectedY) * 1.35f;
+                    if (strength > bestStrength)
+                    {
+                        bestStrength = strength;
+                        bestY = y;
+                    }
+                }
+                result[x - left] = bestY;
+            }
+            return result;
+        }
+
+        private static float[] FindVerticalBoundary(
+            Mat gradient,
+            int top,
+            int bottom,
+            int expectedX,
+            int radius)
+        {
+            int count = Math.Max(bottom - top + 1, 1);
+            float[] result = new float[count];
+            int minX = Math.Max(1, expectedX - radius);
+            int maxX = Math.Min(gradient.Cols - 2, expectedX + radius);
+
+            for (int y = top; y <= bottom; y++)
+            {
+                int safeY = Math.Clamp(y, 1, gradient.Rows - 2);
+                float bestStrength = float.MinValue;
+                int bestX = expectedX;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float strength = Math.Abs(gradient.At<float>(safeY, x));
+                    strength -= Math.Abs(x - expectedX) * 1.35f;
+                    if (strength > bestStrength)
+                    {
+                        bestStrength = strength;
+                        bestX = x;
+                    }
+                }
+                result[y - top] = bestX;
+            }
+            return result;
+        }
+
+        private static void SmoothBoundary(float[] values, int window)
+        {
+            if (values.Length < 3)
+                return;
+
+            int radius = Math.Max(1, window / 2);
+            float[] source = (float[])values.Clone();
+            for (int i = 0; i < values.Length; i++)
+            {
+                int from = Math.Max(0, i - radius);
+                int to = Math.Min(values.Length - 1, i + radius);
+                float[] sample = new float[to - from + 1];
+                Array.Copy(source, from, sample, 0, sample.Length);
+                Array.Sort(sample);
+                values[i] = sample[sample.Length / 2];
+            }
+        }
+
+        private static double RootMeanSquareOffset(float[] values, float expected)
+        {
+            if (values.Length == 0)
+                return 0.0;
+
+            double sum = 0.0;
+            for (int i = 0; i < values.Length; i++)
+            {
+                double delta = values[i] - expected;
+                sum += delta * delta;
+            }
+            return Math.Sqrt(sum / values.Length);
         }
 
         /// <summary>

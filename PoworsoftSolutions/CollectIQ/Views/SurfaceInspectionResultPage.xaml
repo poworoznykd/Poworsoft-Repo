@@ -32,13 +32,13 @@
                 <VerticalStackLayout x:Name="TiltViewsContainer" Spacing="12" />
             </VerticalStackLayout>
 
-            <Label x:Name="DefectTitleLabel" Text="Detected defects" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="DefectTitleLabel" Text="Potential physical surface defects" TextColor="#F8FAFC" FontAttributes="Bold" />
             <Label x:Name="DefectDescriptionLabel" Text="The final overlay marks spatially-supported candidates after shape, lighting, and artwork suppression checks. Yellow labels indicate scratch/scuff evidence; orange-red labels indicate dent/impression evidence." TextColor="#64748B" FontSize="10" />
             <Border x:Name="DefectOverlayBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8" Stroke="#39FF14">
                 <Image x:Name="DefectOverlayImage" Aspect="AspectFit" HeightRequest="500" />
             </Border>
 
-            <Label x:Name="HeatmapTitleLabel" Text="Potential surface anomalies" TextColor="#F8FAFC" FontAttributes="Bold" />
+            <Label x:Name="HeatmapTitleLabel" Text="Photometric surface evidence" TextColor="#F8FAFC" FontAttributes="Bold" />
             <Label x:Name="HeatmapDescriptionLabel" Text="Blue is quiet. Cyan/yellow/red show increasingly strong photometric surface evidence after artwork and clipped-light penalties." TextColor="#64748B" FontSize="10" />
             <Border x:Name="HeatmapBorder" Style="{StaticResource AuroraGlassBorder}" Padding="8">
                 <Image x:Name="HeatmapImage" Aspect="AspectFit" HeightRequest="500" />

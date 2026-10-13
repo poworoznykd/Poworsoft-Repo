@@ -12,11 +12,14 @@
 
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
+using CollectIQ.Models;
 using CollectIQ.Services;
 using CollectIQ.Services.Session;
 using CollectIQ.ViewModels;
 using Microsoft.Maui.Storage;
 using System;
+using System.Linq;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -41,10 +44,62 @@ namespace CollectIQ.Views
         }
 
 
-        protected override void OnAppearing()
+        protected override async void OnAppearing()
         {
             base.OnAppearing();
             BindingContext = profileService.Profile;
+            await RefreshPublicProfileStatsAsync();
+        }
+
+        private async Task RefreshPublicProfileStatsAsync()
+        {
+            if (BindingContext is not ProfileViewModel vm)
+                return;
+
+            string accountId = UserSession.CurrentUserAccountId;
+            if (string.IsNullOrWhiteSpace(accountId))
+                return;
+
+            try
+            {
+                // GetAllCardsAsync is already scoped to collections visible to the
+                // current signed-in account. Profile "Cards" is a card count, not
+                // the number of collection containers.
+                List<Card> cards = await App.Database.GetAllCardsAsync();
+                vm.CollectionCount = cards.Count;
+                vm.CollectionValue = cards
+                    .Where(card => card.EstimatedValue.HasValue)
+                    .Sum(card => card.EstimatedValue ?? 0m);
+
+                // Reputation transaction counts come from completed marketplace
+                // transactions when they exist. Until marketplace activity exists,
+                // zero is the correct value rather than stale preference data.
+                var connection = await App.Database.GetConnectionAsync();
+                List<MarketplaceTransaction> transactions = await connection
+                    .Table<MarketplaceTransaction>()
+                    .ToListAsync();
+
+                List<MarketplaceTransaction> completed = transactions
+                    .Where(transaction =>
+                        !transaction.IsDeleted &&
+                        string.Equals(transaction.Status, "Completed", StringComparison.OrdinalIgnoreCase) &&
+                        (string.Equals(transaction.BuyerUserAccountId, accountId, StringComparison.Ordinal) ||
+                         string.Equals(transaction.SellerUserAccountId, accountId, StringComparison.Ordinal)))
+                    .ToList();
+
+                vm.SalesCompleted = completed.Count(transaction =>
+                    string.Equals(transaction.SellerUserAccountId, accountId, StringComparison.Ordinal));
+                vm.PurchasesCompleted = completed.Count(transaction =>
+                    string.Equals(transaction.BuyerUserAccountId, accountId, StringComparison.Ordinal));
+                vm.TradesCompleted = completed
+                    .Select(transaction => transaction.Id)
+                    .Distinct(StringComparer.Ordinal)
+                    .Count();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ProfilePage] Stats refresh failed: {ex}");
+            }
         }
 
         private async void OnBackClicked(object sender, TappedEventArgs e)
