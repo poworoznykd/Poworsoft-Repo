@@ -86,6 +86,9 @@ namespace CollectIQ
                 return new LocalAuthService(database, socialAuthService);
             });
             builder.Services.AddSingleton<IProfileService, ProfileService>();
+            builder.Services.AddSingleton<ISupabaseSessionService, SupabaseSessionService>();
+            builder.Services.AddSingleton<ICloudProfileService, CloudProfileService>();
+            builder.Services.AddSingleton<ICloudCollectionService, CloudCollectionService>();
 
             // App utilities
             builder.Services.AddSingleton<IBrowserService, BrowserService>();

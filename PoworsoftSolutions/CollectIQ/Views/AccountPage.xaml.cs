@@ -1,6 +1,8 @@
+using CollectIQ.Enums;
 using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
+using CollectIQ.Models.Cloud;
 using CollectIQ.Services.Session;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System;
@@ -114,6 +116,140 @@ namespace CollectIQ.Views
                 await Clipboard.SetTextAsync(AccountIdLabel.Text);
             }
         }
+
+        private async void OnTestCloudConnectionClicked(object sender, EventArgs e)
+        {
+            if (profile == null)
+            {
+                CloudStatusLabel.Text = "No signed-in CollectIQ profile is available.";
+                return;
+            }
+
+            ICloudProfileService? cloudProfileService = ServiceHelper.GetService<ICloudProfileService>();
+            if (cloudProfileService == null)
+            {
+                CloudStatusLabel.Text = "Cloud service is not registered.";
+                return;
+            }
+
+            CloudTestButton.IsEnabled = false;
+            CloudTestButton.Text = "Testing…";
+            CloudStatusLabel.Text = "Checking Supabase Auth and the profiles table…";
+
+            try
+            {
+                CloudConnectionResult result = await cloudProfileService.TestConnectionAsync(profile.ProviderUserId);
+
+                if (!result.IsSuccess &&
+                    result.Message.StartsWith("No Supabase session was found", StringComparison.OrdinalIgnoreCase))
+                {
+                    CloudStatusLabel.Text = "Supabase session missing. Reconnecting with Google…";
+
+                    ISocialAuthService? socialAuthService = ServiceHelper.GetService<ISocialAuthService>();
+                    if (socialAuthService == null)
+                    {
+                        CloudStatusLabel.Text = "Supabase session is missing and the Google sign-in service is unavailable.";
+                        return;
+                    }
+
+                    var socialUser = await socialAuthService.SignInAsync(AuthProvider.Google);
+                    if (!socialUser.IsSuccess)
+                    {
+                        CloudStatusLabel.Text = string.IsNullOrWhiteSpace(socialUser.ErrorMessage)
+                            ? "Google reauthentication did not complete."
+                            : socialUser.ErrorMessage;
+                        return;
+                    }
+
+                    profile.ProviderUserId = socialUser.ProviderUserId;
+                    profile.UpdatedUtc = DateTime.UtcNow;
+                    await App.Database.UpsertUserProfileAsync(profile);
+                    UserSession.CurrentUser = profile;
+
+                    result = await cloudProfileService.TestConnectionAsync(profile.ProviderUserId);
+                }
+
+                if (result.IsSuccess &&
+                    !string.IsNullOrWhiteSpace(result.AuthUserId) &&
+                    !string.Equals(profile.ProviderUserId, result.AuthUserId, StringComparison.OrdinalIgnoreCase))
+                {
+                    profile.ProviderUserId = result.AuthUserId;
+                    profile.UpdatedUtc = DateTime.UtcNow;
+                    await App.Database.UpsertUserProfileAsync(profile);
+                    UserSession.CurrentUser = profile;
+                }
+
+                CloudStatusLabel.Text = result.IsSuccess
+                    ? $"Connected ✓  {result.DisplayName}"
+                    : result.Message;
+            }
+            catch (Exception ex)
+            {
+                CloudStatusLabel.Text = $"Cloud test failed: {ex.Message}";
+            }
+            finally
+            {
+                CloudTestButton.Text = "Test Cloud Connection";
+                CloudTestButton.IsEnabled = true;
+            }
+        }
+
+        private async void OnTestCollectionCloudSyncClicked(object sender, EventArgs e)
+        {
+            string accountId = UserSession.CurrentUserAccountId;
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                CloudCollectionStatusLabel.Text = "No signed-in CollectIQ account is available.";
+                return;
+            }
+
+            ICloudCollectionService? cloudCollectionService =
+                ServiceHelper.GetService<ICloudCollectionService>();
+
+            if (cloudCollectionService == null)
+            {
+                CloudCollectionStatusLabel.Text = "Cloud collection service is not registered.";
+                return;
+            }
+
+            CloudCollectionTestButton.IsEnabled = false;
+            CloudCollectionTestButton.Text = "Uploading + verifying…";
+            CloudCollectionStatusLabel.Text = "Selecting one local collection…";
+
+            try
+            {
+                var collections = await App.Database.GetCollectionsForUserAsync(accountId);
+                CardCollection? collection = collections
+                    .OrderByDescending(c => c.IsDefault)
+                    .ThenBy(c => c.CreatedUtc)
+                    .FirstOrDefault();
+
+                if (collection == null)
+                {
+                    CloudCollectionStatusLabel.Text = "No local collection exists for this account.";
+                    return;
+                }
+
+                CloudCollectionStatusLabel.Text =
+                    $"Uploading '{collection.Name}' with local ID {collection.Id}…";
+
+                CloudCollectionSyncResult result =
+                    await cloudCollectionService.UpsertAndVerifyCollectionAsync(collection);
+
+                CloudCollectionStatusLabel.Text = result.Message;
+            }
+            catch (Exception ex)
+            {
+                CloudCollectionStatusLabel.Text =
+                    $"Collection cloud test failed: {ex.Message}";
+            }
+            finally
+            {
+                CloudCollectionTestButton.Text = "Upload + Verify One Collection";
+                CloudCollectionTestButton.IsEnabled = true;
+            }
+        }
+
 
         private async void OnDeveloperDatabaseClicked(object sender, EventArgs e)
         {

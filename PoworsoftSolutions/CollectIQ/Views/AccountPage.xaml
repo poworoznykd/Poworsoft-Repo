@@ -107,6 +107,19 @@
 
                 <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
                     <VerticalStackLayout Spacing="10">
+                        <Label Text="CollectIQ Cloud" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
+                        <Label Text="Read-only connection test using your existing Supabase sign-in session." FontSize="10" TextColor="#94A3B8" />
+                        <Button x:Name="CloudTestButton" Text="Test Cloud Connection" BackgroundColor="#0F172A" TextColor="#38BDF8" CornerRadius="14" HeightRequest="44" Clicked="OnTestCloudConnectionClicked" />
+                        <Label x:Name="CloudStatusLabel" Text="Not tested yet" FontSize="11" TextColor="#94A3B8" />
+                        <BoxView HeightRequest="1" BackgroundColor="#1E293B" Margin="0,4,0,2" />
+                        <Label Text="Controlled collection test" FontSize="10" TextColor="#94A3B8" />
+                        <Button x:Name="CloudCollectionTestButton" Text="Upload + Verify One Collection" BackgroundColor="#0F172A" TextColor="#22C55E" CornerRadius="14" HeightRequest="44" Clicked="OnTestCollectionCloudSyncClicked" />
+                        <Label x:Name="CloudCollectionStatusLabel" Text="No collection uploaded yet" FontSize="11" TextColor="#94A3B8" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource AuroraGlassBorder}" Padding="14">
+                    <VerticalStackLayout Spacing="10">
                         <Label Text="Marketplace Readiness" FontSize="15" FontAttributes="Bold" TextColor="#E2E8F0" />
                         <Label x:Name="ReadinessLabel" Text="Complete your profile to prepare for future buying, selling and trading." FontSize="11" TextColor="#94A3B8" />
                         <ProgressBar x:Name="ReadinessProgress" Progress="0" HeightRequest="8" />
