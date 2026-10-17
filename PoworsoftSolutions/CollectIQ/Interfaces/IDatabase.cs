@@ -56,8 +56,15 @@ namespace CollectIQ.Interfaces
         Task<string> CreatePortableDatabaseExportAsync();
         Task<string> CreateManualDatabaseBackupAsync(string reason = "manual");
         Task<List<SyncQueueItem>> GetPendingSyncItemsAsync(int maximumItems = 100);
+        Task<List<SyncQueueItem>> GetRecentSyncItemsAsync(string userAccountId, int maximumItems = 25);
+        Task ResetFailedSyncItemsForRetryAsync(string userAccountId);
         Task MarkSyncItemSucceededAsync(string syncQueueItemId);
         Task MarkSyncItemFailedAsync(string syncQueueItemId, string errorMessage);
+
+        // Cloud pull operations. These deliberately bypass the local sync outbox
+        // because the incoming rows already originated from Supabase.
+        Task ApplyCloudCollectionsAsync(IReadOnlyCollection<CardCollection> collections);
+        Task ApplyCloudCardsAsync(IReadOnlyCollection<Card> cards);
 
         // Card collection operations
         Task<int> AddCardAsync(Card card);

@@ -35,26 +35,32 @@ namespace CollectIQ.Services
                 return Failed("The local collection does not have an ID.");
             }
 
-            string? accessToken = await sessionService.GetAccessTokenAsync();
+            string? accessToken = await sessionService.GetValidAccessTokenAsync();
             if (string.IsNullOrWhiteSpace(accessToken))
             {
-                return Failed("No Supabase session was found. Test the cloud connection first.");
+                return Failed("The Supabase session could not be restored. Test the cloud connection or sign in with Google again.");
             }
 
-            CloudCollectionSyncResult result = await UpsertAndVerifyWithTokenAsync(collection, accessToken);
+            CloudCollectionSyncResult result =
+                await UpsertAndVerifyWithTokenAsync(collection, accessToken);
 
-            if (result.IsSuccess || !result.Message.StartsWith("AUTH_EXPIRED:", StringComparison.Ordinal))
+            if (result.IsSuccess ||
+                !result.Message.StartsWith("AUTH_EXPIRED:", StringComparison.Ordinal))
             {
                 return result;
             }
 
-            string? refreshedToken = await sessionService.RefreshAccessTokenAsync();
+            string? refreshedToken =
+                await sessionService.RefreshAccessTokenAsync();
+
             if (string.IsNullOrWhiteSpace(refreshedToken))
             {
-                return Failed("The Supabase session expired and could not be refreshed. Test the cloud connection again.");
+                return Failed("The Supabase session expired and could not be refreshed. Sign in with Google again.");
             }
 
-            return await UpsertAndVerifyWithTokenAsync(collection, refreshedToken);
+            return await UpsertAndVerifyWithTokenAsync(
+                collection,
+                refreshedToken);
         }
 
         private async Task<CloudCollectionSyncResult> UpsertAndVerifyWithTokenAsync(

@@ -115,6 +115,19 @@
                         <Label Text="Controlled collection test" FontSize="10" TextColor="#94A3B8" />
                         <Button x:Name="CloudCollectionTestButton" Text="Upload + Verify One Collection" BackgroundColor="#0F172A" TextColor="#22C55E" CornerRadius="14" HeightRequest="44" Clicked="OnTestCollectionCloudSyncClicked" />
                         <Label x:Name="CloudCollectionStatusLabel" Text="No collection uploaded yet" FontSize="11" TextColor="#94A3B8" />
+                        <Button x:Name="CloudCardTestButton" Text="Upload + Verify Cards" BackgroundColor="#0F172A" TextColor="#22C55E" CornerRadius="14" HeightRequest="44" Clicked="OnTestCardCloudSyncClicked" />
+                        <Label x:Name="CloudCardStatusLabel" Text="No cards uploaded yet" FontSize="11" TextColor="#94A3B8" />
+                        <BoxView HeightRequest="1" BackgroundColor="#1E293B" Margin="0,4,0,2" />
+                        <Label Text="Sync diagnostics" FontSize="10" TextColor="#94A3B8" />
+                        <HorizontalStackLayout Spacing="8">
+                            <Button x:Name="SyncNowButton" Text="Sync Now" BackgroundColor="#0F172A" TextColor="#F59E0B" CornerRadius="14" HeightRequest="44" Clicked="OnSyncNowClicked" />
+                            <Button x:Name="RefreshSyncDiagnosticsButton" Text="Refresh" BackgroundColor="#0F172A" TextColor="#38BDF8" CornerRadius="14" HeightRequest="44" Clicked="OnRefreshSyncDiagnosticsClicked" />
+                        </HorizontalStackLayout>
+                        <Button x:Name="ForceFullPullButton" Text="Force Full Cloud Pull" BackgroundColor="#0F172A" TextColor="#A78BFA" CornerRadius="14" HeightRequest="40" Clicked="OnForceFullPullClicked" />
+                        <Label x:Name="SyncSummaryLabel" Text="Sync diagnostics not loaded" FontSize="11" TextColor="#E2E8F0" />
+                        <Label x:Name="PullSyncStatusLabel" Text="Cloud pull has not run yet." FontSize="10" TextColor="#38BDF8" LineBreakMode="WordWrap" />
+                        <Label x:Name="ImageSyncStatusLabel" Text="No automatic card image sync attempted yet." FontSize="10" TextColor="#A78BFA" LineBreakMode="WordWrap" />
+                        <Label x:Name="SyncDetailLabel" Text="" FontSize="10" TextColor="#94A3B8" LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
 

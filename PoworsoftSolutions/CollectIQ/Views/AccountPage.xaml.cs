@@ -63,6 +63,7 @@ namespace CollectIQ.Views
             CollectionValueLabel.Text = $"${value:N0}";
 
             UpdateReadiness();
+            await RefreshSyncDiagnosticsAsync();
         }
 
         private void UpdateReadiness()
@@ -247,6 +248,249 @@ namespace CollectIQ.Views
             {
                 CloudCollectionTestButton.Text = "Upload + Verify One Collection";
                 CloudCollectionTestButton.IsEnabled = true;
+            }
+        }
+
+
+        private async void OnTestCardCloudSyncClicked(object sender, EventArgs e)
+        {
+            string accountId = UserSession.CurrentUserAccountId;
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                CloudCardStatusLabel.Text = "No signed-in CollectIQ account is available.";
+                return;
+            }
+
+            ICloudCardService? cloudCardService =
+                ServiceHelper.GetService<ICloudCardService>();
+
+            if (cloudCardService == null)
+            {
+                CloudCardStatusLabel.Text = "Cloud card service is not registered.";
+                return;
+            }
+
+            CloudCardTestButton.IsEnabled = false;
+            CloudCardTestButton.Text = "Uploading + verifying…";
+            CloudCardStatusLabel.Text = "Selecting the verified local collection…";
+
+            try
+            {
+                var collections =
+                    await App.Database.GetCollectionsForUserAsync(accountId);
+
+                CardCollection? collection = collections
+                    .OrderByDescending(c => c.IsDefault)
+                    .ThenBy(c => c.CreatedUtc)
+                    .FirstOrDefault();
+
+                if (collection == null)
+                {
+                    CloudCardStatusLabel.Text =
+                        "No local collection exists for this account.";
+                    return;
+                }
+
+                List<Card> visibleCards =
+                    await App.Database.GetAllCardsAsync();
+
+                List<Card> cards = visibleCards
+                    .Where(card =>
+                        !card.IsDeleted &&
+                        string.Equals(
+                            card.CollectionId,
+                            collection.Id,
+                            StringComparison.Ordinal))
+                    .ToList();
+
+                if (cards.Count == 0)
+                {
+                    CloudCardStatusLabel.Text =
+                        $"'{collection.Name}' has no local cards to upload.";
+                    return;
+                }
+
+                CloudCardStatusLabel.Text =
+                    $"Uploading {cards.Count} card{(cards.Count == 1 ? string.Empty : "s")} from '{collection.Name}'…";
+
+                CloudCardSyncResult result =
+                    await cloudCardService.UpsertAndVerifyCardsAsync(
+                        collection,
+                        cards);
+
+                CloudCardStatusLabel.Text = result.Message;
+            }
+            catch (Exception ex)
+            {
+                CloudCardStatusLabel.Text =
+                    $"Card cloud test failed: {ex.Message}";
+            }
+            finally
+            {
+                CloudCardTestButton.Text =
+                    "Upload + Verify Cards";
+                CloudCardTestButton.IsEnabled = true;
+            }
+        }
+
+
+        private async void OnSyncNowClicked(object sender, EventArgs e)
+        {
+            string accountId = UserSession.CurrentUserAccountId;
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                SyncSummaryLabel.Text = "No signed-in CollectIQ account is available.";
+                return;
+            }
+
+            ISyncService? syncService = ServiceHelper.GetService<ISyncService>();
+            if (syncService == null)
+            {
+                SyncSummaryLabel.Text = "Sync service is not registered.";
+                return;
+            }
+
+            SyncNowButton.IsEnabled = false;
+            RefreshSyncDiagnosticsButton.IsEnabled = false;
+            SyncSummaryLabel.Text = "Forcing pending/failed queue items to retry now…";
+
+            try
+            {
+                await App.Database.ResetFailedSyncItemsForRetryAsync(accountId);
+                await syncService.SyncAsync();
+                PullSyncStatusLabel.Text = syncService.LastPullSummary;
+                await Task.Delay(500);
+                await RefreshSyncDiagnosticsAsync();
+            }
+            catch (Exception ex)
+            {
+                SyncSummaryLabel.Text = $"Manual sync failed: {ex.Message}";
+            }
+            finally
+            {
+                SyncNowButton.IsEnabled = true;
+                RefreshSyncDiagnosticsButton.IsEnabled = true;
+            }
+        }
+
+        private async void OnRefreshSyncDiagnosticsClicked(object sender, EventArgs e)
+        {
+            await RefreshSyncDiagnosticsAsync();
+        }
+
+        private async void OnForceFullPullClicked(object sender, EventArgs e)
+        {
+            ISyncService? syncService =
+                ServiceHelper.GetService<ISyncService>();
+
+            if (syncService == null)
+            {
+                PullSyncStatusLabel.Text =
+                    "Sync service is not registered.";
+                return;
+            }
+
+            ForceFullPullButton.IsEnabled = false;
+            SyncNowButton.IsEnabled = false;
+            RefreshSyncDiagnosticsButton.IsEnabled = false;
+
+            try
+            {
+                PullSyncStatusLabel.Text =
+                    "Clearing cloud cursor and performing a complete pull…";
+
+                await syncService.ResetPullCursorAsync();
+                await syncService.SyncAsync();
+
+                PullSyncStatusLabel.Text =
+                    syncService.LastPullSummary;
+
+                await RefreshSyncDiagnosticsAsync();
+            }
+            catch (Exception ex)
+            {
+                PullSyncStatusLabel.Text =
+                    $"Full cloud pull failed: {ex.Message}";
+            }
+            finally
+            {
+                ForceFullPullButton.IsEnabled = true;
+                SyncNowButton.IsEnabled = true;
+                RefreshSyncDiagnosticsButton.IsEnabled = true;
+            }
+        }
+
+        private async Task RefreshSyncDiagnosticsAsync()
+        {
+            string accountId = UserSession.CurrentUserAccountId;
+            if (string.IsNullOrWhiteSpace(accountId))
+            {
+                SyncSummaryLabel.Text = "No signed-in CollectIQ account is available.";
+                SyncDetailLabel.Text = string.Empty;
+                return;
+            }
+
+            try
+            {
+                ISyncService? syncService =
+                    ServiceHelper.GetService<ISyncService>();
+
+                if (syncService != null)
+                {
+                    PullSyncStatusLabel.Text =
+                        syncService.LastPullSummary;
+                }
+
+                ICloudCardImageStorageService? imageStorageService =
+                    ServiceHelper.GetService<ICloudCardImageStorageService>();
+
+                if (imageStorageService != null)
+                {
+                    ImageSyncStatusLabel.Text =
+                        imageStorageService.LastOperationSummary;
+                }
+
+                List<SyncQueueItem> items =
+                    await App.Database.GetRecentSyncItemsAsync(accountId, 25);
+
+                int pending = items.Count(item =>
+                    string.Equals(item.Status, "Pending", StringComparison.OrdinalIgnoreCase));
+                int failed = items.Count(item =>
+                    string.Equals(item.Status, "Failed", StringComparison.OrdinalIgnoreCase));
+                int completed = items.Count(item =>
+                    string.Equals(item.Status, "Completed", StringComparison.OrdinalIgnoreCase));
+
+                SyncSummaryLabel.Text =
+                    $"Recent queue: {pending} pending • {failed} failed • {completed} completed";
+
+                if (items.Count == 0)
+                {
+                    SyncDetailLabel.Text =
+                        "No sync queue items exist for this signed-in local account.";
+                    return;
+                }
+
+                IEnumerable<string> lines = items
+                    .Take(10)
+                    .Select(item =>
+                    {
+                        string error = string.IsNullOrWhiteSpace(item.LastError)
+                            ? string.Empty
+                            : $" | error: {item.LastError}";
+
+                        string nextAttempt = item.NextAttemptUtc.HasValue
+                            ? $" | next: {item.NextAttemptUtc.Value.ToLocalTime():g}"
+                            : string.Empty;
+
+                        return $"{item.EntityType} {item.Operation} | {item.Status} | retries {item.RetryCount} | {item.EntityId}{nextAttempt}{error}";
+                    });
+
+                SyncDetailLabel.Text = string.Join(Environment.NewLine, lines);
+            }
+            catch (Exception ex)
+            {
+                SyncSummaryLabel.Text = $"Could not read sync diagnostics: {ex.Message}";
+                SyncDetailLabel.Text = string.Empty;
             }
         }
 

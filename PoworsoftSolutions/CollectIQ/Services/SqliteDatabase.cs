@@ -12,6 +12,7 @@
 */
 
 using System.Diagnostics;
+using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Models;
 using CollectIQ.Services.Session;
@@ -1734,6 +1735,12 @@ namespace CollectIQ.Services
                 UserSession.CurrentUser?.UserAccountId);
 
             await VerifyCardPersistedAndSnapshotAsync(card.Id);
+
+            // The local card is now fully committed and its image paths are final.
+            // Schedule one more non-blocking sync attempt so image upload cannot be
+            // missed if the first queue-triggered attempt raced the save.
+            RequestBackgroundSync();
+
             return result;
         }
 
@@ -1849,6 +1856,12 @@ namespace CollectIQ.Services
                 UserSession.CurrentUser?.UserAccountId);
 
             await VerifyCardPersistedAndSnapshotAsync(card.Id);
+
+            // The local card is now fully committed and its image paths are final.
+            // Schedule one more non-blocking sync attempt so image upload cannot be
+            // missed if the first queue-triggered attempt raced the save.
+            RequestBackgroundSync();
+
             return result;
         }
 
@@ -2094,6 +2107,101 @@ namespace CollectIQ.Services
                 .ToList();
         }
 
+public async Task<List<SyncQueueItem>> GetRecentSyncItemsAsync(
+    string userAccountId,
+    int maximumItems = 25)
+{
+    await InitializeAsync();
+
+    if (string.IsNullOrWhiteSpace(userAccountId))
+    {
+        return new List<SyncQueueItem>();
+    }
+
+    maximumItems = Math.Clamp(maximumItems, 1, 100);
+
+    List<SyncQueueItem> rows = await connection!.Table<SyncQueueItem>()
+        .Where(item =>
+            !item.IsDeleted &&
+            item.UserAccountId == userAccountId)
+        .OrderByDescending(item => item.UpdatedUtc)
+        .ToListAsync();
+
+    return rows.Take(maximumItems).ToList();
+}
+
+public async Task ResetFailedSyncItemsForRetryAsync(string userAccountId)
+{
+    await InitializeAsync();
+
+    if (string.IsNullOrWhiteSpace(userAccountId))
+    {
+        return;
+    }
+
+    List<SyncQueueItem> rows = await connection!.Table<SyncQueueItem>()
+        .Where(item =>
+            !item.IsDeleted &&
+            item.UserAccountId == userAccountId &&
+            (item.Status == SyncStatusFailed ||
+             item.Status == SyncStatusPending))
+        .ToListAsync();
+
+    foreach (SyncQueueItem item in rows)
+    {
+        item.Status = SyncStatusPending;
+        item.NextAttemptUtc = null;
+        item.LastError = string.Empty;
+        item.UpdatedUtc = DateTime.UtcNow;
+        await connection.UpdateAsync(item);
+    }
+}
+
+/// <summary>
+/// Applies collections received from Supabase without creating new local
+/// outbox entries. The caller is responsible for conflict filtering.
+/// </summary>
+public async Task ApplyCloudCollectionsAsync(
+    IReadOnlyCollection<CardCollection> collections)
+{
+    await InitializeAsync();
+
+    if (collections == null || collections.Count == 0)
+    {
+        return;
+    }
+
+    foreach (CardCollection collection in collections)
+    {
+        await connection!.InsertOrReplaceAsync(collection);
+    }
+
+    await CreateDurableDataSnapshotAsync();
+}
+
+/// <summary>
+/// Applies cards received from Supabase without creating new local
+/// outbox entries. Device-local image paths are prepared by the caller
+/// before the rows reach this method.
+/// </summary>
+public async Task ApplyCloudCardsAsync(
+    IReadOnlyCollection<Card> cards)
+{
+    await InitializeAsync();
+
+    if (cards == null || cards.Count == 0)
+    {
+        return;
+    }
+
+    foreach (Card card in cards)
+    {
+        await connection!.InsertOrReplaceAsync(card);
+    }
+
+    await CreateDurableDataSnapshotAsync();
+}
+
         public async Task MarkSyncItemSucceededAsync(string syncQueueItemId)
         {
             await InitializeAsync();
@@ -2195,6 +2303,7 @@ namespace CollectIQ.Services
                     };
 
                     await connection.InsertAsync(pending);
+                    RequestBackgroundSync();
                     return;
                 }
 
@@ -2208,6 +2317,7 @@ namespace CollectIQ.Services
                 pending.UpdatedUtc = DateTime.UtcNow;
 
                 await connection.UpdateAsync(pending);
+                RequestBackgroundSync();
             }
             catch (Exception ex)
             {
@@ -2215,6 +2325,43 @@ namespace CollectIQ.Services
                 // because the future-cloud outbox had a temporary problem.
                 Debug.WriteLine(
                     $"[CollectIQ DB] Sync queue write failed for {entityType}/{entityId}: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Starts a non-blocking cloud push after a local change has safely been
+        /// written to SQLite and queued. If cloud services are unavailable, the
+        /// queued item simply remains pending for a later startup/resume retry.
+        /// </summary>
+        private static void RequestBackgroundSync()
+        {
+            try
+            {
+                ISyncService? syncService = ServiceHelper.GetService<ISyncService>();
+                if (syncService != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // QueueSyncChangeAsync is called before the enclosing
+                            // card/collection save finishes its verification and
+                            // durable snapshot. Give that local transaction a brief
+                            // head start so cloud sync always reads the completed row,
+                            // including its current image paths.
+                            await Task.Delay(350);
+                            await syncService.SyncAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[CollectIQ DB] Background sync trigger failed: {ex}");
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CollectIQ DB] Could not schedule background sync: {ex}");
             }
         }
 

@@ -38,10 +38,22 @@ namespace CollectIQ.Views
         // Current search text (SearchBar).
         private string searchText = string.Empty;
 
+        private const string CollectionHeaderCollapsedPreference =
+            "collection_header_collapsed";
+
+        private bool isCollectionHeaderCollapsed;
+
         public CollectionPage(IDatabase database)
         {
             InitializeComponent();
             this.database = database;
+
+            isCollectionHeaderCollapsed =
+                Preferences.Get(
+                    CollectionHeaderCollapsedPreference,
+                    false);
+
+            ApplyCollectionHeaderState();
         }
 
         protected override async void OnAppearing()
@@ -76,6 +88,60 @@ namespace CollectIQ.Views
                 CardsCollectionView.ItemsSource = new List<Card>();
                 RefreshStats(0m, 0);
                 UpdateActiveFiltersLabel(0, 0);
+            }
+        }
+
+        private void OnToggleCollectionHeaderClicked(
+            object sender,
+            EventArgs e)
+        {
+            isCollectionHeaderCollapsed =
+                !isCollectionHeaderCollapsed;
+
+            Preferences.Set(
+                CollectionHeaderCollapsedPreference,
+                isCollectionHeaderCollapsed);
+
+            ApplyCollectionHeaderState();
+        }
+
+        private void ApplyCollectionHeaderState()
+        {
+            if (CollectionHeaderStats == null ||
+                CollectionHeaderSearch == null ||
+                CollectionHeaderActions == null ||
+                CollectionHeaderToggleButton == null ||
+                CollapsedCollectionSummaryLabel == null)
+            {
+                return;
+            }
+
+            CollectionHeaderStats.IsVisible =
+                !isCollectionHeaderCollapsed;
+
+            CollectionHeaderSearch.IsVisible =
+                !isCollectionHeaderCollapsed;
+
+            CollectionHeaderActions.IsVisible =
+                !isCollectionHeaderCollapsed;
+
+            CollapsedCollectionSummaryLabel.IsVisible =
+                isCollectionHeaderCollapsed;
+
+            CollectionHeaderToggleButton.Text =
+                isCollectionHeaderCollapsed
+                    ? "⌄"
+                    : "⌃";
+
+            if (isCollectionHeaderCollapsed &&
+                FilterPanelBorder != null)
+            {
+                FilterPanelBorder.IsVisible = false;
+
+                if (FilterToggleButton != null)
+                {
+                    FilterToggleButton.Text = "Filter";
+                }
             }
         }
 
@@ -504,6 +570,12 @@ namespace CollectIQ.Views
             if (CollectionValueLabel != null)
             {
                 CollectionValueLabel.Text = $"Est. Total Value: ${totalValue:F2}";
+            }
+
+            if (CollapsedCollectionSummaryLabel != null)
+            {
+                CollapsedCollectionSummaryLabel.Text =
+                    $"{cardCount} Cards · ${totalValue:F2}";
             }
         }
 

@@ -19,12 +19,14 @@ namespace CollectIQ
         public static SqliteDatabase Database { get; private set; } = null!;
 
         private readonly IAuthService authService;
+        private readonly ISyncService syncService;
 
-        public App(SqliteDatabase database, IAuthService authService)
+        public App(SqliteDatabase database, IAuthService authService, ISyncService syncService)
         {
             InitializeComponent();
             Database = database ?? throw new ArgumentNullException(nameof(database));
             this.authService = authService ?? throw new ArgumentNullException(nameof(authService));
+            this.syncService = syncService ?? throw new ArgumentNullException(nameof(syncService));
             MainPage = new LandingPage(this.authService);
         }
 
@@ -40,6 +42,7 @@ namespace CollectIQ
                 if (isSignedIn)
                 {
                     MainPage = new AppShell();
+                    _ = syncService.SyncAsync();
                     return;
                 }
             }
@@ -54,5 +57,13 @@ namespace CollectIQ
                 BarTextColor = Color.FromArgb("#00B4FF")
             };
         }
+        protected override void OnResume()
+        {
+            base.OnResume();
+
+            // Retry any offline changes whenever the app returns to the foreground.
+            _ = syncService.SyncAsync();
+        }
+
     }
 }

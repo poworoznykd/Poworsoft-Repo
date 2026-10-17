@@ -46,15 +46,44 @@
                       RowDefinitions="Auto,Auto,Auto,Auto"
                       RowSpacing="8">
 
-                    <!-- Title -->
-                    <Label Grid.Row="0"
-                           Grid.Column="0"
-                           Text="My Collection"
-                           FontSize="18"
-                           FontAttributes="Bold"
-                           TextColor="#F2F6FF"
-                           LineBreakMode="TailTruncation"
-                           MaxLines="1" />
+                    <!-- Title + collapsed summary -->
+                    <HorizontalStackLayout Grid.Row="0"
+                                           Grid.Column="0"
+                                           Spacing="10"
+                                           VerticalOptions="Center">
+                        <Label Text="My Collection"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#F2F6FF"
+                               LineBreakMode="TailTruncation"
+                               MaxLines="1" />
+
+                        <Label x:Name="CollapsedCollectionSummaryLabel"
+                               Text=""
+                               IsVisible="False"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#7CF9FF"
+                               VerticalOptions="Center"
+                               LineBreakMode="TailTruncation"
+                               MaxLines="1" />
+                    </HorizontalStackLayout>
+
+                    <!-- Collapse / expand header -->
+                    <Button x:Name="CollectionHeaderToggleButton"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Text="⌃"
+                            FontSize="16"
+                            TextColor="#7CF9FF"
+                            BackgroundColor="Transparent"
+                            BorderWidth="0"
+                            HeightRequest="30"
+                            WidthRequest="34"
+                            Padding="0"
+                            HorizontalOptions="End"
+                            VerticalOptions="Center"
+                            Clicked="OnToggleCollectionHeaderClicked" />
 
                     <!-- Keep existing subtitle label (hidden to match reference) -->
                     <Label Grid.Row="0"
@@ -66,7 +95,8 @@
                            IsVisible="False" />
 
                     <!-- Stats row -->
-                    <Grid Grid.Row="1"
+                    <Grid x:Name="CollectionHeaderStats"
+                          Grid.Row="1"
                           Grid.Column="0"
                           ColumnDefinitions="Auto,Auto,*"
                           ColumnSpacing="10"
@@ -98,7 +128,8 @@
                     </Grid>
 
                     <!-- SEARCH + FILTER TOGGLE (compact) -->
-                    <Grid Grid.Row="2"
+                    <Grid x:Name="CollectionHeaderSearch"
+                          Grid.Row="2"
                           Grid.Column="0"
                           RowDefinitions="Auto,Auto,Auto"
                           ColumnDefinitions="*,Auto"
@@ -231,7 +262,8 @@
                     </Grid>
 
                     <!-- Export buttons -->
-                    <HorizontalStackLayout Grid.Row="3"
+                    <HorizontalStackLayout x:Name="CollectionHeaderActions"
+                                           Grid.Row="3"
                                            Grid.Column="0"
                                            Spacing="10"
                                            HorizontalOptions="Start"

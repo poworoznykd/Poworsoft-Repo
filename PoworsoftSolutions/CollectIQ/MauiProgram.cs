@@ -89,6 +89,9 @@ namespace CollectIQ
             builder.Services.AddSingleton<ISupabaseSessionService, SupabaseSessionService>();
             builder.Services.AddSingleton<ICloudProfileService, CloudProfileService>();
             builder.Services.AddSingleton<ICloudCollectionService, CloudCollectionService>();
+            builder.Services.AddSingleton<ICloudCardImageStorageService, CloudCardImageStorageService>();
+            builder.Services.AddSingleton<ICloudCardService, CloudCardService>();
+            builder.Services.AddSingleton<ISyncService, SyncService>();
 
             // App utilities
             builder.Services.AddSingleton<IBrowserService, BrowserService>();

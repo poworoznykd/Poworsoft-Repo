@@ -21,28 +21,14 @@ namespace CollectIQ.Services
 
         public async Task<CloudConnectionResult> TestConnectionAsync(string? expectedProviderUserId = null)
         {
-            string? accessToken = await sessionService.GetAccessTokenAsync();
+            string? accessToken = await sessionService.GetValidAccessTokenAsync();
 
             if (string.IsNullOrWhiteSpace(accessToken))
             {
-                return Failed("No Supabase session was found. Sign in with Google again, then retry.");
+                return Failed("The Supabase session could not be restored. Sign in with Google again.");
             }
 
-            CloudConnectionResult result = await TestWithTokenAsync(accessToken, expectedProviderUserId);
-
-            if (result.IsSuccess || !result.Message.StartsWith("AUTH_EXPIRED:", StringComparison.Ordinal))
-            {
-                return result;
-            }
-
-            string? refreshedToken = await sessionService.RefreshAccessTokenAsync();
-
-            if (string.IsNullOrWhiteSpace(refreshedToken))
-            {
-                return Failed("The Supabase session expired and could not be refreshed. Sign in with Google again.");
-            }
-
-            return await TestWithTokenAsync(refreshedToken, expectedProviderUserId);
+            return await TestWithTokenAsync(accessToken, expectedProviderUserId);
         }
 
         private async Task<CloudConnectionResult> TestWithTokenAsync(
@@ -59,9 +45,10 @@ namespace CollectIQ.Services
             using HttpResponseMessage userResponse = await httpClient.SendAsync(userRequest);
             string userBody = await userResponse.Content.ReadAsStringAsync();
 
-            if (userResponse.StatusCode == HttpStatusCode.Unauthorized)
+            if (userResponse.StatusCode == HttpStatusCode.Unauthorized ||
+                userResponse.StatusCode == HttpStatusCode.Forbidden)
             {
-                return Failed("AUTH_EXPIRED: Supabase access token expired.");
+                return Failed("The Supabase session expired during the connection test. Retry once.");
             }
 
             if (!userResponse.IsSuccessStatusCode)
@@ -92,9 +79,10 @@ namespace CollectIQ.Services
             using HttpResponseMessage profileResponse = await httpClient.SendAsync(profileRequest);
             string profileBody = await profileResponse.Content.ReadAsStringAsync();
 
-            if (profileResponse.StatusCode == HttpStatusCode.Unauthorized)
+            if (profileResponse.StatusCode == HttpStatusCode.Unauthorized ||
+                profileResponse.StatusCode == HttpStatusCode.Forbidden)
             {
-                return Failed("AUTH_EXPIRED: Supabase access token expired.");
+                return Failed("The Supabase session expired during the database test. Retry once.");
             }
 
             if (!profileResponse.IsSuccessStatusCode)

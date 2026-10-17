@@ -9,6 +9,7 @@
 
 using CollectIQ.Domain.Enums;
 using CollectIQ.Enums;
+using CollectIQ.Helpers;
 using CollectIQ.Interfaces;
 using CollectIQ.Views;
 using Microsoft.Maui.Controls;
@@ -189,6 +190,7 @@ namespace CollectIQ.ViewModels.Auth
             }
 
             Message = "Login successful.";
+            RequestSync();
 
             Application.Current.MainPage = new AppShell();
 
@@ -215,6 +217,7 @@ namespace CollectIQ.ViewModels.Auth
                 }
 
                 Message = $"{provider} sign-in successful.";
+                RequestSync();
 
                 Application.Current.MainPage = new AppShell();
 
@@ -254,6 +257,15 @@ namespace CollectIQ.ViewModels.Auth
             {
                 Debug.WriteLine($"[CollectIQ AUTH] ProviderLoginAsync exception: {ex}");
                 Message = ex.Message;
+            }
+        }
+
+        private static void RequestSync()
+        {
+            ISyncService? syncService = ServiceHelper.GetService<ISyncService>();
+            if (syncService != null)
+            {
+                _ = syncService.SyncAsync();
             }
         }
 
